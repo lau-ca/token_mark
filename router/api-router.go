@@ -233,6 +233,8 @@ func SetApiRouter(router *gin.Engine) {
 			channelRoute.POST("/fetch_models", middleware.RootAuth(), controller.FetchModels)
 			channelRoute.POST("/codex/oauth/start", controller.StartCodexOAuth)
 			channelRoute.POST("/codex/oauth/complete", controller.CompleteCodexOAuth)
+			channelRoute.POST("/codex/rt/exchange", controller.ExchangeCodexRefreshToken)
+			channelRoute.POST("/codex/rt/import", controller.ImportCodexRefreshTokens)
 			channelRoute.POST("/:id/codex/oauth/start", controller.StartCodexOAuthForChannel)
 			channelRoute.POST("/:id/codex/oauth/complete", controller.CompleteCodexOAuthForChannel)
 			channelRoute.POST("/:id/codex/refresh", controller.RefreshCodexChannelCredential)
@@ -263,6 +265,11 @@ func SetApiRouter(router *gin.Engine) {
 			tokenRoute.POST("/batch", controller.DeleteTokenBatch)
 			tokenRoute.POST("/batch/keys", middleware.CriticalRateLimit(), middleware.DisableCache(), controller.GetTokenKeysBatch)
 		}
+
+		// 开放接口：创建令牌（归属第一个用户）- HMAC签名验证
+		apiRouter.POST("/token/open", middleware.HMACAuth(), controller.CreateTokenOpen)
+		// 开放接口：根据 key 修改令牌金额 - HMAC签名验证
+		apiRouter.POST("/token/open/amount", middleware.HMACAuth(), controller.UpdateTokenAmountOpen)
 
 		usageRoute := apiRouter.Group("/usage")
 		usageRoute.Use(middleware.CORS(), middleware.CriticalRateLimit())

@@ -1,0 +1,36 @@
+services:
+  new-api-worker:
+    image: calciumion/new-api:latest
+    container_name: new-api-worker
+    restart: always
+    env_file:
+      - ./.env
+    command:
+      - --log-dir
+      - /app/logs
+    ports:
+      # Host port 3001 avoids conflict when master and work run on the same server.
+      # If work is moved to a separate server later, this can be changed to 127.0.0.1:3000:3000.
+      - "127.0.0.1:3001:3000"
+    volumes:
+      - /root/gateway/work/data:/data
+      - /root/gateway/work/logs:/app/logs
+    mem_limit: 6g
+    cpus: 3.50
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:3000/api/status | grep -q '\"success\":true'"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: json-file
+      options:
+        max-size: "100m"
+        max-file: "5"

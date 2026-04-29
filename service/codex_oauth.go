@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -127,8 +126,11 @@ func refreshCodexOAuthToken(
 		return nil, fmt.Errorf("codex oauth refresh failed: status=%d", resp.StatusCode)
 	}
 
-	if strings.TrimSpace(payload.AccessToken) == "" || strings.TrimSpace(payload.RefreshToken) == "" || payload.ExpiresIn <= 0 {
+	if strings.TrimSpace(payload.AccessToken) == "" || payload.ExpiresIn <= 0 {
 		return nil, errors.New("codex oauth refresh response missing fields")
+	}
+	if strings.TrimSpace(payload.RefreshToken) == "" {
+		payload.RefreshToken = rt
 	}
 
 	return &CodexOAuthTokenResult{
@@ -310,7 +312,7 @@ func decodeJWTClaims(token string) (map[string]any, bool) {
 		return nil, false
 	}
 	var claims map[string]any
-	if err := json.Unmarshal(payloadRaw, &claims); err != nil {
+	if err := common.Unmarshal(payloadRaw, &claims); err != nil {
 		return nil, false
 	}
 	return claims, true

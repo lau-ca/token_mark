@@ -96,6 +96,15 @@ func RedisDel(key string) error {
 	return RDB.Del(ctx, key).Err()
 }
 
+// RedisSetNX 设置 key 仅当不存在，返回是否成功
+func RedisSetNX(key string, value string, expiration time.Duration) (bool, error) {
+	if DebugEnabled {
+		SysLog(fmt.Sprintf("Redis SETNX: key=%s, value=%s, expiration=%v", key, value, expiration))
+	}
+	ctx := context.Background()
+	return RDB.SetNX(ctx, key, value, expiration).Result()
+}
+
 func RedisDelKey(key string) error {
 	if DebugEnabled {
 		SysLog(fmt.Sprintf("Redis DEL Key: key=%s", key))

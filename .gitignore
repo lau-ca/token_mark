@@ -32,3 +32,5 @@ data/
 .test
 token_estimator_test.go
 skills-lock.json
+deploy/*.tar
+deploy/artifacts/

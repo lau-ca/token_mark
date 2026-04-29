@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/notifier"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/bytedance/gopkg/util/gopool"
 	"gorm.io/gorm"
@@ -418,10 +419,10 @@ func DecreaseTokenQuota(id int, key string, quota int) (err error) {
 		addNewRecord(BatchUpdateTypeTokenQuota, id, -quota)
 		return nil
 	}
-	return decreaseTokenQuota(id, quota)
+	return decreaseTokenQuota(id, quota, key)
 }
 
-func decreaseTokenQuota(id int, quota int) (err error) {
+func decreaseTokenQuota(id int, quota int, key string) (err error) {
 	err = DB.Model(&Token{}).Where("id = ?", id).Updates(
 		map[string]interface{}{
 			"remain_quota":  gorm.Expr("remain_quota - ?", quota),
@@ -429,7 +430,11 @@ func decreaseTokenQuota(id int, quota int) (err error) {
 			"accessed_time": common.GetTimestamp(),
 		},
 	).Error
-	return err
+	if err != nil {
+		return err
+	}
+	notifier.NotifyTokenQuotaChangeAsync(key, -quota)
+	return nil
 }
 
 // CountUserTokens returns total number of tokens for the given user, used for pagination

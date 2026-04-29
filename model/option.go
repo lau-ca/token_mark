@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/notifier"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -531,6 +532,11 @@ func updateOptionMap(key string, value string) (err error) {
 		common.ChannelDisableThreshold, _ = strconv.ParseFloat(value, 64)
 	case "QuotaPerUnit":
 		common.QuotaPerUnit, _ = strconv.ParseFloat(value, 64)
+	case "QuotaNotifierWebhookURL":
+		notifier.SetTokenQuotaNotifierWebhookURL(value)
+	case "QuotaNotifierTimeoutMs":
+		timeoutMs, _ := strconv.Atoi(value)
+		notifier.SetTokenQuotaNotifierTimeoutMs(timeoutMs)
 	case "SensitiveWords":
 		setting.SensitiveWordsFromString(value)
 	case "AutomaticDisableKeywords":
