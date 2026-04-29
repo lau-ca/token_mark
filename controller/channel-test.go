@@ -57,6 +57,12 @@ func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointTyp
 	return normalized
 }
 
+func shouldForceStreamForChannelTest(channel *model.Channel, endpointType string) bool {
+	return channel != nil &&
+		channel.Type == constant.ChannelTypeCodex &&
+		constant.EndpointType(endpointType) == constant.EndpointTypeOpenAIResponse
+}
+
 func testChannel(channel *model.Channel, testModel string, endpointType string, isStream bool) testResult {
 	tik := time.Now()
 	var unsupportedTestChannelTypes = []int{
@@ -93,6 +99,9 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 	}
 
 	endpointType = normalizeChannelTestEndpoint(channel, testModel, endpointType)
+	if shouldForceStreamForChannelTest(channel, endpointType) {
+		isStream = true
+	}
 
 	requestPath := "/v1/chat/completions"
 

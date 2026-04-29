@@ -58,18 +58,35 @@ const ModelTestModal = ({
   t,
 }) => {
   const hasChannel = Boolean(currentTestChannel);
-  const streamToggleDisabled = [
-    'embeddings',
-    'image-generation',
-    'jina-rerank',
-    'openai-response-compact',
-  ].includes(selectedEndpointType);
+  const isCodexChannel = Number(currentTestChannel?.type) === 57;
+  const codexRequiresStreamTest =
+    isCodexChannel &&
+    (selectedEndpointType === '' || selectedEndpointType === 'openai-response');
+  const streamToggleDisabled =
+    codexRequiresStreamTest ||
+    [
+      'embeddings',
+      'image-generation',
+      'jina-rerank',
+      'openai-response-compact',
+    ].includes(selectedEndpointType);
 
   React.useEffect(() => {
+    if (codexRequiresStreamTest) {
+      if (!isStreamTest) {
+        setIsStreamTest(true);
+      }
+      return;
+    }
     if (streamToggleDisabled && isStreamTest) {
       setIsStreamTest(false);
     }
-  }, [streamToggleDisabled, isStreamTest, setIsStreamTest]);
+  }, [
+    codexRequiresStreamTest,
+    streamToggleDisabled,
+    isStreamTest,
+    setIsStreamTest,
+  ]);
 
   const filteredModels = hasChannel
     ? currentTestChannel.models
@@ -199,7 +216,9 @@ const ModelTestModal = ({
                     theme='light'
                     type='warning'
                     icon={<Settings size={12} />}
-                    onClick={() => window.open('/console/setting?tab=ratio', '_blank')}
+                    onClick={() =>
+                      window.open('/console/setting?tab=ratio', '_blank')
+                    }
                     style={{ width: 'fit-content' }}
                   >
                     {t('前往设置')}
@@ -335,9 +354,13 @@ const ModelTestModal = ({
             closeIcon={null}
             icon={<IconInfoCircle />}
             className='!rounded-lg mb-2'
-            description={t(
-              '说明：本页测试为非流式请求；若渠道仅支持流式返回，可能出现测试失败，请以实际使用为准。',
-            )}
+            description={
+              codexRequiresStreamTest
+                ? t('Codex 渠道的普通 Responses 测试必须使用流式请求。')
+                : t(
+                    '说明：可按渠道能力选择流式或非流式测试；若渠道仅支持流式返回，请开启流式测试。',
+                  )
+            }
           />
 
           {/* 搜索与操作按钮 */}

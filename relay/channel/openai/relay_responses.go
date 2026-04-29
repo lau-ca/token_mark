@@ -78,6 +78,7 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 
 	var usage = &dto.Usage{}
 	var responseTextBuilder strings.Builder
+	responseTerminalSeen := false
 
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 
@@ -91,6 +92,7 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 		sendResponsesStreamData(c, streamResponse, data)
 		switch streamResponse.Type {
 		case "response.completed":
+			responseTerminalSeen = true
 			if streamResponse.Response != nil {
 				if streamResponse.Response.Usage != nil {
 					if streamResponse.Response.Usage.InputTokens != 0 {
@@ -112,6 +114,8 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 					c.Set("image_generation_call_size", streamResponse.Response.GetSize())
 				}
 			}
+		case "response.failed", "response.incomplete", "response.error", "error":
+			responseTerminalSeen = true
 		case "response.output_text.delta":
 			// 处理输出文本
 			responseTextBuilder.WriteString(streamResponse.Delta)
@@ -130,6 +134,10 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 		}
 	})
 
+	if !responseTerminalSeen && (c.Request == nil || c.Request.Context().Err() == nil) {
+		sendResponsesStreamIncompleteFailure(c, info)
+	}
+
 	if usage.CompletionTokens == 0 {
 		// 计算输出文本的 token 数量
 		tempStr := responseTextBuilder.String()
@@ -147,4 +155,33 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
 
 	return usage, nil
+}
+
+func sendResponsesStreamIncompleteFailure(c *gin.Context, info *relaycommon.RelayInfo) {
+	streamStatus := "unknown"
+	if info != nil && info.StreamStatus != nil {
+		streamStatus = info.StreamStatus.Summary()
+	}
+	logger.LogError(c, "responses stream ended before terminal event: "+streamStatus)
+
+	payload := map[string]any{
+		"type": "response.failed",
+		"response": map[string]any{
+			"status": "failed",
+			"error": map[string]any{
+				"message": "Responses stream ended before response.completed",
+				"type":    "upstream_error",
+				"code":    "responses_stream_incomplete",
+				"metadata": map[string]any{
+					"stream_status": streamStatus,
+				},
+			},
+		},
+	}
+	jsonData, err := common.Marshal(payload)
+	if err != nil {
+		logger.LogError(c, "failed to marshal responses stream failed event: "+err.Error())
+		return
+	}
+	helper.ResponseChunkData(c, dto.ResponsesStreamResponse{Type: "response.failed"}, string(jsonData))
 }

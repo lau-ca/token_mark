@@ -97,6 +97,7 @@ func chatCompletionsViaResponses(c *gin.Context, info *relaycommon.RelayInfo, ad
 	if err != nil {
 		return nil, types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 	}
+	forceResponsesStreamForCodexClaude(info, responsesReq)
 	info.AppendRequestConversion(types.RelayFormatOpenAIResponses)
 
 	savedRelayMode := info.RelayMode
@@ -161,4 +162,17 @@ func chatCompletionsViaResponses(c *gin.Context, info *relaycommon.RelayInfo, ad
 		return nil, newApiErr
 	}
 	return usage, nil
+}
+
+func forceResponsesStreamForCodexClaude(info *relaycommon.RelayInfo, req *dto.OpenAIResponsesRequest) {
+	if info == nil || req == nil {
+		return
+	}
+	if info.RelayFormat != types.RelayFormatClaude {
+		return
+	}
+	if info.ChannelType != constant.ChannelTypeCodex {
+		return
+	}
+	req.Stream = common.GetPointer(true)
 }

@@ -5,7 +5,9 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/types"
@@ -68,4 +70,20 @@ func TestBuildTestLogOtherInjectsTieredInfo(t *testing.T) {
 	require.Equal(t, "tiered_expr", other["billing_mode"])
 	require.Equal(t, "base", other["matched_tier"])
 	require.NotEmpty(t, other["expr_b64"])
+}
+
+func TestShouldForceStreamForChannelTestOnlyCodexResponses(t *testing.T) {
+	require.True(t, shouldForceStreamForChannelTest(
+		&model.Channel{Type: constant.ChannelTypeCodex},
+		string(constant.EndpointTypeOpenAIResponse),
+	))
+	require.False(t, shouldForceStreamForChannelTest(
+		&model.Channel{Type: constant.ChannelTypeCodex},
+		string(constant.EndpointTypeOpenAIResponseCompact),
+	))
+	require.False(t, shouldForceStreamForChannelTest(
+		&model.Channel{Type: constant.ChannelTypeOpenAI},
+		string(constant.EndpointTypeOpenAIResponse),
+	))
+	require.False(t, shouldForceStreamForChannelTest(nil, string(constant.EndpointTypeOpenAIResponse)))
 }
