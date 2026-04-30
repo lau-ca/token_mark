@@ -11,6 +11,8 @@ services:
       - ./00-map.conf:/etc/nginx/conf.d/00-map.conf:ro
       - ./admin.conf:/etc/nginx/conf.d/admin.conf:ro
       - ./api.conf:/etc/nginx/conf.d/api.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - /root/gateway/nginx/certbot:/var/www/certbot:ro
       - /root/gateway/nginx/logs:/var/log/nginx
       - /root/gateway/nginx/cache:/var/cache/nginx
     tmpfs:
