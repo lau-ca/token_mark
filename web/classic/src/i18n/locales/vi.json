@@ -4213,6 +4213,10 @@
     "并确认自行承担部署": "confirm that I bear legal responsibility arising from deployment",
     "运营和收费行为产生的法律责任": "operation and charging behavior",
     "，": ", ",
-    "、": ", "
+    "、": ", ",
+    "公开 API 地址": "Dia chi API cong khai",
+    "更新公开 API 地址": "Cap nhat dia chi API cong khai",
+    "仅用于首页展示和复制的 API 基址，留空则使用服务器地址": "Chi dung lam URL API co so hien thi va sao chep tren trang chu. De trong de dung dia chi may chu.",
+    "该服务器地址将影响 OAuth、支付回调、密码重置等外部回调地址，请确保正确配置": "Dia chi may chu nay anh huong den OAuth, callback thanh toan, dat lai mat khau va cac URL callback ben ngoai khac. Hay cau hinh can than."
   }
 }

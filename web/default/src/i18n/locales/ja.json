@@ -4518,6 +4518,8 @@
     "Zero retention": "データ保持なし",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V 4",
-    "Zoom": "ズーム"
+    "Zoom": "ズーム",
+    "Public API Base URL": "公開 API ベース URL",
+    "Only used as the API base URL shown and copied on the home page. Leave empty to use Server Address.": "ホームページで表示・コピーされる API ベース URL のみに使用されます。空欄の場合はサーバー URL を使用します。"
   }
 }

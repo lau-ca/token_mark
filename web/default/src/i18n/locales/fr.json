@@ -4518,6 +4518,8 @@
     "Zero retention": "Aucune rétention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Public API Base URL": "URL de base API publique",
+    "Only used as the API base URL shown and copied on the home page. Leave empty to use Server Address.": "Utilise uniquement comme URL de base API affichee et copiee sur la page d'accueil. Laissez vide pour utiliser l'adresse du serveur."
   }
 }

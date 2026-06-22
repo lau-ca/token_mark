@@ -35,14 +35,12 @@ import {
 import Turnstile from 'react-turnstile';
 import {
   Button,
-  Card,
   Checkbox,
   Divider,
   Form,
   Icon,
   Modal,
 } from '@douyinfe/semi-ui';
-import Title from '@douyinfe/semi-ui/lib/es/typography/title';
 import Text from '@douyinfe/semi-ui/lib/es/typography/text';
 import {
   IconGithubLogo,
@@ -64,6 +62,8 @@ import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
 import { useTranslation } from 'react-i18next';
 import { SiDiscord } from 'react-icons/si';
+import { ArrowRight } from 'lucide-react';
+import AuthPageFrame from './AuthPageFrame';
 
 const RegisterForm = () => {
   let navigate = useNavigate();
@@ -113,6 +113,30 @@ const RegisterForm = () => {
 
   const logo = getLogo();
   const systemName = getSystemName();
+
+  const renderAuthIcon = (icon, backgroundColor) => (
+    <span className='xmodel-auth-provider-icon' style={{ backgroundColor }}>
+      {icon}
+    </span>
+  );
+
+  const shouldUseOriginalOAuthIcon = (iconName) => {
+    const normalizedIconName = String(iconName || '')
+      .trim()
+      .toLowerCase()
+      .replace(/^ri:/, '')
+      .replace(/^react-icons:/, '')
+      .replace(/^si:/, '');
+    return normalizedIconName === 'github' || normalizedIconName === 'google';
+  };
+
+  const renderCustomOAuthIcon = (provider) => {
+    const iconName = provider.icon || '';
+    if (shouldUseOriginalOAuthIcon(iconName)) {
+      return getOAuthProviderIcon(iconName, 20);
+    }
+    return renderAuthIcon(getOAuthProviderIcon(iconName, 16), '#1677FF');
+  };
 
   let affCode = new URLSearchParams(window.location.search).get('aff');
   if (affCode) {
@@ -393,31 +417,20 @@ const RegisterForm = () => {
 
   const renderOAuthOptions = () => {
     return (
-      <div className='flex flex-col items-center'>
-        <div className='w-full max-w-md'>
-          <div className='flex items-center justify-center mb-6 gap-2'>
-            <img src={logo} alt='Logo' className='h-10 rounded-full' />
-            <Title heading={3} className='!text-gray-800'>
-              {systemName}
-            </Title>
-          </div>
-
-          <Card className='border-0 !rounded-2xl overflow-hidden'>
-            <div className='flex justify-center pt-6 pb-2'>
-              <Title heading={3} className='text-gray-800 dark:text-gray-200'>
-                {t('注 册')}
-              </Title>
-            </div>
+      <div className='xmodel-auth-form-shell'>
+        <div className='w-full'>
+          <div className='xmodel-auth-card'>
             <div className='px-2 py-8'>
               <div className='space-y-3'>
                 {status.wechat_login && (
                   <Button
                     theme='outline'
-                    className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
+                    className='w-full h-12 flex items-center justify-center rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors'
                     type='tertiary'
-                    icon={
-                      <Icon svg={<WeChatIcon />} style={{ color: '#07C160' }} />
-                    }
+                    icon={renderAuthIcon(
+                      <Icon svg={<WeChatIcon />} />,
+                      '#07C160',
+                    )}
                     onClick={onWeChatLoginClicked}
                     loading={wechatLoading}
                   >
@@ -428,7 +441,7 @@ const RegisterForm = () => {
                 {status.github_oauth && (
                   <Button
                     theme='outline'
-                    className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
+                    className='w-full h-12 flex items-center justify-center rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors'
                     type='tertiary'
                     icon={<IconGithubLogo size='large' />}
                     onClick={handleGitHubClick}
@@ -442,17 +455,17 @@ const RegisterForm = () => {
                 {status.discord_oauth && (
                   <Button
                     theme='outline'
-                    className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
+                    className='w-full h-12 flex items-center justify-center rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors'
                     type='tertiary'
-                    icon={
+                    icon={renderAuthIcon(
                       <SiDiscord
                         style={{
-                          color: '#5865F2',
-                          width: '20px',
-                          height: '20px',
+                          width: '16px',
+                          height: '16px',
                         }}
-                      />
-                    }
+                      />,
+                      '#5865F2',
+                    )}
                     onClick={handleDiscordClick}
                     loading={discordLoading}
                   >
@@ -463,9 +476,9 @@ const RegisterForm = () => {
                 {status.oidc_enabled && (
                   <Button
                     theme='outline'
-                    className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
+                    className='w-full h-12 flex items-center justify-center rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors'
                     type='tertiary'
-                    icon={<OIDCIcon style={{ color: '#1877F2' }} />}
+                    icon={renderAuthIcon(<OIDCIcon />, '#1877F2')}
                     onClick={handleOIDCClick}
                     loading={oidcLoading}
                   >
@@ -476,17 +489,17 @@ const RegisterForm = () => {
                 {status.linuxdo_oauth && (
                   <Button
                     theme='outline'
-                    className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
+                    className='w-full h-12 flex items-center justify-center rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors'
                     type='tertiary'
-                    icon={
+                    icon={renderAuthIcon(
                       <LinuxDoIcon
                         style={{
-                          color: '#E95420',
-                          width: '20px',
-                          height: '20px',
+                          width: '16px',
+                          height: '16px',
                         }}
-                      />
-                    }
+                      />,
+                      '#E95420',
+                    )}
                     onClick={handleLinuxDOClick}
                     loading={linuxdoLoading}
                   >
@@ -499,9 +512,9 @@ const RegisterForm = () => {
                     <Button
                       key={provider.slug}
                       theme='outline'
-                      className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
+                      className='w-full h-12 flex items-center justify-center rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors'
                       type='tertiary'
-                      icon={getOAuthProviderIcon(provider.icon || '', 20)}
+                      icon={renderCustomOAuthIcon(provider)}
                       onClick={() => handleCustomOAuthClick(provider)}
                       loading={customOAuthLoading[provider.slug]}
                     >
@@ -527,8 +540,8 @@ const RegisterForm = () => {
                 <Button
                   theme='solid'
                   type='primary'
-                  className='w-full h-12 flex items-center justify-center bg-black text-white !rounded-full hover:bg-gray-800 transition-colors'
-                  icon={<IconMail size='large' />}
+                  className='w-full h-12 flex items-center justify-center bg-black text-white rounded-xl hover:bg-gray-800 transition-colors'
+                  icon={renderAuthIcon(<IconMail size='large' />, '#3b82f6')}
                   onClick={handleEmailRegisterClick}
                   loading={emailRegisterLoading}
                 >
@@ -548,7 +561,7 @@ const RegisterForm = () => {
                 </Text>
               </div>
             </div>
-          </Card>
+          </div>
         </div>
       </div>
     );
@@ -556,62 +569,42 @@ const RegisterForm = () => {
 
   const renderEmailRegisterForm = () => {
     return (
-      <div className='flex flex-col items-center'>
-        <div className='w-full max-w-md'>
-          <div className='flex items-center justify-center mb-6 gap-2'>
-            <img src={logo} alt='Logo' className='h-10 rounded-full' />
-            <Title heading={3} className='!text-gray-800'>
-              {systemName}
-            </Title>
-          </div>
-
-          <Card className='border-0 !rounded-2xl overflow-hidden'>
-            <div className='flex justify-center pt-6 pb-2'>
-              <Title heading={3} className='text-gray-800 dark:text-gray-200'>
-                {t('注 册')}
-              </Title>
-            </div>
+      <div className='xmodel-auth-form-shell'>
+        <div className='w-full'>
+          <div className='xmodel-auth-card'>
             <div className='px-2 py-8'>
               <Form className='space-y-3'>
                 <Form.Input
                   field='username'
-                  label={t('用户名')}
                   placeholder={t('请输入用户名')}
                   name='username'
                   onChange={(value) => handleChange('username', value)}
-                  prefix={<IconUser />}
                 />
 
                 <Form.Input
                   field='password'
-                  label={t('密码')}
                   placeholder={t('输入密码，最短 8 位，最长 20 位')}
                   name='password'
                   mode='password'
                   onChange={(value) => handleChange('password', value)}
-                  prefix={<IconLock />}
                 />
 
                 <Form.Input
                   field='password2'
-                  label={t('确认密码')}
                   placeholder={t('确认密码')}
                   name='password2'
                   mode='password'
                   onChange={(value) => handleChange('password2', value)}
-                  prefix={<IconLock />}
                 />
 
                 {showEmailVerification && (
                   <>
                     <Form.Input
                       field='email'
-                      label={t('邮箱')}
                       placeholder={t('输入邮箱地址')}
                       name='email'
                       type='email'
                       onChange={(value) => handleChange('email', value)}
-                      prefix={<IconMail />}
                       suffix={
                         <Button
                           onClick={sendVerificationCode}
@@ -626,13 +619,11 @@ const RegisterForm = () => {
                     />
                     <Form.Input
                       field='verification_code'
-                      label={t('验证码')}
                       placeholder={t('输入验证码')}
                       name='verification_code'
                       onChange={(value) =>
                         handleChange('verification_code', value)
                       }
-                      prefix={<IconKey />}
                     />
                   </>
                 )}
@@ -678,7 +669,7 @@ const RegisterForm = () => {
                 <div className='space-y-2 pt-2'>
                   <Button
                     theme='solid'
-                    className='w-full !rounded-full'
+                    className='w-full rounded-xl'
                     type='primary'
                     htmlType='submit'
                     onClick={handleSubmit}
@@ -688,6 +679,7 @@ const RegisterForm = () => {
                     }
                   >
                     {t('注册')}
+                    <ArrowRight className='xmodel-auth-submit-icon' />
                   </Button>
                 </div>
               </Form>
@@ -702,7 +694,7 @@ const RegisterForm = () => {
                     <Button
                       theme='outline'
                       type='tertiary'
-                      className='w-full !rounded-full'
+                      className='w-full rounded-xl'
                       onClick={handleOtherRegisterOptionsClick}
                       loading={otherRegisterOptionsLoading}
                     >
@@ -724,7 +716,7 @@ const RegisterForm = () => {
                 </Text>
               </div>
             </div>
-          </Card>
+          </div>
         </div>
       </div>
     );
@@ -770,24 +762,15 @@ const RegisterForm = () => {
   };
 
   return (
-    <div className='relative overflow-hidden bg-gray-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8'>
-      {/* 背景模糊晕染球 */}
-      <div
-        className='blur-ball blur-ball-indigo'
-        style={{ top: '-80px', right: '-80px', transform: 'none' }}
-      />
-      <div
-        className='blur-ball blur-ball-teal'
-        style={{ top: '50%', left: '-120px' }}
-      />
-      <div className='w-full max-w-sm mt-[60px]'>
-        {showEmailRegister ||
-        !hasOAuthRegisterOptions
-          ? renderEmailRegisterForm()
-          : renderOAuthOptions()}
-        {renderWeChatLoginModal()}
-
-        {turnstileEnabled && (
+    <AuthPageFrame
+      logo={logo}
+      systemName={systemName}
+      title={t('注册 Xmodel 账号')}
+      subtitle={t(
+        '注册 Xmodel，即刻使用统一 API 调用 GPT、Claude、Gemini、DeepSeek 等主流模型，人民币计费，稳定低延迟，5 分钟接入生产环境。',
+      )}
+      turnstile={
+        turnstileEnabled && (
           <div className='flex justify-center mt-6'>
             <Turnstile
               sitekey={turnstileSiteKey}
@@ -796,9 +779,14 @@ const RegisterForm = () => {
               }}
             />
           </div>
-        )}
-      </div>
-    </div>
+        )
+      }
+    >
+      {showEmailRegister || !hasOAuthRegisterOptions
+        ? renderEmailRegisterForm()
+        : renderOAuthOptions()}
+      {renderWeChatLoginModal()}
+    </AuthPageFrame>
   );
 };
 

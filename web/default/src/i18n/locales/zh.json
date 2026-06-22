@@ -4518,6 +4518,8 @@
     "Zero retention": "零数据保留",
     "Zhipu": "智谱",
     "Zhipu V4": "智谱 V4",
-    "Zoom": "缩放"
+    "Zoom": "缩放",
+    "Public API Base URL": "公开 API 基址",
+    "Only used as the API base URL shown and copied on the home page. Leave empty to use Server Address.": "仅用于首页展示和复制的 API 基址。留空则使用服务器地址。"
   }
 }

@@ -35,10 +35,27 @@ type LogoutRequestConfig = AxiosRequestConfig & {
   skipErrorHandler?: boolean
 }
 
+const SSO_REDIRECT_STORAGE_KEY = 'sso_auth_redirect'
+
+function saveSSORedirect(redirectTo?: string) {
+  if (
+    !redirectTo ||
+    !redirectTo.startsWith('/sso/start') ||
+    typeof window === 'undefined'
+  ) {
+    return
+  }
+  try {
+    window.sessionStorage.setItem(SSO_REDIRECT_STORAGE_KEY, redirectTo)
+  } catch {
+    /* empty */
+  }
+}
+
 /**
  * Hook for managing OAuth login
  */
-export function useOAuthLogin(status: SystemStatus | null) {
+export function useOAuthLogin(status: SystemStatus | null, redirectTo?: string) {
   const { t } = useTranslation()
   const [isLoading, setIsLoading] = useState(false)
   const [githubButtonText, setGithubButtonText] = useState('')
@@ -92,6 +109,7 @@ export function useOAuthLogin(status: SystemStatus | null) {
     }, 20000)
 
     try {
+      saveSSORedirect(redirectTo)
       await resetSession()
       const state = await getOAuthState()
       if (!state) {
@@ -123,6 +141,7 @@ export function useOAuthLogin(status: SystemStatus | null) {
 
     setIsLoading(true)
     try {
+      saveSSORedirect(redirectTo)
       await resetSession()
       const state = await getOAuthState()
       if (!state) {
@@ -144,6 +163,7 @@ export function useOAuthLogin(status: SystemStatus | null) {
 
     setIsLoading(true)
     try {
+      saveSSORedirect(redirectTo)
       await resetSession()
       const state = await getOAuthState()
       if (!state) {
@@ -169,6 +189,7 @@ export function useOAuthLogin(status: SystemStatus | null) {
 
     setIsLoading(true)
     try {
+      saveSSORedirect(redirectTo)
       await resetSession()
       const state = await getOAuthState()
       if (!state) {
@@ -194,6 +215,7 @@ export function useOAuthLogin(status: SystemStatus | null) {
 
     setIsLoading(true)
     try {
+      saveSSORedirect(redirectTo)
       await resetSession()
       const state = await getOAuthState()
       if (!state) {

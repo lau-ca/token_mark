@@ -4518,6 +4518,8 @@
     "Zero retention": "Không lưu dữ liệu",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Public API Base URL": "URL API co so cong khai",
+    "Only used as the API base URL shown and copied on the home page. Leave empty to use Server Address.": "Chi dung lam URL API co so hien thi va sao chep tren trang chu. De trong de dung Dia chi may chu."
   }
 }

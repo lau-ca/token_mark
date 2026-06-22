@@ -27,17 +27,39 @@ const Navigation = ({
   isLoading,
   userState,
   pricingRequireAuth,
+  currentPath,
 }) => {
-  const renderNavLinks = () => {
-    const baseClasses =
-      'flex-shrink-0 flex items-center gap-1 font-semibold rounded-md transition-all duration-200 ease-in-out';
-    const hoverClasses = 'hover:text-semi-color-primary';
-    const spacingClasses = isMobile ? 'p-1' : 'p-2';
+  const isActiveLink = (link) => {
+    if (link.isExternal) return false;
 
-    const commonLinkClasses = `${baseClasses} ${spacingClasses} ${hoverClasses}`;
+    if (link.itemKey === 'home') {
+      return currentPath === '/';
+    }
+    if (link.itemKey === 'console') {
+      return currentPath === '/console' || currentPath.startsWith('/console/');
+    }
+
+    return currentPath === link.to;
+  };
+
+  const renderNavLinks = () => {
+    const baseClasses = `relative transition-colors ${isMobile ? 'p-1' : ''}`;
+    const activeClasses = 'xmodel-headerbar-nav-active font-medium';
+    const inactiveClasses = 'xmodel-headerbar-nav-link';
+
+    const getLinkClasses = (isActive) =>
+      `${baseClasses} ${isActive ? activeClasses : inactiveClasses}`;
 
     return mainNavLinks.map((link) => {
-      const linkContent = <span>{link.text}</span>;
+      const isActive = isActiveLink(link);
+      const linkContent = (
+        <>
+          <span>{link.text}</span>
+          {isActive && (
+            <span className='absolute -bottom-1 left-0 right-0 mx-auto h-0.5 w-6 rounded-full bg-gradient-to-r from-brand-blue to-brand-purple' />
+          )}
+        </>
+      );
 
       if (link.isExternal) {
         return (
@@ -46,7 +68,7 @@ const Navigation = ({
             href={link.externalLink}
             target='_blank'
             rel='noopener noreferrer'
-            className={commonLinkClasses}
+            className={getLinkClasses(isActive)}
           >
             {linkContent}
           </a>
@@ -62,7 +84,11 @@ const Navigation = ({
       }
 
       return (
-        <Link key={link.itemKey} to={targetPath} className={commonLinkClasses}>
+        <Link
+          key={link.itemKey}
+          to={targetPath}
+          className={getLinkClasses(isActive)}
+        >
           {linkContent}
         </Link>
       );
@@ -70,7 +96,7 @@ const Navigation = ({
   };
 
   return (
-    <nav className='flex flex-1 items-center gap-1 lg:gap-2 mx-2 md:mx-4 overflow-x-auto whitespace-nowrap scrollbar-hide'>
+    <nav className='flex flex-1 items-center gap-[2.625rem] ml-6 mr-2 md:ml-8 md:mr-4 overflow-visible whitespace-nowrap text-base'>
       <SkeletonWrapper
         loading={isLoading}
         type='navigation'

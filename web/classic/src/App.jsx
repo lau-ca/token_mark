@@ -45,6 +45,8 @@ import ModelPage from './pages/Model';
 import ModelDeploymentPage from './pages/ModelDeployment';
 import Playground from './pages/Playground';
 import Subscription from './pages/Subscription';
+import Distribution from './pages/Distribution';
+import DistributionWithdrawal from './pages/DistributionWithdrawal';
 import OAuth2Callback from './components/auth/OAuth2Callback';
 import PersonalSetting from './components/settings/PersonalSetting';
 import Setup from './pages/Setup';
@@ -53,6 +55,7 @@ import SetupCheck from './components/layout/SetupCheck';
 const Home = lazy(() => import('./pages/Home'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const About = lazy(() => import('./pages/About'));
+const Gateway = lazy(() => import('./pages/Gateway'));
 const UserAgreement = lazy(() => import('./pages/UserAgreement'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
 
@@ -172,6 +175,14 @@ function App() {
           }
         />
         <Route
+          path='/console/distribution-withdrawal'
+          element={
+            <AdminRoute>
+              <DistributionWithdrawal />
+            </AdminRoute>
+          }
+        />
+        <Route
           path='/user/reset'
           element={
             <Suspense fallback={<Loading></Loading>} key={location.pathname}>
@@ -268,6 +279,14 @@ function App() {
           }
         />
         <Route
+          path='/console/distribution'
+          element={
+            <PrivateRoute>
+              <Distribution />
+            </PrivateRoute>
+          }
+        />
+        <Route
           path='/console/topup'
           element={
             <PrivateRoute>
@@ -332,6 +351,14 @@ function App() {
                 <Pricing />
               </Suspense>
             )
+          }
+        />
+        <Route
+          path='/gateway'
+          element={
+            <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+              <Gateway />
+            </Suspense>
           }
         />
         <Route

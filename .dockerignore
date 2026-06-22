@@ -12,4 +12,5 @@ docs
 /web/default/dist
 /web/classic/node_modules
 /web/classic/dist
+/deploy/artifacts
 !THIRD-PARTY-LICENSES.md

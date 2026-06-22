@@ -43,14 +43,12 @@ import {
 import Turnstile from 'react-turnstile';
 import {
   Button,
-  Card,
   Checkbox,
   Divider,
   Form,
   Icon,
   Modal,
 } from '@douyinfe/semi-ui';
-import Title from '@douyinfe/semi-ui/lib/es/typography/title';
 import Text from '@douyinfe/semi-ui/lib/es/typography/text';
 import TelegramLoginButton from 'react-telegram-login';
 
@@ -66,6 +64,8 @@ import LinuxDoIcon from '../common/logo/LinuxDoIcon';
 import TwoFAVerification from './TwoFAVerification';
 import { useTranslation } from 'react-i18next';
 import { SiDiscord } from 'react-icons/si';
+import { ArrowRight } from 'lucide-react';
+import AuthPageFrame from './AuthPageFrame';
 
 const LoginForm = () => {
   let navigate = useNavigate();
@@ -116,6 +116,30 @@ const LoginForm = () => {
   const logo = getLogo();
   const systemName = getSystemName();
 
+  const renderAuthIcon = (icon, backgroundColor) => (
+    <span className='xmodel-auth-provider-icon' style={{ backgroundColor }}>
+      {icon}
+    </span>
+  );
+
+  const shouldUseOriginalOAuthIcon = (iconName) => {
+    const normalizedIconName = String(iconName || '')
+      .trim()
+      .toLowerCase()
+      .replace(/^ri:/, '')
+      .replace(/^react-icons:/, '')
+      .replace(/^si:/, '');
+    return normalizedIconName === 'github' || normalizedIconName === 'google';
+  };
+
+  const renderCustomOAuthIcon = (provider) => {
+    const iconName = provider.icon || '';
+    if (shouldUseOriginalOAuthIcon(iconName)) {
+      return getOAuthProviderIcon(iconName, 20);
+    }
+    return renderAuthIcon(getOAuthProviderIcon(iconName, 16), '#1677FF');
+  };
+
   let affCode = new URLSearchParams(window.location.search).get('aff');
   if (affCode) {
     localStorage.setItem('aff', affCode);
@@ -142,6 +166,18 @@ const LoginForm = () => {
       status.telegram_oauth ||
       hasCustomOAuthProviders,
   );
+  const getSsoRedirect = () => {
+    const redirect = searchParams.get('redirect');
+    return redirect?.startsWith('/sso/start') ? redirect : null;
+  };
+  const navigateAfterLogin = () => {
+    const ssoRedirect = getSsoRedirect();
+    if (ssoRedirect) {
+      window.location.replace(ssoRedirect);
+      return;
+    }
+    navigate('/console');
+  };
 
   useEffect(() => {
     if (status?.turnstile_check) {
@@ -255,7 +291,7 @@ const LoginForm = () => {
               centered: true,
             });
           }
-          navigate('/console');
+          navigateAfterLogin();
         } else {
           showError(message);
         }
@@ -456,7 +492,7 @@ const LoginForm = () => {
         setUserData(finish.data);
         updateAPI();
         showSuccess('登录成功！');
-        navigate('/console');
+        navigateAfterLogin();
       } else {
         showError(finish.message || 'Passkey 登录失败，请重试');
       }
@@ -491,7 +527,7 @@ const LoginForm = () => {
     setUserData(data);
     updateAPI();
     showSuccess('登录成功！');
-    navigate('/console');
+    navigateAfterLogin();
   };
 
   // 返回登录页面
@@ -502,31 +538,20 @@ const LoginForm = () => {
 
   const renderOAuthOptions = () => {
     return (
-      <div className='flex flex-col items-center'>
-        <div className='w-full max-w-md'>
-          <div className='flex items-center justify-center mb-6 gap-2'>
-            <img src={logo} alt='Logo' className='h-10 rounded-full' />
-            <Title heading={3} className='!text-gray-800'>
-              {systemName}
-            </Title>
-          </div>
-
-          <Card className='border-0 !rounded-2xl overflow-hidden'>
-            <div className='flex justify-center pt-6 pb-2'>
-              <Title heading={3} className='text-gray-800 dark:text-gray-200'>
-                {t('登 录')}
-              </Title>
-            </div>
+      <div className='xmodel-auth-form-shell'>
+        <div className='w-full'>
+          <div className='xmodel-auth-card'>
             <div className='px-2 py-8'>
               <div className='space-y-3'>
                 {status.wechat_login && (
                   <Button
                     theme='outline'
-                    className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
+                    className='w-full h-12 flex items-center justify-center rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors'
                     type='tertiary'
-                    icon={
-                      <Icon svg={<WeChatIcon />} style={{ color: '#07C160' }} />
-                    }
+                    icon={renderAuthIcon(
+                      <Icon svg={<WeChatIcon />} />,
+                      '#07C160',
+                    )}
                     onClick={onWeChatLoginClicked}
                     loading={wechatLoading}
                   >
@@ -537,7 +562,7 @@ const LoginForm = () => {
                 {status.github_oauth && (
                   <Button
                     theme='outline'
-                    className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
+                    className='w-full h-12 flex items-center justify-center rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors'
                     type='tertiary'
                     icon={<IconGithubLogo size='large' />}
                     onClick={handleGitHubClick}
@@ -551,17 +576,17 @@ const LoginForm = () => {
                 {status.discord_oauth && (
                   <Button
                     theme='outline'
-                    className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
+                    className='w-full h-12 flex items-center justify-center rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors'
                     type='tertiary'
-                    icon={
+                    icon={renderAuthIcon(
                       <SiDiscord
                         style={{
-                          color: '#5865F2',
-                          width: '20px',
-                          height: '20px',
+                          width: '16px',
+                          height: '16px',
                         }}
-                      />
-                    }
+                      />,
+                      '#5865F2',
+                    )}
                     onClick={handleDiscordClick}
                     loading={discordLoading}
                   >
@@ -572,9 +597,9 @@ const LoginForm = () => {
                 {status.oidc_enabled && (
                   <Button
                     theme='outline'
-                    className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
+                    className='w-full h-12 flex items-center justify-center rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors'
                     type='tertiary'
-                    icon={<OIDCIcon style={{ color: '#1877F2' }} />}
+                    icon={renderAuthIcon(<OIDCIcon />, '#1877F2')}
                     onClick={handleOIDCClick}
                     loading={oidcLoading}
                   >
@@ -585,17 +610,17 @@ const LoginForm = () => {
                 {status.linuxdo_oauth && (
                   <Button
                     theme='outline'
-                    className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
+                    className='w-full h-12 flex items-center justify-center rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors'
                     type='tertiary'
-                    icon={
+                    icon={renderAuthIcon(
                       <LinuxDoIcon
                         style={{
-                          color: '#E95420',
-                          width: '20px',
-                          height: '20px',
+                          width: '16px',
+                          height: '16px',
                         }}
-                      />
-                    }
+                      />,
+                      '#E95420',
+                    )}
                     onClick={handleLinuxDOClick}
                     loading={linuxdoLoading}
                   >
@@ -608,9 +633,9 @@ const LoginForm = () => {
                     <Button
                       key={provider.slug}
                       theme='outline'
-                      className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
+                      className='w-full h-12 flex items-center justify-center rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors'
                       type='tertiary'
-                      icon={getOAuthProviderIcon(provider.icon || '', 20)}
+                      icon={renderCustomOAuthIcon(provider)}
                       onClick={() => handleCustomOAuthClick(provider)}
                       loading={customOAuthLoading[provider.slug]}
                     >
@@ -632,9 +657,9 @@ const LoginForm = () => {
                 {status.passkey_login && passkeySupported && (
                   <Button
                     theme='outline'
-                    className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
+                    className='w-full h-12 flex items-center justify-center rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors'
                     type='tertiary'
-                    icon={<IconKey size='large' />}
+                    icon={renderAuthIcon(<IconKey size='large' />, '#3b82f6')}
                     onClick={handlePasskeyLogin}
                     loading={passkeyLoading}
                   >
@@ -649,8 +674,8 @@ const LoginForm = () => {
                 <Button
                   theme='solid'
                   type='primary'
-                  className='w-full h-12 flex items-center justify-center bg-black text-white !rounded-full hover:bg-gray-800 transition-colors'
-                  icon={<IconMail size='large' />}
+                  className='w-full h-12 flex items-center justify-center bg-black text-white rounded-xl hover:bg-gray-800 transition-colors'
+                  icon={renderAuthIcon(<IconMail size='large' />, '#3b82f6')}
                   onClick={handleEmailLoginClick}
                   loading={emailLoginLoading}
                 >
@@ -710,7 +735,7 @@ const LoginForm = () => {
                 </div>
               )}
             </div>
-          </Card>
+          </div>
         </div>
       </div>
     );
@@ -718,26 +743,16 @@ const LoginForm = () => {
 
   const renderEmailLoginForm = () => {
     return (
-      <div className='flex flex-col items-center'>
-        <div className='w-full max-w-md'>
-          <div className='flex items-center justify-center mb-6 gap-2'>
-            <img src={logo} alt='Logo' className='h-10 rounded-full' />
-            <Title heading={3}>{systemName}</Title>
-          </div>
-
-          <Card className='border-0 !rounded-2xl overflow-hidden'>
-            <div className='flex justify-center pt-6 pb-2'>
-              <Title heading={3} className='text-gray-800 dark:text-gray-200'>
-                {t('登 录')}
-              </Title>
-            </div>
+      <div className='xmodel-auth-form-shell'>
+        <div className='w-full'>
+          <div className='xmodel-auth-card'>
             <div className='px-2 py-8'>
               {status.passkey_login && passkeySupported && (
                 <Button
                   theme='outline'
                   type='tertiary'
-                  className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors mb-4'
-                  icon={<IconKey size='large' />}
+                  className='w-full h-12 flex items-center justify-center rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors mb-4'
+                  icon={renderAuthIcon(<IconKey size='large' />, '#3b82f6')}
                   onClick={handlePasskeyLogin}
                   loading={passkeyLoading}
                 >
@@ -747,21 +762,17 @@ const LoginForm = () => {
               <Form className='space-y-3'>
                 <Form.Input
                   field='username'
-                  label={t('用户名或邮箱')}
                   placeholder={t('请输入您的用户名或邮箱地址')}
                   name='username'
                   onChange={(value) => handleChange('username', value)}
-                  prefix={<IconMail />}
                 />
 
                 <Form.Input
                   field='password'
-                  label={t('密码')}
                   placeholder={t('请输入您的密码')}
                   name='password'
                   mode='password'
                   onChange={(value) => handleChange('password', value)}
-                  prefix={<IconLock />}
                 />
 
                 {(hasUserAgreement || hasPrivacyPolicy) && (
@@ -805,7 +816,7 @@ const LoginForm = () => {
                 <div className='space-y-2 pt-2'>
                   <Button
                     theme='solid'
-                    className='w-full !rounded-full'
+                    className='w-full rounded-xl'
                     type='primary'
                     htmlType='submit'
                     onClick={handleSubmit}
@@ -814,13 +825,14 @@ const LoginForm = () => {
                       (hasUserAgreement || hasPrivacyPolicy) && !agreedToTerms
                     }
                   >
-                    {t('继续')}
+                    {t('登录')}
+                    <ArrowRight className='xmodel-auth-submit-icon' />
                   </Button>
 
                   <Button
                     theme='borderless'
                     type='tertiary'
-                    className='w-full !rounded-full'
+                    className='w-full rounded-xl'
                     onClick={handleResetPasswordClick}
                     loading={resetPasswordLoading}
                   >
@@ -839,7 +851,7 @@ const LoginForm = () => {
                     <Button
                       theme='outline'
                       type='tertiary'
-                      className='w-full !rounded-full'
+                      className='w-full rounded-xl'
                       onClick={handleOtherLoginOptionsClick}
                       loading={otherLoginOptionsLoading}
                     >
@@ -863,7 +875,7 @@ const LoginForm = () => {
                 </div>
               )}
             </div>
-          </Card>
+          </div>
         </div>
       </div>
     );
@@ -947,25 +959,15 @@ const LoginForm = () => {
   };
 
   return (
-    <div className='relative overflow-hidden bg-gray-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8'>
-      {/* 背景模糊晕染球 */}
-      <div
-        className='blur-ball blur-ball-indigo'
-        style={{ top: '-80px', right: '-80px', transform: 'none' }}
-      />
-      <div
-        className='blur-ball blur-ball-teal'
-        style={{ top: '50%', left: '-120px' }}
-      />
-      <div className='w-full max-w-sm mt-[60px]'>
-        {showEmailLogin ||
-        !hasOAuthLoginOptions
-          ? renderEmailLoginForm()
-          : renderOAuthOptions()}
-        {renderWeChatLoginModal()}
-        {render2FAModal()}
-
-        {turnstileEnabled && (
+    <AuthPageFrame
+      logo={logo}
+      systemName={systemName}
+      title={t('登录 Xmodel 账号')}
+      subtitle={t(
+        '登录 Xmodel，即刻使用统一 API 调用 GPT、Claude、Gemini、DeepSeek 等主流模型，人民币计费，稳定低延迟，5 分钟接入生产环境。',
+      )}
+      turnstile={
+        turnstileEnabled && (
           <div className='flex justify-center mt-6'>
             <Turnstile
               sitekey={turnstileSiteKey}
@@ -974,9 +976,15 @@ const LoginForm = () => {
               }}
             />
           </div>
-        )}
-      </div>
-    </div>
+        )
+      }
+    >
+      {showEmailLogin || !hasOAuthLoginOptions
+        ? renderEmailLoginForm()
+        : renderOAuthOptions()}
+      {renderWeChatLoginModal()}
+      {render2FAModal()}
+    </AuthPageFrame>
   );
 };
 

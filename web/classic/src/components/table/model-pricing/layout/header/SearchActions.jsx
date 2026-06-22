@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { memo, useCallback } from 'react';
 import { Input, Button, Switch, Select, Divider } from '@douyinfe/semi-ui';
-import { IconSearch, IconCopy, IconFilter } from '@douyinfe/semi-icons';
+import { IconSearch, IconCopy } from '@douyinfe/semi-icons';
 
 const SearchActions = memo(
   ({
@@ -30,16 +30,11 @@ const SearchActions = memo(
     handleCompositionEnd,
     isMobile = false,
     searchValue = '',
-    setShowFilterModal,
     showWithRecharge,
     setShowWithRecharge,
     currency,
     setCurrency,
     siteDisplayType,
-    showRatio,
-    setShowRatio,
-    viewMode,
-    setViewMode,
     tokenUnit,
     setTokenUnit,
     t,
@@ -51,14 +46,6 @@ const SearchActions = memo(
         copyText(selectedRowKeys);
       }
     }, [copyText, selectedRowKeys]);
-
-    const handleFilterClick = useCallback(() => {
-      setShowFilterModal?.(true);
-    }, [setShowFilterModal]);
-
-    const handleViewModeToggle = useCallback(() => {
-      setViewMode?.(viewMode === 'table' ? 'card' : 'table');
-    }, [viewMode, setViewMode]);
 
     const handleTokenUnitToggle = useCallback(() => {
       setTokenUnit?.(tokenUnit === 'K' ? 'M' : 'K');
@@ -80,11 +67,11 @@ const SearchActions = memo(
 
         <Button
           theme='outline'
-          type='primary'
+          type='tertiary'
           icon={<IconCopy />}
           onClick={handleCopyClick}
           disabled={selectedRowKeys.length === 0}
-          className='!bg-blue-500 hover:!bg-blue-600 !text-white disabled:!bg-gray-300 disabled:!text-gray-500'
+          className='pricing-market-copy-button'
         >
           {t('复制')}
         </Button>
@@ -117,21 +104,6 @@ const SearchActions = memo(
               />
             )}
 
-            {/* 显示倍率开关 */}
-            <div className='flex items-center gap-2'>
-              <span className='text-sm text-gray-600'>{t('倍率')}</span>
-              <Switch checked={showRatio} onChange={setShowRatio} />
-            </div>
-
-            {/* 视图模式切换按钮 */}
-            <Button
-              theme={viewMode === 'table' ? 'solid' : 'outline'}
-              type={viewMode === 'table' ? 'primary' : 'tertiary'}
-              onClick={handleViewModeToggle}
-            >
-              {t('表格视图')}
-            </Button>
-
             {/* Token单位切换按钮 */}
             <Button
               theme={tokenUnit === 'K' ? 'solid' : 'outline'}
@@ -141,17 +113,6 @@ const SearchActions = memo(
               {tokenUnit}
             </Button>
           </>
-        )}
-
-        {isMobile && (
-          <Button
-            theme='outline'
-            type='tertiary'
-            icon={<IconFilter />}
-            onClick={handleFilterClick}
-          >
-            {t('筛选')}
-          </Button>
         )}
       </div>
     );

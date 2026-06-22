@@ -18,9 +18,23 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 export default {
+  darkMode: ['class'],
   content: ['./index.html', './src/**/*.{js,jsx,ts,tsx}'],
   theme: {
     colors: {
+      transparent: 'transparent',
+      current: 'currentColor',
+      black: '#000',
+      white: '#fff',
+      red: {
+        400: '#f87171',
+      },
+      yellow: {
+        400: '#facc15',
+      },
+      green: {
+        400: '#4ade80',
+      },
       'semi-color-white': 'var(--semi-color-white)',
       'semi-color-black': 'var(--semi-color-black)',
       'semi-color-primary': 'var(--semi-color-primary)',
@@ -132,6 +146,38 @@ export default {
       'semi-color-data-17': 'var(--semi-color-data-17)',
       'semi-color-data-18': 'var(--semi-color-data-18)',
       'semi-color-data-19': 'var(--semi-color-data-19)',
+      background: 'hsl(var(--background))',
+      foreground: 'hsl(var(--foreground))',
+      border: 'hsl(var(--border))',
+      input: 'hsl(var(--border))',
+      primary: {
+        DEFAULT: 'hsl(var(--foreground))',
+        foreground: 'hsl(var(--background))',
+      },
+      destructive: {
+        DEFAULT: 'hsl(var(--destructive))',
+        foreground: 'hsl(var(--destructive-foreground))',
+      },
+      accent: {
+        DEFAULT: 'hsl(var(--border) / 0.55)',
+        foreground: 'hsl(var(--foreground))',
+      },
+      card: {
+        DEFAULT: 'hsl(var(--card))',
+        foreground: 'hsl(var(--foreground))',
+      },
+      muted: {
+        DEFAULT: 'hsl(var(--border) / 0.55)',
+        foreground: 'var(--semi-color-text-2)',
+      },
+      brand: {
+        blue: 'hsl(217 91% 60%)',
+        'blue-glow': 'hsl(213 94% 68%)',
+        purple: 'hsl(262 83% 65%)',
+        cyan: 'hsl(188 94% 55%)',
+        emerald: 'hsl(158 64% 52%)',
+        amber: 'hsl(38 92% 60%)',
+      },
     },
     extend: {
       borderRadius: {

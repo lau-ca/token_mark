@@ -42,6 +42,7 @@ export const DEFAULT_ADMIN_CONFIG = {
   personal: {
     enabled: true,
     topup: true,
+    distribution: true,
     personal: true,
   },
   admin: {
@@ -51,6 +52,7 @@ export const DEFAULT_ADMIN_CONFIG = {
     deployment: true,
     redemption: true,
     user: true,
+    distributionWithdrawal: true,
     subscription: true,
     setting: true,
   },

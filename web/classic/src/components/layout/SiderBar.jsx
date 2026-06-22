@@ -36,7 +36,9 @@ const routerMap = {
   token: '/console/token',
   redemption: '/console/redemption',
   topup: '/console/topup',
+  distribution: '/console/distribution',
   user: '/console/user',
+  distributionWithdrawal: '/console/distribution-withdrawal',
   subscription: '/console/subscription',
   log: '/console/log',
   midjourney: '/console/midjourney',
@@ -130,6 +132,11 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         to: '/topup',
       },
       {
+        text: t('分销管理'),
+        itemKey: 'distribution',
+        to: '/distribution',
+      },
+      {
         text: t('个人设置'),
         itemKey: 'personal',
         to: '/personal',
@@ -181,6 +188,12 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         text: t('用户管理'),
         itemKey: 'user',
         to: '/user',
+        className: isAdmin() ? '' : 'tableHiddle',
+      },
+      {
+        text: t('分销提现'),
+        itemKey: 'distributionWithdrawal',
+        to: '/distribution-withdrawal',
         className: isAdmin() ? '' : 'tableHiddle',
       },
       {

@@ -30,8 +30,6 @@ import { useSidebarCollapsed } from '../../hooks/common/useSidebarCollapsed';
 import { useTranslation } from 'react-i18next';
 import {
   API,
-  getLogo,
-  getSystemName,
   showError,
   setStatusData,
 } from '../../helpers';
@@ -40,6 +38,7 @@ import { StatusContext } from '../../context/Status';
 import { useLocation } from 'react-router-dom';
 import { normalizeLanguage } from '../../i18n/language';
 const { Sider, Content, Header } = Layout;
+const BROWSER_TITLE = 'Xmodel';
 
 const PageLayout = () => {
   const [userState, userDispatch] = useContext(UserContext);
@@ -104,17 +103,7 @@ const PageLayout = () => {
   useEffect(() => {
     loadUser();
     loadStatus().catch(console.error);
-    let systemName = getSystemName();
-    if (systemName) {
-      document.title = systemName;
-    }
-    let logo = getLogo();
-    if (logo) {
-      let linkElement = document.querySelector("link[rel~='icon']");
-      if (linkElement) {
-        linkElement.href = logo;
-      }
-    }
+    document.title = BROWSER_TITLE;
   }, []);
 
   useEffect(() => {

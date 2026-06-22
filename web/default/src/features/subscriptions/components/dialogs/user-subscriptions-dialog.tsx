@@ -291,7 +291,8 @@ export function UserSubscriptionsDialog(props: Props) {
                           <TableCell>
                             <div>
                               <div className='font-medium'>
-                                {planTitleMap.get(sub.plan_id) ||
+                                {record.plan?.title ||
+                                  planTitleMap.get(sub.plan_id) ||
                                   `#${sub.plan_id}`}
                               </div>
                               <div className='text-muted-foreground text-sm'>

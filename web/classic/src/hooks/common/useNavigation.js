@@ -26,12 +26,16 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
       home: true,
       console: true,
       pricing: true,
+      gateway: true,
       docs: true,
       about: true,
     };
 
     // 使用传入的配置或默认配置
-    const modules = headerNavModules || defaultModules;
+    const modules = {
+      ...defaultModules,
+      ...headerNavModules,
+    };
 
     const allLinks = [
       {
@@ -49,6 +53,11 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
         itemKey: 'pricing',
         to: '/pricing',
       },
+      {
+        text: t('平台能力'),
+        itemKey: 'gateway',
+        to: '/gateway',
+      },
       ...(docsLink
         ? [
             {
@@ -60,7 +69,7 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
           ]
         : []),
       {
-        text: t('关于'),
+        text: t('关于我们'),
         itemKey: 'about',
         to: '/about',
       },

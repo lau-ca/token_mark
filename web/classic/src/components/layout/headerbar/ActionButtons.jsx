@@ -21,7 +21,8 @@ import React from 'react';
 import NewYearButton from './NewYearButton';
 import NotificationButton from './NotificationButton';
 import ThemeToggle from './ThemeToggle';
-import LanguageSelector from './LanguageSelector';
+// Temporarily hidden from the top menu. Keep the component for later recovery.
+// import LanguageSelector from './LanguageSelector';
 import UserArea from './UserArea';
 
 const ActionButtons = ({
@@ -52,11 +53,13 @@ const ActionButtons = ({
 
       <ThemeToggle theme={theme} onThemeToggle={onThemeToggle} t={t} />
 
+      {/* 国际化切换入口暂时隐藏，后续如需多语言菜单可恢复此组件。
       <LanguageSelector
         currentLang={currentLang}
         onLanguageChange={onLanguageChange}
         t={t}
       />
+      */}
 
       <UserArea
         userState={userState}

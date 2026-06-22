@@ -177,13 +177,19 @@ func main() {
 	middleware.SetUpLogger(server)
 	// Initialize session store
 	store := cookie.NewStore([]byte(common.SessionSecret))
-	store.Options(sessions.Options{
+	sessionOptions := sessions.Options{
 		Path:     "/",
 		MaxAge:   2592000, // 30 days
 		HttpOnly: true,
 		Secure:   false,
 		SameSite: http.SameSiteStrictMode,
-	})
+	}
+	if domain := strings.TrimSpace(os.Getenv("SESSION_COOKIE_DOMAIN")); domain != "" {
+		sessionOptions.Domain = domain
+		sessionOptions.SameSite = http.SameSiteLaxMode
+		sessionOptions.Secure = true
+	}
+	store.Options(sessionOptions)
 	server.Use(sessions.Sessions("session", store))
 
 	InjectUmamiAnalytics()

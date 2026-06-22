@@ -3605,6 +3605,8 @@
     "页面未找到，请检查您的浏览器地址是否正确": "Page not found, please check if your browser address is correct",
     "页面渲染出错，请刷新页面重试": "An error occurred while rendering the page. Please refresh and try again.",
     "顶栏管理": "Header Management",
+    "平台能力": "Platform Capabilities",
+    "API 网关能力与平台特性展示": "API gateway capabilities and platform feature showcase",
     "项": "items",
     "项目": "Project",
     "项目内容": "Project content",
@@ -3825,6 +3827,10 @@
     "并确认自行承担部署": "confirm that I bear legal responsibility arising from deployment",
     "运营和收费行为产生的法律责任": "operation and charging behavior",
     "，": ", ",
-    "、": ", "
+    "、": ", ",
+    "公开 API 地址": "Public API Address",
+    "更新公开 API 地址": "Update Public API Address",
+    "仅用于首页展示和复制的 API 基址，留空则使用服务器地址": "Only used as the API base URL shown and copied on the home page. Leave empty to use the server address.",
+    "该服务器地址将影响 OAuth、支付回调、密码重置等外部回调地址，请确保正确配置": "This server address affects OAuth, payment callbacks, password reset, and other external callback URLs. Please configure it carefully."
   }
 }

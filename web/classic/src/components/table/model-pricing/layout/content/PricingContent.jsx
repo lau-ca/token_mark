@@ -18,41 +18,65 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import PricingTopSection from '../header/PricingTopSection';
+import SearchActions from '../header/SearchActions';
+import PricingSidebar from '../PricingSidebar';
 import PricingView from './PricingView';
 
 const PricingContent = ({ isMobile, sidebarProps, ...props }) => {
-  return (
-    <div
-      className={isMobile ? 'pricing-content-mobile' : 'pricing-scroll-hide'}
-    >
-      {/* 固定的顶部区域（分类介绍 + 搜索和操作） */}
-      <div className='pricing-search-header'>
-        <PricingTopSection
-          {...props}
-          isMobile={isMobile}
-          sidebarProps={sidebarProps}
-          showWithRecharge={sidebarProps.showWithRecharge}
-          setShowWithRecharge={sidebarProps.setShowWithRecharge}
-          currency={sidebarProps.currency}
-          setCurrency={sidebarProps.setCurrency}
-          showRatio={sidebarProps.showRatio}
-          setShowRatio={sidebarProps.setShowRatio}
-          viewMode={sidebarProps.viewMode}
-          setViewMode={sidebarProps.setViewMode}
-          tokenUnit={sidebarProps.tokenUnit}
-          setTokenUnit={sidebarProps.setTokenUnit}
-        />
-      </div>
+  const {
+    selectedRowKeys,
+    copyText,
+    handleChange,
+    handleCompositionStart,
+    handleCompositionEnd,
+    searchValue,
+    t,
+  } = props;
 
-      {/* 可滚动的内容区域 */}
-      <div
-        className={
-          isMobile ? 'pricing-view-container-mobile' : 'pricing-view-container'
-        }
-      >
-        <PricingView {...props} viewMode={sidebarProps.viewMode} />
-      </div>
+  return (
+    <div className='pricing-market-shell'>
+      <main className='pricing-market-main'>
+        <section className='pricing-market-hero'>
+          <p className='pricing-market-eyebrow'>MODEL HUB</p>
+          <h1>
+            {t('一站接入')}
+            <span> {t('主流大模型')}</span>
+          </h1>
+          <p>{t('按供应商、分组、计费类型和标签筛选，统一 API 接口，即刻调用。')}</p>
+        </section>
+
+        <section className='pricing-market-toolbar'>
+          <SearchActions
+            selectedRowKeys={selectedRowKeys}
+            copyText={copyText}
+            handleChange={handleChange}
+            handleCompositionStart={handleCompositionStart}
+            handleCompositionEnd={handleCompositionEnd}
+            isMobile={isMobile}
+            searchValue={searchValue}
+            showWithRecharge={sidebarProps.showWithRecharge}
+            setShowWithRecharge={sidebarProps.setShowWithRecharge}
+            currency={sidebarProps.currency}
+            setCurrency={sidebarProps.setCurrency}
+            siteDisplayType={sidebarProps.siteDisplayType}
+            tokenUnit={sidebarProps.tokenUnit}
+            setTokenUnit={sidebarProps.setTokenUnit}
+            t={t}
+          />
+        </section>
+
+        <section className='pricing-market-filter-section'>
+          <PricingSidebar {...sidebarProps} />
+        </section>
+
+        <section className='pricing-market-count'>
+          {t('共 {{count}} 个模型', { count: props.filteredModels?.length || 0 })}
+        </section>
+
+        <section className='pricing-market-results'>
+          <PricingView {...props} viewMode='card' />
+        </section>
+      </main>
     </div>
   );
 };

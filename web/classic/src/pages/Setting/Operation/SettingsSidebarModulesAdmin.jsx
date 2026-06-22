@@ -56,6 +56,7 @@ export default function SettingsSidebarModulesAdmin(props) {
     personal: {
       enabled: true,
       topup: true,
+      distribution: true,
       personal: true,
     },
     admin: {
@@ -65,6 +66,7 @@ export default function SettingsSidebarModulesAdmin(props) {
       deployment: true,
       redemption: true,
       user: true,
+      distributionWithdrawal: true,
       subscription: true,
       setting: true,
     },
@@ -117,6 +119,7 @@ export default function SettingsSidebarModulesAdmin(props) {
       personal: {
         enabled: true,
         topup: true,
+        distribution: true,
         personal: true,
       },
       admin: {
@@ -126,6 +129,7 @@ export default function SettingsSidebarModulesAdmin(props) {
         deployment: true,
         redemption: true,
         user: true,
+        distributionWithdrawal: true,
         subscription: true,
         setting: true,
       },
@@ -187,7 +191,12 @@ export default function SettingsSidebarModulesAdmin(props) {
             midjourney: true,
             task: true,
           },
-          personal: { enabled: true, topup: true, personal: true },
+          personal: {
+            enabled: true,
+            topup: true,
+            distribution: true,
+            personal: true,
+          },
           admin: {
             enabled: true,
             channel: true,
@@ -195,6 +204,7 @@ export default function SettingsSidebarModulesAdmin(props) {
             deployment: true,
             redemption: true,
             user: true,
+            distributionWithdrawal: true,
             subscription: true,
             setting: true,
           },
@@ -242,6 +252,11 @@ export default function SettingsSidebarModulesAdmin(props) {
       modules: [
         { key: 'topup', title: t('钱包管理'), description: t('余额充值管理') },
         {
+          key: 'distribution',
+          title: t('分销管理'),
+          description: t('邀请用户与提现申请'),
+        },
+        {
           key: 'personal',
           title: t('个人设置'),
           description: t('个人信息设置'),
@@ -271,6 +286,11 @@ export default function SettingsSidebarModulesAdmin(props) {
           description: t('兑换码生成管理'),
         },
         { key: 'user', title: t('用户管理'), description: t('用户账户管理') },
+        {
+          key: 'distributionWithdrawal',
+          title: t('分销提现'),
+          description: t('分销提现审批'),
+        },
         {
           key: 'setting',
           title: t('系统设置'),

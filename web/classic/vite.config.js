@@ -23,9 +23,15 @@ import pkg from '@douyinfe/vite-plugin-semi';
 import path from 'path';
 import { codeInspectorPlugin } from 'code-inspector-plugin';
 const { vitePluginSemi } = pkg;
+const devProxyServerUrl = process.env.DEV_PROXY_SERVER_URL || '';
+const devProxyTarget =
+  devProxyServerUrl || 'http://localhost:3000';
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  define: {
+    'import.meta.env.DEV_PROXY_SERVER_URL': JSON.stringify(devProxyServerUrl),
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
@@ -91,15 +97,15 @@ export default defineConfig({
     host: '0.0.0.0',
     proxy: {
       '/api': {
-        target: 'http://localhost:3000',
+        target: devProxyTarget,
         changeOrigin: true,
       },
       '/mj': {
-        target: 'http://localhost:3000',
+        target: devProxyTarget,
         changeOrigin: true,
       },
       '/pg': {
-        target: 'http://localhost:3000',
+        target: devProxyTarget,
         changeOrigin: true,
       },
     },

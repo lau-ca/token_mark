@@ -19,14 +19,34 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import { Button } from '@douyinfe/semi-ui';
-import PricingGroups from '../filter/PricingGroups';
-import PricingQuotaTypes from '../filter/PricingQuotaTypes';
-import PricingEndpointTypes from '../filter/PricingEndpointTypes';
-import PricingVendors from '../filter/PricingVendors';
-import PricingTags from '../filter/PricingTags';
-
 import { resetPricingFilters } from '../../../../helpers/utils';
 import { usePricingFilterCounts } from '../../../../hooks/model-pricing/usePricingFilterCounts';
+import { getLobeHubIcon } from '../../../../helpers';
+
+const PricingFilterRow = ({ label, items, activeValue, onChange }) => (
+  <div className='pricing-filter-row'>
+    <div className='pricing-filter-row-label'>{label}</div>
+    <div className='pricing-filter-options'>
+      {items.map((item) => {
+        const active = activeValue === item.value;
+        return (
+          <button
+            key={String(item.value)}
+            type='button'
+            onClick={() => onChange(item.value)}
+            className={`pricing-filter-chip ${active ? 'is-active' : ''}`}
+          >
+            {item.icon && <span className='pricing-filter-chip-icon'>{item.icon}</span>}
+            <span className='pricing-filter-chip-label'>{item.label}</span>
+            {item.tagCount !== undefined && item.tagCount !== '' && (
+              <span className='pricing-filter-chip-count'>{item.tagCount}</span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  </div>
+);
 
 const PricingSidebar = ({
   showWithRecharge,
@@ -35,8 +55,6 @@ const PricingSidebar = ({
   setCurrency,
   handleChange,
   setActiveKey,
-  showRatio,
-  setShowRatio,
   viewMode,
   setViewMode,
   filterGroup,
@@ -58,6 +76,7 @@ const PricingSidebar = ({
   t,
   ...categoryProps
 }) => {
+  const [expanded, setExpanded] = React.useState(false);
   const {
     quotaTypeModels,
     endpointTypeModels,
@@ -79,7 +98,6 @@ const PricingSidebar = ({
       handleChange,
       setShowWithRecharge,
       setCurrency,
-      setShowRatio,
       setViewMode,
       setFilterGroup,
       setFilterQuotaType,
@@ -90,64 +108,209 @@ const PricingSidebar = ({
       setTokenUnit,
     });
 
+  const vendorItems = React.useMemo(() => {
+    const vendors = new Set();
+    const vendorIcons = new Map();
+    let hasUnknownVendor = false;
+
+    (categoryProps.models || []).forEach((model) => {
+      if (model.vendor_name) {
+        vendors.add(model.vendor_name);
+        if (model.vendor_icon && !vendorIcons.has(model.vendor_name)) {
+          vendorIcons.set(model.vendor_name, model.vendor_icon);
+        }
+      } else {
+        hasUnknownVendor = true;
+      }
+    });
+
+    const getVendorCount = (vendor) => {
+      if (vendor === 'all') return vendorModels.length;
+      if (vendor === 'unknown') {
+        return vendorModels.filter((model) => !model.vendor_name).length;
+      }
+      return vendorModels.filter((model) => model.vendor_name === vendor).length;
+    };
+
+    const items = [
+      { value: 'all', label: t('全部供应商'), tagCount: getVendorCount('all') },
+    ];
+
+    Array.from(vendors)
+      .sort()
+      .forEach((vendor) => {
+        const icon = vendorIcons.get(vendor);
+        items.push({
+          value: vendor,
+          label: vendor,
+          icon: icon ? getLobeHubIcon(icon, 16) : null,
+          tagCount: getVendorCount(vendor),
+        });
+      });
+
+    if (hasUnknownVendor) {
+      items.push({
+        value: 'unknown',
+        label: t('未知供应商'),
+        tagCount: getVendorCount('unknown'),
+      });
+    }
+
+    return items;
+  }, [categoryProps.models, t, vendorModels]);
+
+  const groupItems = React.useMemo(
+    () =>
+      ['all', ...Object.keys(categoryProps.usableGroup || {}).filter((key) => key !== '')].map((group) => {
+        const count =
+          group === 'all'
+            ? groupCountModels.length
+            : groupCountModels.filter((model) => model.enable_groups?.includes(group)).length;
+        const ratio = group === 'all' ? count : `${categoryProps.groupRatio?.[group] ?? 1}x`;
+        return {
+          value: group,
+          label: group === 'all' ? t('全部分组') : group,
+          tagCount: ratio,
+        };
+      }),
+    [categoryProps.groupRatio, categoryProps.usableGroup, groupCountModels, t],
+  );
+
+  const quotaTypeItems = React.useMemo(
+    () => [
+      { value: 'all', label: t('全部类型'), tagCount: quotaTypeModels.length },
+      {
+        value: 0,
+        label: t('按量计费'),
+        tagCount: quotaTypeModels.filter((model) => model.quota_type === 0).length,
+      },
+      {
+        value: 1,
+        label: t('按次计费'),
+        tagCount: quotaTypeModels.filter((model) => model.quota_type === 1).length,
+      },
+    ],
+    [quotaTypeModels, t],
+  );
+
+  const tagItems = React.useMemo(() => {
+    const tagSet = new Set();
+    (categoryProps.models || []).forEach((model) => {
+      if (!model.tags) return;
+      model.tags
+        .split(/[,;|]+/)
+        .map((tag) => tag.trim())
+        .filter(Boolean)
+        .forEach((tag) => tagSet.add(tag.toLowerCase()));
+    });
+
+    const getTagCount = (tag) => {
+      if (tag === 'all') return tagModels.length;
+      return tagModels.filter((model) =>
+        model.tags
+          ?.toLowerCase()
+          .split(/[,;|]+/)
+          .map((item) => item.trim())
+          .includes(tag),
+      ).length;
+    };
+
+    return [
+      { value: 'all', label: t('全部标签'), tagCount: getTagCount('all') },
+      ...Array.from(tagSet)
+        .sort((a, b) => a.localeCompare(b))
+        .map((tag) => ({
+          value: tag,
+          label: tag,
+          tagCount: getTagCount(tag),
+        })),
+    ];
+  }, [categoryProps.models, t, tagModels]);
+
+  const endpointTypeItems = React.useMemo(() => {
+    const endpointTypes = new Set();
+    (categoryProps.models || []).forEach((model) => {
+      if (Array.isArray(model.supported_endpoint_types)) {
+        model.supported_endpoint_types.forEach((endpoint) => endpointTypes.add(endpoint));
+      }
+    });
+
+    return [
+      { value: 'all', label: t('全部端点'), tagCount: endpointTypeModels.length },
+      ...Array.from(endpointTypes)
+        .sort()
+        .map((endpointType) => ({
+          value: endpointType,
+          label: endpointType,
+          tagCount: endpointTypeModels.filter((model) =>
+            model.supported_endpoint_types?.includes(endpointType),
+          ).length,
+        })),
+    ];
+  }, [categoryProps.models, endpointTypeModels, t]);
+
   return (
-    <div className='p-2'>
-      <div className='flex items-center justify-between mb-6'>
-        <div className='text-lg font-semibold text-gray-800'>{t('筛选')}</div>
-        <Button
-          theme='outline'
-          type='tertiary'
-          onClick={handleResetFilters}
-          className='text-gray-500 hover:text-gray-700'
-        >
-          {t('重置')}
-        </Button>
+    <div className='pricing-market-filters'>
+      <div className='pricing-market-filters-header'>
+        <div className='pricing-market-filters-title'>{t('筛选模型')}</div>
+        <div className='pricing-market-filters-actions'>
+          <Button
+            theme='borderless'
+            type='tertiary'
+            onClick={handleResetFilters}
+            className='pricing-market-reset-button'
+          >
+            {t('重置')}
+          </Button>
+          <Button
+            theme='borderless'
+            type='tertiary'
+            onClick={() => setExpanded((open) => !open)}
+            className='pricing-market-reset-button'
+          >
+            {expanded ? t('收起') : t('展开')}
+          </Button>
+        </div>
       </div>
 
-      <PricingVendors
-        filterVendor={filterVendor}
-        setFilterVendor={setFilterVendor}
-        models={vendorModels}
-        allModels={categoryProps.models}
-        loading={loading}
-        t={t}
-      />
+      {expanded && (
+        <div className='pricing-market-filters-body'>
+          <PricingFilterRow
+            label={t('供应商')}
+            items={vendorItems}
+            activeValue={filterVendor}
+            onChange={setFilterVendor}
+          />
 
-      <PricingGroups
-        filterGroup={filterGroup}
-        setFilterGroup={handleGroupClick}
-        usableGroup={categoryProps.usableGroup}
-        groupRatio={categoryProps.groupRatio}
-        models={groupCountModels}
-        loading={loading}
-        t={t}
-      />
+          <PricingFilterRow
+            label={t('可用令牌分组')}
+            items={groupItems}
+            activeValue={filterGroup}
+            onChange={handleGroupClick}
+          />
 
-      <PricingQuotaTypes
-        filterQuotaType={filterQuotaType}
-        setFilterQuotaType={setFilterQuotaType}
-        models={quotaTypeModels}
-        loading={loading}
-        t={t}
-      />
+          <PricingFilterRow
+            label={t('计费类型')}
+            items={quotaTypeItems}
+            activeValue={filterQuotaType}
+            onChange={setFilterQuotaType}
+          />
 
-      <PricingTags
-        filterTag={filterTag}
-        setFilterTag={setFilterTag}
-        models={tagModels}
-        allModels={categoryProps.models}
-        loading={loading}
-        t={t}
-      />
+          <PricingFilterRow
+            label={t('标签')}
+            items={tagItems}
+            activeValue={filterTag}
+            onChange={setFilterTag}
+          />
 
-      <PricingEndpointTypes
-        filterEndpointType={filterEndpointType}
-        setFilterEndpointType={setFilterEndpointType}
-        models={endpointTypeModels}
-        allModels={categoryProps.models}
-        loading={loading}
-        t={t}
-      />
+          <PricingFilterRow
+            label={t('端点类型')}
+            items={endpointTypeItems}
+            activeValue={filterEndpointType}
+            onChange={setFilterEndpointType}
+          />
+        </div>
+      )}
     </div>
   );
 };

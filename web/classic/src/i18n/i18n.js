@@ -36,6 +36,7 @@ i18n
   .init({
     load: 'currentOnly',
     supportedLngs: supportedLanguages,
+    lng: localStorage.getItem('i18nextLng') || 'zh-CN',
     resources: {
       en: enTranslation,
       'zh-CN': zhCNTranslation,

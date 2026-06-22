@@ -216,8 +216,13 @@ export function SubscriptionPlansCard({
         map.set(p.plan.id, p.plan.title || '')
       }
     }
+    for (const sub of allSubscriptions) {
+      if (sub?.plan?.id && sub.plan.title) {
+        map.set(sub.plan.id, sub.plan.title)
+      }
+    }
     return map
-  }, [plans])
+  }, [plans, allSubscriptions])
 
   const getRemainingDays = (sub: UserSubscriptionRecord) => {
     const endTime = sub?.subscription?.end_time || 0
@@ -400,7 +405,9 @@ export function SubscriptionPlansCard({
                   const remainAmount =
                     totalAmount > 0 ? Math.max(0, totalAmount - usedAmount) : 0
                   const planTitle =
-                    planTitleMap.get(subscription?.plan_id) || ''
+                    sub.plan?.title ||
+                    planTitleMap.get(subscription?.plan_id) ||
+                    ''
                   const remainDays = getRemainingDays(sub)
                   const usagePercent = getUsagePercent(sub)
                   const now = Date.now() / 1000

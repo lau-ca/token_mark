@@ -3648,6 +3648,10 @@
     "并确认自行承担部署": "confirm that I bear legal responsibility arising from deployment",
     "运营和收费行为产生的法律责任": "operation and charging behavior",
     "，": ", ",
-    "、": ", "
+    "、": ", ",
+    "公开 API 地址": "公開 API URL",
+    "更新公开 API 地址": "公開 API URL を更新",
+    "仅用于首页展示和复制的 API 基址，留空则使用服务器地址": "ホームページで表示・コピーされる API ベース URL のみに使用されます。空欄の場合はサーバー URL を使用します。",
+    "该服务器地址将影响 OAuth、支付回调、密码重置等外部回调地址，请确保正确配置": "このサーバー URL は OAuth、決済コールバック、パスワードリセットなどの外部コールバック URL に影響します。正しく設定してください。"
   }
 }
