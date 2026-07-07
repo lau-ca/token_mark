@@ -1,6 +1,7 @@
 package openai
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -38,6 +39,8 @@ func OpenaiImageHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 	if oaiError := usageResp.GetOpenAIError(); oaiError != nil && oaiError.Type != "" {
 		return nil, types.WithOpenAIError(*oaiError, resp.StatusCode)
 	}
+
+	responseBody = stripChannelImageURLs(responseBody, info)
 
 	// 写入新的 response body
 	service.IOCopyBytesGracefully(c, resp, responseBody)
@@ -114,7 +117,7 @@ func OpenaiImageStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp 
 				usage = &usageResp.Usage
 			}
 		}
-		writeOpenaiImageStreamChunk(c, raw)
+		writeOpenaiImageStreamChunk(c, info, raw)
 	})
 
 	// StreamScannerHandler consumes the upstream [DONE]; re-emit it so the
@@ -130,7 +133,8 @@ func OpenaiImageStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp 
 // writeOpenaiImageStreamChunk rebuilds the SSE frame for an image stream chunk:
 // it emits an "event:" line derived from the JSON "type" field (when present)
 // followed by the verbatim "data:" payload, mirroring helper.ResponseChunkData.
-func writeOpenaiImageStreamChunk(c *gin.Context, data []byte) {
+func writeOpenaiImageStreamChunk(c *gin.Context, info *relaycommon.RelayInfo, data []byte) {
+	data = stripChannelImageURLs(data, info)
 	var payload struct {
 		Type string `json:"type"`
 	}
@@ -200,6 +204,7 @@ func OpenaiImageJSONAsStreamHandler(c *gin.Context, info *relaycommon.RelayInfo,
 		return nil, types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
 	}
 
+	responseBody = stripChannelImageURLs(responseBody, info)
 	var imageResp dto.ImageResponse
 	if err := common.Unmarshal(responseBody, &imageResp); err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
@@ -261,6 +266,157 @@ func OpenaiImageJSONAsStreamHandler(c *gin.Context, info *relaycommon.RelayInfo,
 		info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonDone, nil)
 	}
 	return &usageResp.Usage, nil
+}
+
+func stripChannelImageURLs(data []byte, info *relaycommon.RelayInfo) []byte {
+	if !shouldStripChannelImageURL(info) || len(data) == 0 {
+		return data
+	}
+	return stripJSONField(data, "url")
+}
+
+func shouldStripChannelImageURL(info *relaycommon.RelayInfo) bool {
+	if info == nil || info.ChannelMeta == nil {
+		return false
+	}
+	return info.ChannelOtherSettings.ForceImageB64JSONNoURL
+}
+
+func stripJSONField(data []byte, field string) []byte {
+	quotedField := []byte(`"` + field + `"`)
+	var out []byte
+	lastWrite := 0
+
+	for i := 0; i < len(data); {
+		if data[i] != '"' {
+			i++
+			continue
+		}
+
+		if !matchesJSONField(data, i, quotedField) {
+			next := skipJSONString(data, i)
+			if next <= i {
+				i++
+			} else {
+				i = next
+			}
+			continue
+		}
+
+		fieldEnd := i + len(quotedField)
+		colon := skipJSONSpaces(data, fieldEnd)
+		valueStart := skipJSONSpaces(data, colon+1)
+		valueEnd := skipJSONValue(data, valueStart)
+		if valueEnd <= valueStart {
+			i = fieldEnd
+			continue
+		}
+
+		removeStart, removeEnd := i, valueEnd
+		next := skipJSONSpaces(data, valueEnd)
+		if next < len(data) && data[next] == ',' {
+			removeEnd = next + 1
+		} else if prev := prevJSONNonSpace(data, i-1); prev >= 0 && data[prev] == ',' {
+			removeStart = prev
+		}
+
+		if out == nil {
+			out = make([]byte, 0, len(data)-(removeEnd-removeStart))
+		}
+		out = append(out, data[lastWrite:removeStart]...)
+		lastWrite = removeEnd
+		i = removeEnd
+	}
+
+	if out == nil {
+		return data
+	}
+	out = append(out, data[lastWrite:]...)
+	return out
+}
+
+func matchesJSONField(data []byte, pos int, quotedField []byte) bool {
+	if pos+len(quotedField) > len(data) || !bytes.Equal(data[pos:pos+len(quotedField)], quotedField) {
+		return false
+	}
+	prev := prevJSONNonSpace(data, pos-1)
+	if prev < 0 || (data[prev] != '{' && data[prev] != ',') {
+		return false
+	}
+	next := skipJSONSpaces(data, pos+len(quotedField))
+	return next < len(data) && data[next] == ':'
+}
+
+func prevJSONNonSpace(data []byte, pos int) int {
+	for pos >= 0 && isJSONSpace(data[pos]) {
+		pos--
+	}
+	return pos
+}
+
+func skipJSONSpaces(data []byte, pos int) int {
+	for pos < len(data) && isJSONSpace(data[pos]) {
+		pos++
+	}
+	return pos
+}
+
+func isJSONSpace(b byte) bool {
+	return b == ' ' || b == '\n' || b == '\r' || b == '\t'
+}
+
+func skipJSONString(data []byte, pos int) int {
+	if pos >= len(data) || data[pos] != '"' {
+		return pos
+	}
+	for i := pos + 1; i < len(data); i++ {
+		switch data[i] {
+		case '\\':
+			i++
+		case '"':
+			return i + 1
+		}
+	}
+	return len(data)
+}
+
+func skipJSONValue(data []byte, pos int) int {
+	pos = skipJSONSpaces(data, pos)
+	if pos >= len(data) {
+		return pos
+	}
+	if data[pos] == '"' {
+		return skipJSONString(data, pos)
+	}
+	if data[pos] != '{' && data[pos] != '[' {
+		for pos < len(data) && data[pos] != ',' && data[pos] != '}' && data[pos] != ']' {
+			pos++
+		}
+		return pos
+	}
+
+	stack := []byte{data[pos]}
+	for i := pos + 1; i < len(data); i++ {
+		switch data[i] {
+		case '"':
+			i = skipJSONString(data, i) - 1
+		case '{', '[':
+			stack = append(stack, data[i])
+		case '}', ']':
+			if len(stack) == 0 {
+				return i
+			}
+			open := stack[len(stack)-1]
+			if (open == '{' && data[i] != '}') || (open == '[' && data[i] != ']') {
+				return i
+			}
+			stack = stack[:len(stack)-1]
+			if len(stack) == 0 {
+				return i + 1
+			}
+		}
+	}
+	return len(data)
 }
 
 func writeOpenaiImageStreamPayload(c *gin.Context, eventName string, payload any) error {

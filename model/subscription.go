@@ -293,7 +293,14 @@ func (s *UserSubscription) BeforeUpdate(tx *gorm.DB) error {
 }
 
 type SubscriptionSummary struct {
-	Subscription *UserSubscription `json:"subscription"`
+	Subscription *UserSubscription        `json:"subscription"`
+	Plan         *SubscriptionPlanSummary `json:"plan,omitempty"`
+}
+
+type SubscriptionPlanSummary struct {
+	Id      int    `json:"id"`
+	Title   string `json:"title"`
+	Enabled bool   `json:"enabled"`
 }
 
 type SubscriptionResetResult struct {
@@ -502,7 +509,7 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 			return nil, errors.New("已达到该套餐购买上限")
 		}
 	}
-	nowUnix := GetDBTimestamp()
+	nowUnix := getDBTimestampTx(tx)
 	now := time.Unix(nowUnix, 0)
 	endUnix, err := calcPlanEndTime(now, plan)
 	if err != nil {
@@ -888,12 +895,42 @@ func buildSubscriptionSummaries(subs []UserSubscription) []SubscriptionSummary {
 	if len(subs) == 0 {
 		return []SubscriptionSummary{}
 	}
+	planIds := make([]int, 0, len(subs))
+	seenPlanIds := make(map[int]struct{}, len(subs))
+	for _, sub := range subs {
+		if sub.PlanId <= 0 {
+			continue
+		}
+		if _, ok := seenPlanIds[sub.PlanId]; ok {
+			continue
+		}
+		seenPlanIds[sub.PlanId] = struct{}{}
+		planIds = append(planIds, sub.PlanId)
+	}
+	planMap := make(map[int]SubscriptionPlanSummary, len(planIds))
+	if len(planIds) > 0 {
+		var plans []SubscriptionPlan
+		if err := DB.Where("id IN ?", planIds).Find(&plans).Error; err == nil {
+			for _, plan := range plans {
+				planMap[plan.Id] = SubscriptionPlanSummary{
+					Id:      plan.Id,
+					Title:   plan.Title,
+					Enabled: plan.Enabled,
+				}
+			}
+		}
+	}
 	result := make([]SubscriptionSummary, 0, len(subs))
 	for _, sub := range subs {
 		subCopy := sub
-		result = append(result, SubscriptionSummary{
+		summary := SubscriptionSummary{
 			Subscription: &subCopy,
-		})
+		}
+		if plan, ok := planMap[sub.PlanId]; ok {
+			planCopy := plan
+			summary.Plan = &planCopy
+		}
+		result = append(result, summary)
 	}
 	return result
 }
@@ -1249,13 +1286,13 @@ func maybeResetUserSubscriptionWithPlanTx(tx *gorm.DB, sub *UserSubscription, pl
 	}
 	base := time.Unix(baseUnix, 0)
 	next := calcNextResetTime(base, plan, sub.EndTime)
-	advanced := false
+	periodsAdvanced := 0
 	for next > 0 && next <= now {
-		advanced = true
+		periodsAdvanced++
 		base = time.Unix(next, 0)
 		next = calcNextResetTime(base, plan, sub.EndTime)
 	}
-	if !advanced {
+	if periodsAdvanced == 0 {
 		if sub.NextResetTime == 0 && next > 0 {
 			sub.NextResetTime = next
 			sub.LastResetTime = base.Unix()
@@ -1263,7 +1300,7 @@ func maybeResetUserSubscriptionWithPlanTx(tx *gorm.DB, sub *UserSubscription, pl
 		}
 		return nil
 	}
-	sub.AmountUsed = 0
+	sub.AmountTotal += plan.TotalAmount * int64(periodsAdvanced)
 	sub.LastResetTime = base.Unix()
 	sub.NextResetTime = next
 	return tx.Save(sub).Error

@@ -168,6 +168,11 @@ func GetAllChannels(c *gin.Context) {
 	for _, datum := range channelData {
 		clearChannelInfo(datum)
 	}
+	if err := model.AttachChannelPricing(channelData, groupFilter); err != nil {
+		common.SysError("failed to attach channel pricing: " + err.Error())
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": "获取渠道经营参数失败，请稍后重试"})
+		return
+	}
 
 	countQuery := buildChannelListQuery(groupFilter, statusFilter, -1)
 	var results []struct {
@@ -374,6 +379,11 @@ func SearchChannels(c *gin.Context) {
 	for _, datum := range pagedData {
 		clearChannelInfo(datum)
 	}
+	if err := model.AttachChannelPricing(pagedData, model.NormalizeChannelGroupFilter(group)); err != nil {
+		common.SysError("failed to attach channel pricing: " + err.Error())
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": "获取渠道经营参数失败，请稍后重试"})
+		return
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -400,6 +410,7 @@ func GetChannel(c *gin.Context) {
 	}
 	if channel != nil {
 		clearChannelInfo(channel)
+		channel.Pricing = model.BuildChannelPricingView(channel, getChannelPricingOrNil(channel.Id), "")
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -407,6 +418,15 @@ func GetChannel(c *gin.Context) {
 		"data":    channel,
 	})
 	return
+}
+
+func getChannelPricingOrNil(channelID int) *model.ChannelPricing {
+	pricingMap, err := model.GetChannelPricingMap([]int{channelID})
+	if err != nil {
+		common.SysError("failed to get channel pricing: " + err.Error())
+		return nil
+	}
+	return pricingMap[channelID]
 }
 
 // GetChannelKey 获取渠道密钥（需要通过安全验证中间件）
@@ -1046,10 +1066,25 @@ func UpdateChannel(c *gin.Context) {
 			// 覆盖模式：直接使用新密钥（默认行为，不需要特殊处理）
 		}
 	}
+	pricing := channel.Pricing
+	var pricingModel *model.ChannelPricing
+	if pricing != nil {
+		pricingModel = pricing.ToChannelPricing(channel.Id)
+		if err := model.ValidateChannelPricing(pricingModel); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	}
 	err = channel.Update()
 	if err != nil {
 		common.ApiError(c, err)
 		return
+	}
+	if pricingModel != nil {
+		if err := model.SaveChannelPricing(pricingModel); err != nil {
+			common.ApiError(c, err)
+			return
+		}
 	}
 	model.InitChannelCache()
 	service.ResetProxyClientCache()
@@ -1077,6 +1112,7 @@ func UpdateChannel(c *gin.Context) {
 	})
 	channel.Key = ""
 	clearChannelInfo(&channel.Channel)
+	channel.Pricing = model.BuildChannelPricingView(&channel.Channel, getChannelPricingOrNil(channel.Id), "")
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -1143,6 +1179,36 @@ func BatchUpdateChannelStatus(c *gin.Context) {
 
 func isManageableChannelStatus(status int) bool {
 	return status == common.ChannelStatusEnabled || status == common.ChannelStatusManuallyDisabled
+}
+
+func UpdateChannelPricing(c *gin.Context) {
+	channelID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	channel, err := model.GetChannelById(channelID, false)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	var pricing model.ChannelPricing
+	if err := c.ShouldBindJSON(&pricing); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	pricing.ChannelID = channelID
+	if err := model.SaveChannelPricing(&pricing); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	channel.Pricing = model.BuildChannelPricingView(channel, getChannelPricingOrNil(channelID), "")
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    channel.Pricing,
+	})
 }
 
 // equalStringPtr 比较两个 *string 是否相等（均为 nil 视为相等）。

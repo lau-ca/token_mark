@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
+	"github.com/stretchr/testify/require"
 )
 
 // ---------------------------------------------------------------------------
@@ -156,6 +157,43 @@ func TestRequestProbeHelpers(t *testing.T) {
 	want := 1000*0.5 + 500*1.0*2
 	if math.Abs(cost-want) > 1e-6 {
 		t.Errorf("cost = %f, want %f", cost, want)
+	}
+}
+
+func TestImageSizeTierHelper(t *testing.T) {
+	tests := []struct {
+		name     string
+		body     string
+		wantTier string
+	}{
+		{name: "explicit 1k", body: `{"size":"1k"}`, wantTier: "1K"},
+		{name: "long edge 1k", body: `{"size":"1024X768"}`, wantTier: "1K"},
+		{name: "long edge 1536 is 2k", body: `{"size":"1536x864"}`, wantTier: "2K"},
+		{name: "explicit 2k landscape", body: `{"size":"2048x1152"}`, wantTier: "2K"},
+		{name: "long edge 4k", body: `{"size":"2560x1600"}`, wantTier: "4K"},
+		{name: "explicit 4k portrait", body: `{"size":"2160x3840"}`, wantTier: "4K"},
+		{name: "auto defaults 2k", body: `{"size":"auto"}`, wantTier: "2K"},
+		{name: "invalid defaults 2k", body: `{"size":"largest"}`, wantTier: "2K"},
+		{name: "missing defaults 2k", body: `{}`, wantTier: "2K"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			expr := `image_size_tier(param("size")) == "1K" ? tier("1K", 1) : (image_size_tier(param("size")) == "4K" ? tier("4K", 4) : tier("2K", 2))`
+			cost, trace, err := billingexpr.RunExprWithRequest(expr, billingexpr.TokenParams{}, billingexpr.RequestInput{
+				Body: []byte(tt.body),
+			})
+			require.NoError(t, err)
+			require.Equal(t, tt.wantTier, trace.MatchedTier)
+			switch tt.wantTier {
+			case "1K":
+				require.Equal(t, float64(1), cost)
+			case "2K":
+				require.Equal(t, float64(2), cost)
+			case "4K":
+				require.Equal(t, float64(4), cost)
+			}
+		})
 	}
 }
 

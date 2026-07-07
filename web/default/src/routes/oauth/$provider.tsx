@@ -36,6 +36,12 @@ type OAuthRequestConfig = AxiosRequestConfig & {
   skipBusinessError?: boolean
 }
 
+const SSO_REDIRECT_STORAGE_KEY = 'sso_auth_redirect'
+
+function getSsoRedirect(redirectTo?: string | null) {
+  return redirectTo?.startsWith('/sso/start') ? redirectTo : undefined
+}
+
 function OAuthCallback() {
   const navigate = useNavigate()
   const { provider } = useParams({ from: '/oauth/$provider' }) as {
@@ -117,6 +123,19 @@ function OAuthCallback() {
         }, 200)
       }
 
+      const consumeSavedRedirect = () => {
+        if (typeof window === 'undefined') return undefined
+        try {
+          const redirect = window.sessionStorage.getItem(
+            SSO_REDIRECT_STORAGE_KEY
+          )
+          window.sessionStorage.removeItem(SSO_REDIRECT_STORAGE_KEY)
+          return getSsoRedirect(redirect)
+        } catch {
+          return undefined
+        }
+      }
+
       const finalizeLogin = async (): Promise<boolean> => {
         try {
           const selfResponse = (await getSelf()) as {
@@ -144,7 +163,8 @@ function OAuthCallback() {
       }
 
       const redirectAfterLogin = (target?: string) => {
-        const to = target || search?.redirect || '/dashboard'
+        const to =
+          target || search?.redirect || consumeSavedRedirect() || '/dashboard'
         safeNavigate(to)
         toast.success(i18next.t('Signed in successfully!'))
       }

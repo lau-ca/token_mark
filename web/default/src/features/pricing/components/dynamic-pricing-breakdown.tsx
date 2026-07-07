@@ -229,6 +229,9 @@ export function DynamicPricingBreakdown({
       (tier) => Number(tier[v.field as string as keyof ParsedTier] || 0) > 0
     )
   })
+  const hasRequestPrice = tiers.some(
+    (tier) => Number(tier.requestPrice || 0) > 0
+  )
 
   return (
     <section className={cn('min-w-0', !compact && 'py-3 sm:py-4')}>
@@ -296,6 +299,18 @@ export function DynamicPricingBreakdown({
                     </div>
                   )}
                   <div className='grid grid-cols-2 gap-x-3 gap-y-1.5'>
+                    {hasRequestPrice && (
+                      <div className='min-w-0'>
+                        <div className='text-muted-foreground truncate text-[10px] font-medium tracking-wider uppercase'>
+                          {t('Per request')}
+                        </div>
+                        <div className='truncate font-mono text-sm font-semibold'>
+                          {Number(tier.requestPrice || 0) > 0
+                            ? `${symbol}${(Number(tier.requestPrice) * rate).toFixed(6)}`
+                            : '-'}
+                        </div>
+                      </div>
+                    )}
                     {visiblePriceFields.map((v) => {
                       const value = Number(
                         tier[v.field as string as keyof ParsedTier] || 0
@@ -384,6 +399,27 @@ export function DynamicPricingBreakdown({
                   )
                 },
               },
+              ...(hasRequestPrice
+                ? [
+                    {
+                      id: 'requestPrice',
+                      header: t('Per request'),
+                      className:
+                        'text-muted-foreground py-2 text-right font-medium',
+                      cellClassName: 'py-2.5 text-right align-top font-mono',
+                      cell: (tier: ParsedTier) => {
+                        const value = Number(tier.requestPrice || 0)
+                        return value > 0 ? (
+                          <span className='font-semibold'>
+                            {`${symbol}${(value * rate).toFixed(6)}`}
+                          </span>
+                        ) : (
+                          '-'
+                        )
+                      },
+                    },
+                  ]
+                : []),
               ...visiblePriceFields.map((v, index) => ({
                 id: v.field ?? `price-${index}`,
                 header: t(v.shortLabel),

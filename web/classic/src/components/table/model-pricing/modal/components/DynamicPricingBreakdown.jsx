@@ -114,6 +114,7 @@ export default function DynamicPricingBreakdown({ billingExpr, t }) {
   }
 
   const priceFields = BILLING_PRICING_VARS.map((v) => [v.field, v.shortLabel]);
+  const hasRequestPrice = hasTiers && tiers.some((tier) => tier.requestPrice > 0);
 
   const tierColumns = [
     {
@@ -128,6 +129,13 @@ export default function DynamicPricingBreakdown({ billingExpr, t }) {
         </div>
       ),
     },
+    ...(hasRequestPrice
+      ? [{
+          title: `${t('单次价格')} (${symbol}/${t('次')})`,
+          dataIndex: 'requestPrice',
+          render: (v) => v > 0 ? <Text strong>{`${symbol}${(v * rate).toFixed(6)}`}</Text> : '-',
+        }]
+      : []),
     ...priceFields
       .filter(([field]) => hasTiers && tiers.some((tier) => tier[field] > 0))
       .map(([field, label]) => ({
@@ -142,6 +150,7 @@ export default function DynamicPricingBreakdown({ billingExpr, t }) {
         key: `tier-${i}`,
         label: tier.label,
         condSummary: formatConditionSummary(tier.conditions, t),
+        requestPrice: tier.requestPrice || 0,
         ...Object.fromEntries(priceFields.map(([field]) => [field, tier[field] || 0])),
       }))
     : [];

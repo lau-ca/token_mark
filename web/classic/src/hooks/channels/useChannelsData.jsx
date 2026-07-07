@@ -138,6 +138,11 @@ export const useChannelsData = () => {
     STATUS: 'status',
     RESPONSE_TIME: 'response_time',
     BALANCE: 'balance',
+    CHANNEL_BUSINESS: 'channel_business',
+    SALE_BUSINESS: 'sale_business',
+    MARKETING: 'marketing',
+    SUGGESTED_RATIO: 'suggested_ratio',
+    MARGIN_EVALUATION: 'margin_evaluation',
     PRIORITY: 'priority',
     WEIGHT: 'weight',
     OPERATE: 'operate',
@@ -178,6 +183,11 @@ export const useChannelsData = () => {
       [COLUMN_KEYS.STATUS]: true,
       [COLUMN_KEYS.RESPONSE_TIME]: true,
       [COLUMN_KEYS.BALANCE]: true,
+      [COLUMN_KEYS.CHANNEL_BUSINESS]: true,
+      [COLUMN_KEYS.SALE_BUSINESS]: true,
+      [COLUMN_KEYS.MARKETING]: true,
+      [COLUMN_KEYS.SUGGESTED_RATIO]: true,
+      [COLUMN_KEYS.MARGIN_EVALUATION]: true,
       [COLUMN_KEYS.PRIORITY]: true,
       [COLUMN_KEYS.WEIGHT]: true,
       [COLUMN_KEYS.OPERATE]: true,
@@ -196,7 +206,35 @@ export const useChannelsData = () => {
       try {
         const parsed = JSON.parse(savedColumns);
         const defaults = getDefaultColumnVisibility();
-        const merged = { ...defaults, ...parsed };
+        const legacyPricingVisible =
+          parsed.pricing === undefined ? true : parsed.pricing;
+        const legacyCostVisible =
+          parsed.pricing_cost === undefined
+            ? legacyPricingVisible
+            : parsed.pricing_cost;
+        const legacySaleVisible =
+          parsed.pricing_sale === undefined
+            ? legacyPricingVisible
+            : parsed.pricing_sale;
+        const merged = {
+          ...defaults,
+          ...parsed,
+          [COLUMN_KEYS.CHANNEL_BUSINESS]:
+            parsed[COLUMN_KEYS.CHANNEL_BUSINESS] ?? legacyCostVisible,
+          [COLUMN_KEYS.SALE_BUSINESS]:
+            parsed[COLUMN_KEYS.SALE_BUSINESS] ?? legacySaleVisible,
+          [COLUMN_KEYS.MARKETING]:
+            parsed[COLUMN_KEYS.MARKETING] ?? legacySaleVisible,
+          [COLUMN_KEYS.SUGGESTED_RATIO]:
+            parsed[COLUMN_KEYS.SUGGESTED_RATIO] ??
+            parsed[COLUMN_KEYS.MARGIN_EVALUATION] ??
+            legacySaleVisible,
+          [COLUMN_KEYS.MARGIN_EVALUATION]:
+            parsed[COLUMN_KEYS.MARGIN_EVALUATION] ?? legacySaleVisible,
+        };
+        delete merged.pricing;
+        delete merged.pricing_cost;
+        delete merged.pricing_sale;
         setVisibleColumns(merged);
       } catch (e) {
         console.error('Failed to parse saved column preferences', e);
@@ -484,6 +522,167 @@ export const useChannelsData = () => {
     } else {
       showError(message);
     }
+  };
+
+  const updateChannelPricing = async (record, pricingValues) => {
+    const hasPricingValue = (key) =>
+      Object.prototype.hasOwnProperty.call(pricingValues, key);
+    const pricing = {
+      ratio: hasPricingValue('ratio')
+        ? pricingValues.ratio
+        : (record.pricing?.ratio ?? null),
+      exchange: hasPricingValue('exchange')
+        ? pricingValues.exchange
+        : (record.pricing?.exchange ?? null),
+      margin: hasPricingValue('margin')
+        ? pricingValues.margin
+        : (record.pricing?.margin ?? null),
+      commission: hasPricingValue('commission')
+        ? pricingValues.commission
+        : (record.pricing?.commission ?? null),
+      discount: hasPricingValue('discount')
+        ? pricingValues.discount
+        : (record.pricing?.discount ?? null),
+    };
+    const res = await API.put(`/api/channel/${record.id}/pricing`, pricing);
+    const { success, message, data } = res.data;
+    if (success) {
+      updateChannelProperty(record.id, (channel) => {
+        channel.pricing = data;
+      });
+      showSuccess(t('保存成功'));
+      return data;
+    }
+    showError(message);
+    return null;
+  };
+
+  const exportChannels = () => {
+    const flattenChannels = (items) =>
+      items.flatMap((item) =>
+        item.children && Array.isArray(item.children) ? item.children : [item],
+      );
+    const exportRows = flattenChannels(channels).filter((item) => item?.id);
+    if (exportRows.length === 0) {
+      showInfo(t('暂无可导出的渠道'));
+      return;
+    }
+
+    const formatRatio = (value) => {
+      const number = Number(value);
+      return Number.isFinite(number)
+        ? `${number.toFixed(4).replace(/0+$/, '').replace(/\.$/, '')}x`
+        : '--';
+    };
+    const formatNumber = (value) => {
+      const number = Number(value);
+      return Number.isFinite(number)
+        ? number.toFixed(4).replace(/0+$/, '').replace(/\.$/, '')
+        : '--';
+    };
+    const formatPercent = (value) => {
+      const number = Number(value);
+      return Number.isFinite(number) ? `${(number * 100).toFixed(1)}%` : '--';
+    };
+    const escapeHtml = (value) =>
+      String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    const channelTypeLabel = (type) =>
+      CHANNEL_OPTIONS.find((item) => item.value === type)?.label || type || '--';
+    const statusLabel = (status) =>
+      status === 1 ? t('已启用') : status === 3 ? t('自动禁用') : t('已禁用');
+
+    const headers = [
+      t('ID'),
+      t('名称'),
+      t('类型'),
+      t('分组'),
+      t('状态'),
+      t('已卖额度'),
+      t('渠道倍率'),
+      t('渠道汇率'),
+      t('售价倍率'),
+      t('售价汇率'),
+      t('分销抽成'),
+      t('充值折扣'),
+      t('实际毛利'),
+      t('期望毛利'),
+      t('建议倍率'),
+    ];
+    const rows = exportRows.map((channel) => {
+      const pricing = channel.pricing || {};
+      return [
+        channel.id,
+        channel.name,
+        channelTypeLabel(channel.type),
+        channel.group,
+        statusLabel(channel.status),
+        channel.used_quota ?? 0,
+        formatRatio(pricing.ratio),
+        formatNumber(pricing.exchange),
+        formatRatio(pricing.effective_group_ratio),
+        formatNumber(pricing.sale_exchange ?? 1),
+        formatPercent(pricing.commission ?? 0),
+        formatPercent(pricing.discount ?? 1),
+        formatPercent(pricing.actual_margin),
+        formatPercent(pricing.margin),
+        formatRatio(pricing.suggested_ratio),
+      ];
+    });
+    const createdAt = new Date();
+    const fileDate = createdAt.toISOString().slice(0, 10);
+    const sheetTitle = `${t('渠道导出')} - ${fileDate}`;
+    const html = `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #1f2937; }
+    .title { font-size: 18px; font-weight: 700; margin: 0 0 6px; }
+    .meta { color: #6b7280; font-size: 12px; margin: 0 0 14px; }
+    table { border-collapse: collapse; min-width: 1320px; }
+    th { background: #eef2ff; color: #1e3a8a; font-weight: 700; }
+    th, td { border: 1px solid #d7dce5; padding: 10px 14px; font-size: 13px; white-space: nowrap; }
+    td { background: #ffffff; }
+    tr:nth-child(even) td { background: #f8fafc; }
+    .num { text-align: right; font-variant-numeric: tabular-nums; }
+  </style>
+</head>
+<body>
+  <div class="title">${escapeHtml(sheetTitle)}</div>
+  <div class="meta">${escapeHtml(t('导出时间'))}: ${escapeHtml(createdAt.toLocaleString())} · ${escapeHtml(t('渠道数量'))}: ${rows.length}</div>
+  <table>
+    <thead><tr>${headers.map((header) => `<th>${escapeHtml(header)}</th>`).join('')}</tr></thead>
+    <tbody>
+      ${rows
+        .map(
+          (row) =>
+            `<tr>${row
+              .map(
+                (cell, index) =>
+                  `<td class="${index === 0 || index >= 5 ? 'num' : ''}">${escapeHtml(cell)}</td>`,
+              )
+              .join('')}</tr>`,
+        )
+        .join('')}
+    </tbody>
+  </table>
+</body>
+</html>`;
+    const blob = new Blob([html], {
+      type: 'application/vnd.ms-excel;charset=utf-8',
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `channels-${fileDate}.xls`;
+    link.click();
+    URL.revokeObjectURL(url);
+    showSuccess(t('导出成功'));
   };
 
   // Tag management
@@ -1219,6 +1418,8 @@ export const useChannelsData = () => {
     searchChannels,
     refresh,
     manageChannel,
+    updateChannelPricing,
+    exportChannels,
     manageTag,
     handlePageChange,
     handlePageSizeChange,

@@ -34,7 +34,6 @@ import {
   renderGroup,
   renderQuota,
   getChannelIcon,
-  renderQuotaWithAmount,
   showSuccess,
   showError,
   showInfo,
@@ -253,6 +252,324 @@ const renderResponseTime = (responseTime, t) => {
   }
 };
 
+const formatPricingRatio = (value) => {
+  const number = Number(value);
+  if (!Number.isFinite(number)) {
+    return '--';
+  }
+  return `${number.toFixed(4).replace(/0+$/, '').replace(/\.$/, '')}x`;
+};
+
+const formatPricingPercent = (value) => {
+  const number = Number(value);
+  if (!Number.isFinite(number)) {
+    return '--';
+  }
+  return `${(number * 100).toFixed(1)}%`;
+};
+
+const formatPricingNumber = (value) => {
+  const number = Number(value);
+  if (!Number.isFinite(number)) {
+    return '--';
+  }
+  return number.toFixed(4).replace(/0+$/, '').replace(/\.$/, '');
+};
+
+const getPricingMissingText = (pricing, t) => {
+  const labelMap = {
+    ratio: t('渠道倍率'),
+    exchange: t('渠道汇率'),
+    margin: t('期望毛利'),
+    group_ratio: t('分组倍率'),
+  };
+  const missing = pricing?.missing || [];
+  if (missing.length === 0) {
+    return '';
+  }
+  return `${t('缺少')}: ${missing.map((item) => labelMap[item] || item).join('、')}`;
+};
+
+const hasPricingValue = (value) => value !== null && value !== undefined;
+
+const getPricingMissingByKeys = (pricing, keys, t) => {
+  const missing = (pricing?.missing || []).filter((item) =>
+    keys.includes(item),
+  );
+  if (missing.length === 0) {
+    return '';
+  }
+  return getPricingMissingText({ missing }, t);
+};
+
+const renderPricingMetric = ({
+  label,
+  value,
+  color = 'white',
+  valueClassName = '',
+}) => {
+  return (
+    <div className='flex items-center gap-1 min-w-0'>
+      <span className='text-xs text-gray-500 whitespace-nowrap'>{label}</span>
+      <Tag
+        color={color}
+        type={color === 'white' ? 'ghost' : 'light'}
+        shape='circle'
+        className={`max-w-full ${valueClassName}`}
+      >
+        {value}
+      </Tag>
+    </div>
+  );
+};
+
+const renderPricingFormula = (pricing, t) => {
+  const groupItems = pricing?.group_ratios || [];
+  const groupText =
+    groupItems.length === 0
+      ? t('暂无')
+      : groupItems
+          .map((item) => `${item.group}: ${formatPricingRatio(item.ratio)}`)
+          .join('\n');
+  return (
+    <div className='text-xs leading-5 whitespace-pre-line max-w-sm'>
+      <div>
+        {t('渠道成本倍率')} = {t('渠道倍率')} × {t('渠道汇率')}
+      </div>
+      <div>
+        {t('营销后收入倍率')} = {t('售价倍率')} × {t('售价汇率')} × (
+        {t('充值折扣')} - {t('分销抽成')})
+      </div>
+      <div>
+        {t('实际毛利')} = ({t('营销后收入倍率')} - {t('渠道成本倍率')}) /{' '}
+        {t('营销后收入倍率')}
+      </div>
+      <div>
+        {t('建议售价倍率')} = {t('渠道成本倍率')} / ({t('售价汇率')} × (
+        {t('充值折扣')} - {t('分销抽成')}) × (1 - {t('期望毛利')}))
+      </div>
+      <div className='mt-2'>
+        {t('有效分组倍率')}:{' '}
+        {formatPricingRatio(pricing?.effective_group_ratio)}
+      </div>
+      <div>
+        {t('分组明细')}: {groupText}
+      </div>
+      {getPricingMissingText(pricing, t) && (
+        <div className='mt-2 text-[var(--semi-color-warning)]'>
+          {getPricingMissingText(pricing, t)}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const renderChannelBusiness = (record, t) => {
+  const pricing = record.pricing || {};
+  const missingText = getPricingMissingByKeys(
+    pricing,
+    ['ratio', 'exchange'],
+    t,
+  );
+
+  return (
+    <Tooltip content={renderPricingFormula(pricing, t)} position='topLeft'>
+      <div className='flex flex-col gap-1 min-w-[150px]'>
+        {renderPricingMetric({
+          label: t('渠道倍率'),
+          value: formatPricingRatio(pricing.ratio),
+        })}
+        {renderPricingMetric({
+          label: t('渠道汇率'),
+          value: formatPricingNumber(pricing.exchange),
+        })}
+        {missingText && (
+          <span className='text-xs text-[var(--semi-color-warning)]'>
+            {missingText}
+          </span>
+        )}
+      </div>
+    </Tooltip>
+  );
+};
+
+const renderSaleBusiness = (record, t) => {
+  const pricing = record.pricing || {};
+
+  return (
+    <Tooltip content={renderPricingFormula(pricing, t)} position='topLeft'>
+      <div className='flex flex-col gap-1 min-w-[150px]'>
+        {renderPricingMetric({
+          label: t('售价倍率'),
+          value: formatPricingRatio(pricing.effective_group_ratio),
+          color: hasPricingValue(pricing.effective_group_ratio)
+            ? 'blue'
+            : 'grey',
+        })}
+        {renderPricingMetric({
+          label: t('售价汇率'),
+          value: formatPricingNumber(pricing.sale_exchange ?? 1),
+        })}
+      </div>
+    </Tooltip>
+  );
+};
+
+const renderPercentEditor = ({
+  label,
+  value,
+  defaultValue,
+  onSave,
+  min = 0,
+  max = 99.99,
+}) => {
+  const displayValue =
+    value === null || value === undefined
+      ? Number((defaultValue * 100).toFixed(2))
+      : Number((value * 100).toFixed(2));
+
+  return (
+    <div
+      className='flex items-center gap-1'
+      onClick={(event) => event.stopPropagation()}
+    >
+      <span className='text-xs text-gray-500 whitespace-nowrap'>{label}</span>
+      <InputNumber
+        size='small'
+        style={{ width: 78 }}
+        min={min}
+        max={max}
+        step={1}
+        defaultValue={displayValue}
+        placeholder='--'
+        onBlur={(event) => {
+          const rawValue = event.target.value;
+          const nextValue =
+            rawValue === '' || rawValue === undefined
+              ? null
+              : Number(rawValue) / 100;
+          onSave(nextValue);
+        }}
+      />
+      <span className='text-xs text-gray-500'>%</span>
+    </div>
+  );
+};
+
+const renderMarketing = (record, updateChannelPricing, t) => {
+  const pricing = record.pricing || {};
+
+  return (
+    <Tooltip content={renderPricingFormula(pricing, t)} position='topLeft'>
+      <div className='flex flex-col gap-1 min-w-[142px]'>
+        {renderPercentEditor({
+          label: t('分销抽成'),
+          value: pricing.commission,
+          defaultValue: 0,
+          onSave: (commission) => updateChannelPricing(record, { commission }),
+        })}
+        {renderPercentEditor({
+          label: t('充值折扣'),
+          value: pricing.discount,
+          defaultValue: 1,
+          min: 0.01,
+          max: 100,
+          onSave: (discount) => updateChannelPricing(record, { discount }),
+        })}
+      </div>
+    </Tooltip>
+  );
+};
+
+const renderSuggestedRatio = (record, t) => {
+  const pricing = record.pricing || {};
+  const missingText = getPricingMissingByKeys(
+    pricing,
+    ['ratio', 'exchange', 'margin'],
+    t,
+  );
+
+  return (
+    <Tooltip content={renderPricingFormula(pricing, t)} position='topLeft'>
+      <div className='flex flex-col gap-1 min-w-[112px]'>
+        {renderPricingMetric({
+          label: t('建议倍率'),
+          value: formatPricingRatio(pricing.suggested_ratio),
+          color: hasPricingValue(pricing.suggested_ratio) ? 'blue' : 'grey',
+        })}
+        {missingText && (
+          <span className='text-xs text-[var(--semi-color-warning)]'>
+            {missingText}
+          </span>
+        )}
+      </div>
+    </Tooltip>
+  );
+};
+
+const renderMarginEvaluation = (record, updateChannelPricing, t) => {
+  const pricing = record.pricing || {};
+  const marginValue =
+    pricing.margin === null || pricing.margin === undefined
+      ? undefined
+      : Number((pricing.margin * 100).toFixed(2));
+  const actualMargin = pricing.actual_margin;
+  const isLoss =
+    Number.isFinite(Number(actualMargin)) && Number(actualMargin) < 0;
+  const missingText = getPricingMissingByKeys(
+    pricing,
+    ['margin', 'group_ratio'],
+    t,
+  );
+
+  return (
+    <Tooltip content={renderPricingFormula(pricing, t)} position='topLeft'>
+      <div className='flex flex-col gap-1 min-w-[158px]'>
+        {renderPricingMetric({
+          label: t('实际毛利'),
+          value: formatPricingPercent(actualMargin),
+          color: !hasPricingValue(actualMargin)
+            ? 'grey'
+            : isLoss
+              ? 'red'
+              : 'green',
+        })}
+        <div
+          className='flex items-center gap-1'
+          onClick={(event) => event.stopPropagation()}
+        >
+          <span className='text-xs text-gray-500 whitespace-nowrap'>
+            {t('期望毛利')}
+          </span>
+          <InputNumber
+            size='small'
+            style={{ width: 78 }}
+            min={0}
+            max={99.99}
+            step={1}
+            defaultValue={marginValue}
+            placeholder='--'
+            onBlur={(event) => {
+              const rawValue = event.target.value;
+              const margin =
+                rawValue === '' || rawValue === undefined
+                  ? null
+                  : Number(rawValue) / 100;
+              updateChannelPricing(record, { margin });
+            }}
+          />
+          <span className='text-xs text-gray-500'>%</span>
+        </div>
+        {missingText && (
+          <span className='text-xs text-[var(--semi-color-warning)]'>
+            {missingText}
+          </span>
+        )}
+      </div>
+    </Tooltip>
+  );
+};
+
 const isRequestPassThroughEnabled = (record) => {
   if (!record || record.children !== undefined) {
     return false;
@@ -309,6 +626,7 @@ export const getChannelsColumns = ({
   COLUMN_KEYS,
   updateChannelBalance,
   manageChannel,
+  updateChannelPricing,
   manageTag,
   submitTagEdit,
   testChannel,
@@ -524,40 +842,31 @@ export const getChannelsColumns = ({
     },
     {
       key: COLUMN_KEYS.BALANCE,
-      title: t('已用/剩余'),
+      title: t('已卖'),
       dataIndex: 'expired_time',
       render: (text, record, index) => {
         if (record.children === undefined) {
           return (
             <div>
               <Space spacing={1}>
-                <Tooltip content={t('已用额度')}>
+                <Tooltip content={t('已卖额度')}>
                   <Tag color='white' type='ghost' shape='circle'>
                     {renderQuota(record.used_quota)}
                   </Tag>
                 </Tooltip>
-                <Tooltip
-                  content={
-                    record.type === 57
-                      ? t('查看 Codex 帐号信息与用量')
-                      : t('剩余额度') +
-                        ': ' +
-                        renderQuotaWithAmount(record.balance) +
-                        t('，点击更新')
-                  }
-                >
-                  <Tag
-                    color={record.type === 57 ? 'light-blue' : 'white'}
-                    type={record.type === 57 ? 'light' : 'ghost'}
-                    shape='circle'
-                    className={record.type === 57 ? 'cursor-pointer' : ''}
-                    onClick={() => updateChannelBalance(record)}
-                  >
-                    {record.type === 57
-                      ? t('帐号信息')
-                      : renderQuotaWithAmount(record.balance)}
-                  </Tag>
-                </Tooltip>
+                {record.type === 57 && (
+                  <Tooltip content={t('查看 Codex 帐号信息与用量')}>
+                    <Tag
+                      color='light-blue'
+                      type='light'
+                      shape='circle'
+                      className='cursor-pointer'
+                      onClick={() => updateChannelBalance(record)}
+                    >
+                      {t('帐号信息')}
+                    </Tag>
+                  </Tooltip>
+                )}
               </Space>
             </div>
           );
@@ -570,6 +879,61 @@ export const getChannelsColumns = ({
             </Tooltip>
           );
         }
+      },
+    },
+    {
+      key: COLUMN_KEYS.CHANNEL_BUSINESS,
+      title: t('渠道经营'),
+      dataIndex: 'channel_business',
+      render: (text, record, index) => {
+        if (record.children !== undefined) {
+          return <span className='text-gray-400'>--</span>;
+        }
+        return renderChannelBusiness(record, t);
+      },
+    },
+    {
+      key: COLUMN_KEYS.SALE_BUSINESS,
+      title: t('售价经营'),
+      dataIndex: 'pricing',
+      render: (text, record, index) => {
+        if (record.children !== undefined) {
+          return <span className='text-gray-400'>--</span>;
+        }
+        return renderSaleBusiness(record, t);
+      },
+    },
+    {
+      key: COLUMN_KEYS.MARKETING,
+      title: t('营销'),
+      dataIndex: 'pricing',
+      render: (text, record, index) => {
+        if (record.children !== undefined) {
+          return <span className='text-gray-400'>--</span>;
+        }
+        return renderMarketing(record, updateChannelPricing, t);
+      },
+    },
+    {
+      key: COLUMN_KEYS.MARGIN_EVALUATION,
+      title: t('毛利评估'),
+      dataIndex: 'pricing',
+      render: (text, record, index) => {
+        if (record.children !== undefined) {
+          return <span className='text-gray-400'>--</span>;
+        }
+        return renderMarginEvaluation(record, updateChannelPricing, t);
+      },
+    },
+    {
+      key: COLUMN_KEYS.SUGGESTED_RATIO,
+      title: t('建议倍率'),
+      dataIndex: 'pricing',
+      render: (text, record, index) => {
+        if (record.children !== undefined) {
+          return <span className='text-gray-400'>--</span>;
+        }
+        return renderSuggestedRatio(record, t);
       },
     },
     {

@@ -56,7 +56,8 @@ type Channel struct {
 	OtherSettings string `json:"settings" gorm:"column:settings"` // 其他设置，存储azure版本等不需要检索的信息，详见dto.ChannelOtherSettings
 
 	// cache info
-	Keys []string `json:"-" gorm:"-"`
+	Keys    []string            `json:"-" gorm:"-"`
+	Pricing *ChannelPricingView `json:"pricing,omitempty" gorm:"-"`
 }
 
 type ChannelInfo struct {
@@ -447,6 +448,13 @@ func BatchInsertChannels(channels []Channel) error {
 				tx.Rollback()
 				return err
 			}
+			if channel_.Pricing != nil {
+				pricing := channel_.Pricing.ToChannelPricing(channel_.Id)
+				if err := SaveChannelPricingTx(tx, pricing); err != nil {
+					tx.Rollback()
+					return err
+				}
+			}
 		}
 	}
 	return tx.Commit().Error
@@ -467,6 +475,10 @@ func BatchDeleteChannels(ids []int) error {
 			return err
 		}
 		if err := tx.Where("channel_id in (?)", chunk).Delete(&Ability{}).Error; err != nil {
+			tx.Rollback()
+			return err
+		}
+		if err := tx.Where("channel_id in (?)", chunk).Delete(&ChannelPricing{}).Error; err != nil {
 			tx.Rollback()
 			return err
 		}
@@ -598,6 +610,7 @@ func (channel *Channel) Delete() error {
 	if err != nil {
 		return err
 	}
+	_ = DeleteChannelPricing(channel.Id)
 	err = channel.DeleteAbilities()
 	return err
 }

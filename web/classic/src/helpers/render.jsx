@@ -2224,6 +2224,10 @@ function parseTierBody(bodyStr) {
   for (const [varName, field] of Object.entries(BILLING_VAR_KEY_TO_FIELD)) {
     tier[field] = coeffs[varName] || 0;
   }
+  const requestPriceMatch = bodyStr.trim().match(/^([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)(?:\s*\*|$)/);
+  if (Object.keys(coeffs).length === 0 && requestPriceMatch) {
+    tier.requestPrice = Number(requestPriceMatch[1]) / 1000000;
+  }
   return tier;
 }
 
@@ -2327,6 +2331,9 @@ export function renderTieredModelPrice(opts) {
 
   const lines = [
     buildBillingText('命中档位：{{tier}}', { tier: matchedTier || tier.label }),
+    ...(tier.requestPrice > 0
+        ? [buildBillingPriceText('单次价格：{{symbol}}{{price}} / 次', { symbol, usdAmount: tier.requestPrice, rate })]
+        : []),
     ...priceLines
         .filter(([field]) => tier[field] > 0)
         .map(([field, label]) =>
@@ -2381,6 +2388,14 @@ export function renderTieredModelPriceSimple(opts) {
       const priceSegments = BILLING_PRICING_VARS
           .filter((v) => v.group !== 'cache' || hasAnyCacheTokens)
           .map((v) => [v.field, v.shortLabel]);
+      if (tier.requestPrice > 0) {
+        segments.push({
+          tone: 'secondary',
+          text: i18next.t('单次 {{price}} / 次', {
+            price: formatCompactDisplayPrice(tier.requestPrice),
+          }),
+        });
+      }
       for (const [field, label] of priceSegments) {
         if (tier[field] > 0) {
           segments.push({

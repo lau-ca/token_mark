@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -96,6 +97,72 @@ func TestOpenaiImageStreamHandlerWrapsJSONResponse(t *testing.T) {
 	require.Contains(t, recorder.Body.String(), `"b64_json":"final"`)
 	require.Contains(t, recorder.Body.String(), `"revised_prompt":"draw a cat"`)
 	require.Contains(t, recorder.Body.String(), `data: [DONE]`)
+}
+
+func TestOpenaiImageHandlerStripsChannelImageURLWhenBase64Exists(t *testing.T) {
+	oldMode := gin.Mode()
+	gin.SetMode(gin.TestMode)
+	t.Cleanup(func() { gin.SetMode(oldMode) })
+
+	body := `{"created":1710000000,"data":[{"b64_json":"final","url":"https://upstream.example/image.png","revised_prompt":"draw a cat"}],"usage":{"input_tokens":3,"output_tokens":4,"total_tokens":7}}`
+
+	c, recorder, resp, info := newImageTestContext(t, body, "application/json", false)
+	info.ChannelMeta.ChannelOtherSettings = dto.ChannelOtherSettings{ForceImageB64JSONNoURL: true}
+
+	usage, err := OpenaiImageHandler(c, info, resp)
+	require.Nil(t, err)
+	require.Equal(t, 7, usage.TotalTokens)
+	require.Contains(t, recorder.Body.String(), `"b64_json":"final"`)
+	require.Contains(t, recorder.Body.String(), `"revised_prompt":"draw a cat"`)
+	require.NotContains(t, recorder.Body.String(), `"url"`)
+	require.NotContains(t, recorder.Body.String(), `upstream.example`)
+}
+
+func TestStripChannelImageURLsRemovesMultipleURLsInOnePass(t *testing.T) {
+	info := &relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelOtherSettings: dto.ChannelOtherSettings{ForceImageB64JSONNoURL: true},
+		},
+	}
+	body := []byte(`{"created":1710000000,"data":[{"b64_json":"one","url":"https://upstream.example/one.png"},{"url":"https://upstream.example/two.png","b64_json":"two"}],"usage":{"total_tokens":7}}`)
+
+	stripped := stripChannelImageURLs(body, info)
+
+	require.JSONEq(t, `{"created":1710000000,"data":[{"b64_json":"one"},{"b64_json":"two"}],"usage":{"total_tokens":7}}`, string(stripped))
+	require.NotContains(t, string(stripped), `upstream.example`)
+}
+
+func TestOpenaiImageHandlerKeepsOtherChannelImageURL(t *testing.T) {
+	oldMode := gin.Mode()
+	gin.SetMode(gin.TestMode)
+	t.Cleanup(func() { gin.SetMode(oldMode) })
+
+	body := `{"created":1710000000,"data":[{"b64_json":"final","url":"https://upstream.example/image.png"}],"usage":{"input_tokens":3,"output_tokens":4,"total_tokens":7}}`
+
+	c, recorder, resp, info := newImageTestContext(t, body, "application/json", false)
+
+	usage, err := OpenaiImageHandler(c, info, resp)
+	require.Nil(t, err)
+	require.Equal(t, 7, usage.TotalTokens)
+	require.Contains(t, recorder.Body.String(), `"url":"https://upstream.example/image.png"`)
+}
+
+func TestOpenaiImageStreamHandlerStripsChannelJSONFallbackURL(t *testing.T) {
+	oldMode := gin.Mode()
+	gin.SetMode(gin.TestMode)
+	t.Cleanup(func() { gin.SetMode(oldMode) })
+
+	body := `{"created":1710000000,"data":[{"b64_json":"final","url":"https://upstream.example/image.png","revised_prompt":"draw a cat"}],"usage":{"input_tokens":3,"output_tokens":4,"total_tokens":7}}`
+
+	c, recorder, resp, info := newImageTestContext(t, body, "application/json", true)
+	info.ChannelMeta.ChannelOtherSettings = dto.ChannelOtherSettings{ForceImageB64JSONNoURL: true}
+
+	usage, err := OpenaiImageStreamHandler(c, info, resp)
+	require.Nil(t, err)
+	require.Equal(t, 7, usage.TotalTokens)
+	require.Contains(t, recorder.Body.String(), `"b64_json":"final"`)
+	require.NotContains(t, recorder.Body.String(), `"url"`)
+	require.NotContains(t, recorder.Body.String(), `upstream.example`)
 }
 
 // TestOpenaiImageHandlersReturnJSONError covers JSON error responses for both

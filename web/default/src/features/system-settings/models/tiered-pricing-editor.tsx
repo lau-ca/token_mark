@@ -896,7 +896,8 @@ function RawExprEditor({ exprString, onChange }: RawExprEditorProps) {
             {t('Functions')}: <code>tier(name, value)</code>, <code>max</code>,{' '}
             <code>min</code>, <code>ceil</code>, <code>floor</code>,{' '}
             <code>abs</code>, <code>header(name)</code>,{' '}
-            <code>param(path)</code>, <code>has(source, text)</code>
+            <code>param(path)</code>, <code>has(source, text)</code>,{' '}
+            <code>image_size_tier(size)</code>
           </div>
         </AlertDescription>
       </Alert>
@@ -1509,6 +1510,7 @@ Important: len is NOT affected by auto-exclusion. Tier conditions should use len
 - header(name) — reads a request header
 - param(path) — reads a request body JSON path (gjson syntax)
 - has(source, substr) — substring check
+- image_size_tier(size) — classifies image size and returns "1K" / "2K" / "4K"
 - hour(tz), minute(tz), weekday(tz), month(tz), day(tz) — time functions, tz is a timezone like "Asia/Shanghai"
 
 ### Price Coefficients

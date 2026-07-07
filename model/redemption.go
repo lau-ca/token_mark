@@ -2,28 +2,29 @@ package model
 
 import (
 	"errors"
-	"fmt"
 	"strconv"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/logger"
 
 	"gorm.io/gorm"
 )
 
 type Redemption struct {
-	Id           int            `json:"id"`
-	UserId       int            `json:"user_id"`
-	Key          string         `json:"key" gorm:"type:char(32);uniqueIndex"`
-	Status       int            `json:"status" gorm:"default:1"`
-	Name         string         `json:"name" gorm:"index"`
-	Quota        int            `json:"quota" gorm:"default:100"`
-	CreatedTime  int64          `json:"created_time" gorm:"bigint"`
-	RedeemedTime int64          `json:"redeemed_time" gorm:"bigint"`
-	Count        int            `json:"count" gorm:"-:all"` // only for api request
-	UsedUserId   int            `json:"used_user_id"`
-	DeletedAt    gorm.DeletedAt `gorm:"index"`
-	ExpiredTime  int64          `json:"expired_time" gorm:"bigint"` // 过期时间，0 表示不过期
+	Id                     int            `json:"id"`
+	UserId                 int            `json:"user_id"`
+	Key                    string         `json:"key" gorm:"type:char(32);uniqueIndex"`
+	Status                 int            `json:"status" gorm:"default:1"`
+	Name                   string         `json:"name" gorm:"index"`
+	Quota                  int            `json:"quota" gorm:"default:100"`
+	BenefitType            string         `json:"benefit_type" gorm:"type:varchar(32);not null;default:'quota'"`
+	CreatedTime            int64          `json:"created_time" gorm:"bigint"`
+	RedeemedTime           int64          `json:"redeemed_time" gorm:"bigint"`
+	Count                  int            `json:"count" gorm:"-:all"` // only for api request
+	UsedUserId             int            `json:"used_user_id"`
+	DeletedAt              gorm.DeletedAt `gorm:"index"`
+	ExpiredTime            int64          `json:"expired_time" gorm:"bigint"` // 过期时间，0 表示不过期
+	SubscriptionPlanId     int            `json:"subscription_plan_id" gorm:"default:0"`
+	RedeemedSubscriptionId int            `json:"redeemed_subscription_id" gorm:"default:0"`
 }
 
 func GetAllRedemptions(startIdx int, num int) (redemptions []*Redemption, total int64, err error) {
@@ -134,12 +135,12 @@ func GetRedemptionById(id int) (*Redemption, error) {
 	return &redemption, err
 }
 
-func Redeem(key string, userId int) (quota int, err error) {
+func Redeem(key string, userId int) (result *RedemptionRedeemResult, err error) {
 	if key == "" {
-		return 0, errors.New("未提供兑换码")
+		return nil, errors.New("未提供兑换码")
 	}
 	if userId == 0 {
-		return 0, errors.New("无效的 user id")
+		return nil, errors.New("无效的 user id")
 	}
 	redemption := &Redemption{}
 
@@ -159,36 +160,56 @@ func Redeem(key string, userId int) (quota int, err error) {
 		if redemption.ExpiredTime != 0 && redemption.ExpiredTime < common.GetTimestamp() {
 			return errors.New("该兑换码已过期")
 		}
+		redeemResult, err := redemption.redeemBenefitTx(tx, userId)
+		if err != nil {
+			return err
+		}
 		// Compare-and-swap on status: only the transaction that flips
-		// enabled -> used may credit quota, so a concurrent redeem of the
-		// same code loses here even without a row lock (e.g. on SQLite).
-		result := tx.Model(&Redemption{}).
+		// enabled -> used may commit the credited benefit, so a concurrent
+		// redeem of the same code rolls back even without row locks.
+		updateResult := tx.Model(&Redemption{}).
 			Where("id = ? AND status = ?", redemption.Id, common.RedemptionCodeStatusEnabled).
 			Updates(map[string]interface{}{
-				"redeemed_time": common.GetTimestamp(),
-				"status":        common.RedemptionCodeStatusUsed,
-				"used_user_id":  userId,
+				"redeemed_time":            common.GetTimestamp(),
+				"status":                   common.RedemptionCodeStatusUsed,
+				"used_user_id":             userId,
+				"redeemed_subscription_id": redemption.RedeemedSubscriptionId,
 			})
-		if result.Error != nil {
-			return result.Error
+		if updateResult.Error != nil {
+			return updateResult.Error
 		}
-		if result.RowsAffected == 0 {
+		if updateResult.RowsAffected == 0 {
 			return errors.New("该兑换码已被使用")
 		}
-		return tx.Model(&User{}).Where("id = ?", userId).Update("quota", gorm.Expr("quota + ?", redemption.Quota)).Error
+		result = redeemResult
+		return nil
 	})
 	if err != nil {
 		common.SysError("redemption failed: " + err.Error())
-		return 0, ErrRedeemFailed
+		return nil, ErrRedeemFailed
 	}
-	RecordLog(userId, LogTypeTopup, fmt.Sprintf("通过兑换码充值 %s，兑换码ID %d", logger.LogQuota(redemption.Quota), redemption.Id))
-	return redemption.Quota, nil
+	if result == nil {
+		common.SysError("redemption failed: empty redeem result")
+		return nil, ErrRedeemFailed
+	}
+	if result.subscriptionUpgradeGroup != "" {
+		_ = UpdateUserGroupCache(userId, result.subscriptionUpgradeGroup)
+	}
+	if msg := result.LogMessage(redemption.Id); msg != "" {
+		RecordLog(userId, LogTypeTopup, msg)
+	}
+	return result, nil
 }
 
 func (redemption *Redemption) Insert() error {
-	var err error
-	err = DB.Create(redemption).Error
-	return err
+	redemption.NormalizeBenefitFields()
+	if redemption.BenefitType == common.RedemptionBenefitTypeSubscription {
+		if err := DB.Create(redemption).Error; err != nil {
+			return err
+		}
+		return DB.Model(redemption).Update("quota", 0).Error
+	}
+	return DB.Create(redemption).Error
 }
 
 func (redemption *Redemption) SelectUpdate() error {
@@ -199,7 +220,8 @@ func (redemption *Redemption) SelectUpdate() error {
 // Update Make sure your token's fields is completed, because this will update non-zero values
 func (redemption *Redemption) Update() error {
 	var err error
-	err = DB.Model(redemption).Select("name", "status", "quota", "redeemed_time", "expired_time").Updates(redemption).Error
+	redemption.NormalizeBenefitFields()
+	err = DB.Model(redemption).Select("name", "status", "quota", "benefit_type", "subscription_plan_id", "redeemed_time", "expired_time").Updates(redemption).Error
 	return err
 }
 

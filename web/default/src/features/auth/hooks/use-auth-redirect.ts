@@ -87,6 +87,11 @@ export function useAuthRedirect() {
       console.error('Failed to fetch user data:', error)
     }
 
+    if (redirectTo?.startsWith('/sso/start')) {
+      window.location.replace(redirectTo)
+      return
+    }
+
     // Navigate to target page
     const targetPath = redirectTo || '/dashboard'
     navigate({ to: targetPath, replace: true })
@@ -95,8 +100,12 @@ export function useAuthRedirect() {
   /**
    * Redirect to 2FA page
    */
-  const redirectTo2FA = () => {
-    navigate({ to: '/otp', replace: true })
+  const redirectTo2FA = (redirectTo?: string) => {
+    navigate({
+      to: '/otp',
+      search: redirectTo ? { redirect: redirectTo } : undefined,
+      replace: true,
+    })
   }
 
   /**

@@ -262,6 +262,12 @@ function parseTierBody(bodyStr: string): Record<string, number> {
   for (const [varName, field] of Object.entries(BILLING_VAR_KEY_TO_FIELD)) {
     tier[field] = coeffs[varName] || 0
   }
+  const requestPriceMatch = bodyStr
+    .trim()
+    .match(/^([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)(?:\s*\*|$)/)
+  if (Object.keys(coeffs).length === 0 && requestPriceMatch) {
+    tier.requestPrice = Number(requestPriceMatch[1]) / 1_000_000
+  }
   return tier
 }
 

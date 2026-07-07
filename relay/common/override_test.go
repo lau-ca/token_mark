@@ -539,6 +539,43 @@ func TestApplyParamOverrideSetKeepOrigin(t *testing.T) {
 	assertJSONEqual(t, `{"model":"gpt-4","temperature":0.7}`, string(out))
 }
 
+func TestApplyParamOverrideNormalizeImageSize1K(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{name: "landscape 4k", in: `{"size":"3840x2160"}`, want: `{"size":"1024x640"}`},
+		{name: "landscape 2k", in: `{"size":"2048x1152"}`, want: `{"size":"1024x640"}`},
+		{name: "portrait 4k", in: `{"size":"2160x3840"}`, want: `{"size":"640x1024"}`},
+		{name: "portrait 2k", in: `{"size":"1152x2048"}`, want: `{"size":"640x1024"}`},
+		{name: "square 2k", in: `{"size":"2048x2048"}`, want: `{"size":"1024x1024"}`},
+		{name: "other landscape", in: `{"size":"1536x1024"}`, want: `{"size":"1024x640"}`},
+		{name: "other portrait", in: `{"size":"1024x1536"}`, want: `{"size":"640x1024"}`},
+		{name: "missing size defaults", in: `{}`, want: `{"size":"1024x1024"}`},
+		{name: "auto defaults", in: `{"size":"auto"}`, want: `{"size":"1024x1024"}`},
+		{name: "extreme landscape", in: `{"size":"4096x512"}`, want: `{"size":"1024x640"}`},
+	}
+	override := map[string]interface{}{
+		"operations": []interface{}{
+			map[string]interface{}{
+				"path": "size",
+				"mode": "normalize_image_size_1k",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			out, err := ApplyParamOverride([]byte(tt.in), override, nil)
+			if err != nil {
+				t.Fatalf("ApplyParamOverride returned error: %v", err)
+			}
+			assertJSONEqual(t, tt.want, string(out))
+		})
+	}
+}
+
 func TestApplyParamOverrideMove(t *testing.T) {
 	input := []byte(`{"model":"gpt-4","meta":{"x":1}}`)
 	override := map[string]interface{}{

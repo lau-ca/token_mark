@@ -96,3 +96,147 @@ func TestConvertImageEditRequestMultipart(t *testing.T) {
 		convertAndReplay(t, c, prompt)
 	})
 }
+
+func TestConvertImageEditRequestMultipartAppliesParamOverride(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	require.NoError(t, writer.WriteField("model", "gpt-image-2-adobe-t"))
+	require.NoError(t, writer.WriteField("prompt", "edit this image"))
+	require.NoError(t, writer.WriteField("quality", "low"))
+	require.NoError(t, writer.WriteField("size", "2048x1152"))
+	part, err := writer.CreateFormFile("image", "input.png")
+	require.NoError(t, err)
+	_, err = part.Write([]byte("fake image"))
+	require.NoError(t, err)
+	require.NoError(t, writer.Close())
+
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/edits", &body)
+	c.Request.Header.Set("Content-Type", writer.FormDataContentType())
+	require.NoError(t, c.Request.ParseMultipartForm(32<<20))
+
+	info := &relaycommon.RelayInfo{
+		RelayMode: relayconstant.RelayModeImagesEdits,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ParamOverride: map[string]interface{}{
+				"operations": []interface{}{
+					map[string]interface{}{
+						"path":  "model",
+						"mode":  "set",
+						"value": "gpt-image-2-low",
+						"logic": "AND",
+						"conditions": []interface{}{
+							map[string]interface{}{
+								"path":  "model",
+								"mode":  "full",
+								"value": "gpt-image-2-adobe-t",
+							},
+							map[string]interface{}{
+								"path":  "quality",
+								"mode":  "full",
+								"value": "low",
+							},
+						},
+					},
+					map[string]interface{}{
+						"path": "size",
+						"mode": "normalize_image_size_1k",
+					},
+				},
+			},
+		},
+	}
+	request := dto.ImageRequest{
+		Model:   "gpt-image-2-adobe-t",
+		Prompt:  "edit this image",
+		Quality: "low",
+		Size:    "2048x1152",
+	}
+
+	converted, err := (&Adaptor{}).ConvertImageRequest(c, info, request)
+	require.NoError(t, err)
+	convertedBody, ok := converted.(*bytes.Buffer)
+	require.True(t, ok)
+
+	replayedRequest := httptest.NewRequest(http.MethodPost, "/v1/images/edits", bytes.NewReader(convertedBody.Bytes()))
+	replayedRequest.Header.Set("Content-Type", c.Request.Header.Get("Content-Type"))
+	require.NoError(t, replayedRequest.ParseMultipartForm(32<<20))
+
+	require.Equal(t, "gpt-image-2-low", replayedRequest.PostForm.Get("model"))
+	require.Equal(t, "low", replayedRequest.PostForm.Get("quality"))
+	require.Equal(t, "1024x640", replayedRequest.PostForm.Get("size"))
+	require.Len(t, replayedRequest.MultipartForm.File["image"], 1)
+}
+
+func TestConvertImageEditRequestMultipartForcesChannelResponseFormat(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	require.NoError(t, writer.WriteField("model", "gpt-image-2"))
+	require.NoError(t, writer.WriteField("prompt", "edit this image"))
+	require.NoError(t, writer.WriteField("response_format", "url"))
+	part, err := writer.CreateFormFile("image", "input.png")
+	require.NoError(t, err)
+	_, err = part.Write([]byte("fake image"))
+	require.NoError(t, err)
+	require.NoError(t, writer.Close())
+
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/edits", &body)
+	c.Request.Header.Set("Content-Type", writer.FormDataContentType())
+	require.NoError(t, c.Request.ParseMultipartForm(32<<20))
+
+	info := &relaycommon.RelayInfo{
+		RelayMode: relayconstant.RelayModeImagesEdits,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelOtherSettings: dto.ChannelOtherSettings{
+				ForceImageB64JSONNoURL: true,
+			},
+		},
+	}
+	request := dto.ImageRequest{
+		Model:          "gpt-image-2",
+		Prompt:         "edit this image",
+		ResponseFormat: "url",
+	}
+
+	converted, err := (&Adaptor{}).ConvertImageRequest(c, info, request)
+	require.NoError(t, err)
+	convertedBody, ok := converted.(*bytes.Buffer)
+	require.True(t, ok)
+
+	replayedRequest := httptest.NewRequest(http.MethodPost, "/v1/images/edits", bytes.NewReader(convertedBody.Bytes()))
+	replayedRequest.Header.Set("Content-Type", c.Request.Header.Get("Content-Type"))
+	require.NoError(t, replayedRequest.ParseMultipartForm(32<<20))
+
+	require.Equal(t, "b64_json", replayedRequest.PostForm.Get("response_format"))
+	require.Len(t, replayedRequest.MultipartForm.File["image"], 1)
+}
+
+func TestConvertImageGenerationRequestForcesChannelResponseFormat(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	info := &relaycommon.RelayInfo{
+		RelayMode: relayconstant.RelayModeImagesGenerations,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelOtherSettings: dto.ChannelOtherSettings{
+				ForceImageB64JSONNoURL: true,
+			},
+		},
+	}
+	request := dto.ImageRequest{
+		Model:          "gpt-image-2",
+		Prompt:         "draw a cat",
+		ResponseFormat: "url",
+	}
+
+	converted, err := (&Adaptor{}).ConvertImageRequest(c, info, request)
+	require.NoError(t, err)
+	convertedRequest, ok := converted.(dto.ImageRequest)
+	require.True(t, ok)
+	require.Equal(t, "b64_json", convertedRequest.ResponseFormat)
+}

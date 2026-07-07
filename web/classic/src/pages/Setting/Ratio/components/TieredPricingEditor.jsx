@@ -892,7 +892,8 @@ function RawExprEditor({ exprString, onChange, t }) {
               <code>max(a, b)</code>, <code>min(a, b)</code>,{' '}
               <code>ceil(x)</code>, <code>floor(x)</code>,{' '}
               <code>abs(x)</code>, <code>header(name)</code>,{' '}
-              <code>param(path)</code>, <code>has(source, text)</code>
+              <code>param(path)</code>, <code>has(source, text)</code>,{' '}
+              <code>image_size_tier(size)</code>
             </div>
           </div>
         }
@@ -964,6 +965,33 @@ function CacheTokenEstimatorInputs({
 // Cost estimator (works with any Expr string)
 // ---------------------------------------------------------------------------
 
+function imageSizeTier(size) {
+  const normalized = String(size).trim().toLowerCase();
+  switch (normalized) {
+    case '1k':
+      return '1K';
+    case '2k':
+      return '2K';
+    case '4k':
+      return '4K';
+    case '2048x2048':
+    case '2048x1152':
+      return '2K';
+    case '3840x2160':
+    case '2160x3840':
+      return '4K';
+    default:
+      break;
+  }
+
+  const match = normalized.match(/^(\d+)\s*x\s*(\d+)$/);
+  if (!match) return '2K';
+  const maxEdge = Math.max(Number(match[1]), Number(match[2]));
+  if (maxEdge <= 1024) return '1K';
+  if (maxEdge <= 2048) return '2K';
+  return '4K';
+}
+
 function evalExprLocally(exprStr, p, c, extraTokenValues) {
   try {
     let matchedTier = '';
@@ -975,7 +1003,28 @@ function evalExprLocally(exprStr, p, c, extraTokenValues) {
     const cacheCreateTokens = extraTokenValues.cacheCreateTokens || 0;
     const cacheCreate1hTokens = extraTokenValues.cacheCreate1hTokens || 0;
     const len = p + cacheReadTokens + cacheCreateTokens + cacheCreate1hTokens;
-    const env = { p, c, len, tier: tierFn, max: Math.max, min: Math.min, abs: Math.abs, ceil: Math.ceil, floor: Math.floor };
+    const now = new Date();
+    const env = {
+      nil: null,
+      p,
+      c,
+      len,
+      tier: tierFn,
+      max: Math.max,
+      min: Math.min,
+      abs: Math.abs,
+      ceil: Math.ceil,
+      floor: Math.floor,
+      header: () => '',
+      param: () => null,
+      has: (source, text) => source != null && String(source).includes(String(text)),
+      hour: () => now.getHours(),
+      minute: () => now.getMinutes(),
+      weekday: () => now.getDay(),
+      month: () => now.getMonth() + 1,
+      day: () => now.getDate(),
+      image_size_tier: imageSizeTier,
+    };
     for (const field of EXTRA_ESTIMATOR_FIELDS) {
       env[field.var] = extraTokenValues[field.stateKey] || 0;
     }
@@ -1267,6 +1316,7 @@ p 和 c 是兜底变量，代表所有没有被表达式单独定价的 token。
 - header(name) — 读取请求头
 - param(path) — 读取请求体 JSON 路径（gjson 语法）
 - has(source, substr) — 子字符串检查
+- image_size_tier(size) — 图片尺寸分档，返回 "1K" / "2K" / "4K"
 - hour(tz)、minute(tz)、weekday(tz)、month(tz)、day(tz) — 时间函数，tz 为时区如 "Asia/Shanghai"
 
 ### 价格系数

@@ -59,6 +59,7 @@ const _systemInfoSchema = z.object({
   }),
   SystemName: z.string().min(1),
   ServerAddress: z.string().optional(),
+  PublicApiBaseUrl: z.string().optional(),
   Logo: z.string().url().optional().or(z.literal('')),
   Footer: z.string().optional(),
   About: z.string().optional(),
@@ -91,6 +92,7 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
     },
     SystemName: normalizeValue(defaultValues.SystemName),
     ServerAddress: normalizeValue(defaultValues.ServerAddress),
+    PublicApiBaseUrl: normalizeValue(defaultValues.PublicApiBaseUrl),
     Logo: normalizeValue(defaultValues.Logo),
     Footer: normalizeValue(defaultValues.Footer),
     About: normalizeValue(defaultValues.About),
@@ -109,6 +111,7 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
       error: () => t('System name is required'),
     }),
     ServerAddress: z.string().optional(),
+    PublicApiBaseUrl: z.string().optional(),
     Logo: z.string().url().optional().or(z.literal('')),
     Footer: z.string().optional(),
     About: z.string().optional(),
@@ -138,7 +141,7 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
         let allSucceeded = true
         for (const [key, value] of otherEntries) {
           let v = normalizeValue(value)
-          if (key === 'ServerAddress') {
+          if (key === 'ServerAddress' || key === 'PublicApiBaseUrl') {
             v = v.replace(/\/+$/, '')
           }
           const res = await updateOption.mutateAsync({
@@ -264,6 +267,25 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
                     <FormDescription>
                       {t(
                         'The public URL of your server, used for OAuth callbacks, webhooks, and other external integrations'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='PublicApiBaseUrl'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Public API Base URL')}</FormLabel>
+                    <FormControl>
+                      <Input placeholder='https://api.example.com' {...field} />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'Only used as the API base URL shown and copied on the home page. Leave empty to use Server Address.'
                       )}
                     </FormDescription>
                     <FormMessage />

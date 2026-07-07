@@ -102,6 +102,7 @@ const SystemSetting = () => {
     LinuxDOClientSecret: '',
     LinuxDOMinimumTrustLevel: '',
     ServerAddress: '',
+    PublicApiBaseUrl: '',
     // SSRF防护配置
     'fetch_setting.enable_ssrf_protection': true,
     'fetch_setting.allow_private_ip': '',
@@ -319,6 +320,13 @@ const SystemSetting = () => {
   const submitServerAddress = async () => {
     let ServerAddress = removeTrailingSlash(inputs.ServerAddress);
     await updateOptions([{ key: 'ServerAddress', value: ServerAddress }]);
+  };
+
+  const submitPublicApiBaseUrl = async () => {
+    let PublicApiBaseUrl = removeTrailingSlash(inputs.PublicApiBaseUrl);
+    await updateOptions([
+      { key: 'PublicApiBaseUrl', value: PublicApiBaseUrl },
+    ]);
   };
 
   const submitSMTP = async () => {
@@ -759,13 +767,31 @@ const SystemSetting = () => {
                         label={t('服务器地址')}
                         placeholder='https://yourdomain.com'
                         extraText={t(
-                          '该服务器地址将影响支付回调地址以及默认首页展示的地址，请确保正确配置',
+                          '该服务器地址将影响 OAuth、支付回调、密码重置等外部回调地址，请确保正确配置',
                         )}
                       />
                     </Col>
                   </Row>
                   <Button onClick={submitServerAddress}>
                     {t('更新服务器地址')}
+                  </Button>
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                    style={{ marginTop: 16 }}
+                  >
+                    <Col xs={24} sm={24} md={24} lg={24} xl={24}>
+                      <Form.Input
+                        field='PublicApiBaseUrl'
+                        label={t('公开 API 地址')}
+                        placeholder='https://api.example.com'
+                        extraText={t(
+                          '仅用于首页展示和复制的 API 基址，留空则使用服务器地址',
+                        )}
+                      />
+                    </Col>
+                  </Row>
+                  <Button onClick={submitPublicApiBaseUrl}>
+                    {t('更新公开 API 地址')}
                   </Button>
                 </Form.Section>
               </Card>

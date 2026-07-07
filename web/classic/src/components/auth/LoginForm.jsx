@@ -142,6 +142,18 @@ const LoginForm = () => {
       status.telegram_oauth ||
       hasCustomOAuthProviders,
   );
+  const getSsoRedirect = () => {
+    const redirect = searchParams.get('redirect');
+    return redirect?.startsWith('/sso/start') ? redirect : null;
+  };
+  const navigateAfterLogin = () => {
+    const ssoRedirect = getSsoRedirect();
+    if (ssoRedirect) {
+      window.location.replace(ssoRedirect);
+      return;
+    }
+    navigate('/console');
+  };
 
   useEffect(() => {
     if (status?.turnstile_check) {
@@ -255,7 +267,7 @@ const LoginForm = () => {
               centered: true,
             });
           }
-          navigate('/console');
+          navigateAfterLogin();
         } else {
           showError(message);
         }
@@ -456,7 +468,7 @@ const LoginForm = () => {
         setUserData(finish.data);
         updateAPI();
         showSuccess('登录成功！');
-        navigate('/console');
+        navigateAfterLogin();
       } else {
         showError(finish.message || 'Passkey 登录失败，请重试');
       }
@@ -491,7 +503,7 @@ const LoginForm = () => {
     setUserData(data);
     updateAPI();
     showSuccess('登录成功！');
-    navigate('/console');
+    navigateAfterLogin();
   };
 
   // 返回登录页面

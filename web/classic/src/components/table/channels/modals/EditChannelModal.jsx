@@ -83,6 +83,7 @@ import {
   IconBolt,
   IconSearch,
   IconChevronDown,
+  IconHelpCircle,
 } from '@douyinfe/semi-icons';
 
 const { Text, Title } = Typography;
@@ -206,6 +207,7 @@ const EditChannelModal = (props) => {
     disable_store: false, // false = 允许透传（默认开启）
     allow_safety_identifier: false,
     allow_include_obfuscation: false,
+    force_image_b64_json_no_url: false,
     allow_inference_geo: false,
     allow_speed: false,
     claude_beta_query: false,
@@ -214,6 +216,11 @@ const EditChannelModal = (props) => {
     upstream_model_update_last_check_time: 0,
     upstream_model_update_last_detected_models: [],
     upstream_model_update_ignored_models: '',
+    pricing_ratio: undefined,
+    pricing_exchange: undefined,
+    pricing_margin: undefined,
+    pricing_commission: undefined,
+    pricing_discount: undefined,
   };
   const [batch, setBatch] = useState(false);
   const [multiToSingle, setMultiToSingle] = useState(false);
@@ -905,6 +912,8 @@ const EditChannelModal = (props) => {
             parsedSettings.allow_safety_identifier || false;
           data.allow_include_obfuscation =
             parsedSettings.allow_include_obfuscation || false;
+          data.force_image_b64_json_no_url =
+            parsedSettings.force_image_b64_json_no_url || false;
           data.allow_inference_geo =
             parsedSettings.allow_inference_geo || false;
           data.allow_speed = parsedSettings.allow_speed || false;
@@ -936,6 +945,7 @@ const EditChannelModal = (props) => {
           data.disable_store = false;
           data.allow_safety_identifier = false;
           data.allow_include_obfuscation = false;
+          data.force_image_b64_json_no_url = false;
           data.allow_inference_geo = false;
           data.allow_speed = false;
           data.claude_beta_query = false;
@@ -954,6 +964,7 @@ const EditChannelModal = (props) => {
         data.disable_store = false;
         data.allow_safety_identifier = false;
         data.allow_include_obfuscation = false;
+        data.force_image_b64_json_no_url = false;
         data.allow_inference_geo = false;
         data.allow_speed = false;
         data.claude_beta_query = false;
@@ -971,6 +982,22 @@ const EditChannelModal = (props) => {
       ) {
         data.base_url = 'https://ark.cn-beijing.volces.com';
       }
+
+      data.pricing_ratio = data.pricing?.ratio ?? undefined;
+      data.pricing_exchange = data.pricing?.exchange ?? undefined;
+      data.pricing_margin =
+        data.pricing?.margin === null || data.pricing?.margin === undefined
+          ? undefined
+          : Number((data.pricing.margin * 100).toFixed(2));
+      data.pricing_commission =
+        data.pricing?.commission === null ||
+        data.pricing?.commission === undefined
+          ? undefined
+          : Number((data.pricing.commission * 100).toFixed(2));
+      data.pricing_discount =
+        data.pricing?.discount === null || data.pricing?.discount === undefined
+          ? undefined
+          : Number((data.pricing.discount * 100).toFixed(2));
 
       initialBaseUrlRef.current = data.base_url || '';
       setInputs(data);
@@ -1534,10 +1561,33 @@ const EditChannelModal = (props) => {
     return normalizedMapping !== initialMapping;
   };
 
+  const readOptionalNumber = (value) => {
+    if (value === undefined || value === null || value === '') {
+      return null;
+    }
+    const number = Number(value);
+    return Number.isFinite(number) ? number : null;
+  };
+
   const submit = async () => {
     const formValues = formApiRef.current ? formApiRef.current.getValues() : {};
     let localInputs = { ...formValues };
     localInputs.param_override = inputs.param_override;
+    const marginValue = readOptionalNumber(localInputs.pricing_margin);
+    const commissionValue = readOptionalNumber(localInputs.pricing_commission);
+    const discountValue = readOptionalNumber(localInputs.pricing_discount);
+    localInputs.pricing = {
+      ratio: readOptionalNumber(localInputs.pricing_ratio),
+      exchange: readOptionalNumber(localInputs.pricing_exchange),
+      margin: marginValue === null ? null : marginValue / 100,
+      commission: commissionValue === null ? null : commissionValue / 100,
+      discount: discountValue === null ? null : discountValue / 100,
+    };
+    delete localInputs.pricing_ratio;
+    delete localInputs.pricing_exchange;
+    delete localInputs.pricing_margin;
+    delete localInputs.pricing_commission;
+    delete localInputs.pricing_discount;
 
     if (localInputs.type === 57) {
       if (batch) {
@@ -1792,6 +1842,8 @@ const EditChannelModal = (props) => {
           localInputs.allow_safety_identifier === true;
         settings.allow_include_obfuscation =
           localInputs.allow_include_obfuscation === true;
+        settings.force_image_b64_json_no_url =
+          localInputs.force_image_b64_json_no_url === true;
       }
       if (localInputs.type === 14) {
         settings.allow_inference_geo = localInputs.allow_inference_geo === true;
@@ -1842,6 +1894,7 @@ const EditChannelModal = (props) => {
     delete localInputs.disable_store;
     delete localInputs.allow_safety_identifier;
     delete localInputs.allow_include_obfuscation;
+    delete localInputs.force_image_b64_json_no_url;
     delete localInputs.allow_inference_geo;
     delete localInputs.allow_speed;
     delete localInputs.claude_beta_query;
@@ -2491,6 +2544,7 @@ const EditChannelModal = (props) => {
                       <Form.Switch field='disable_store' label={t('禁用 store 透传')} checkedText={t('开')} uncheckedText={t('关')} onChange={(value) => handleChannelOtherSettingsChange('disable_store', value)} extraText={t('store 字段用于授权 OpenAI 存储请求数据以评估和优化产品。默认关闭，开启后可能导致 Codex 无法正常使用')} />
                       <Form.Switch field='allow_safety_identifier' label={t('允许 safety_identifier 透传')} checkedText={t('开')} uncheckedText={t('关')} onChange={(value) => handleChannelOtherSettingsChange('allow_safety_identifier', value)} extraText={t('safety_identifier 字段用于帮助 OpenAI 识别可能违反使用政策的应用程序用户。默认关闭以保护用户隐私')} />
                       <Form.Switch field='allow_include_obfuscation' label={t('允许 stream_options.include_obfuscation 透传')} checkedText={t('开')} uncheckedText={t('关')} onChange={(value) => handleChannelOtherSettingsChange('allow_include_obfuscation', value)} extraText={t('include_obfuscation 用于控制 Responses 流混淆字段。默认关闭以避免客户端关闭该安全保护')} />
+                      <Form.Switch field='force_image_b64_json_no_url' label={t('图片接口隐藏 URL')} checkedText={t('开')} uncheckedText={t('关')} onChange={(value) => handleChannelOtherSettingsChange('force_image_b64_json_no_url', value)} extraText={t('开启后，图片生成和编辑请求会强制使用 b64_json，并从图片回参中移除 url 字段，避免暴露上游图片地址')} />
                     </>
                   )}
 
@@ -3573,6 +3627,141 @@ const EditChannelModal = (props) => {
                     position='top'
                     onChange={(value) => handleInputChange('groups', value)}
                   />
+
+                      <div
+                        className='p-3 rounded-xl'
+                        style={{
+                          backgroundColor: 'var(--semi-color-fill-0)',
+                          border: '1px solid var(--semi-color-fill-2)',
+                        }}
+                      >
+                        <div className='flex items-center gap-1 mb-3'>
+                          <Text className='font-medium'>
+                            {t('经营参数')}
+                          </Text>
+                          <Tooltip
+                            content={
+                              <div className='text-xs leading-5 max-w-sm'>
+                                <div>
+                                  {t('渠道成本倍率')} = {t('渠道倍率')} ×{' '}
+                                  {t('渠道汇率')}
+                                </div>
+                                <div>
+                                  {t('营销后收入倍率')} = {t('售价倍率')} ×{' '}
+                                  {t('售价汇率')} × ({t('充值折扣')} -{' '}
+                                  {t('分销抽成')})
+                                </div>
+                                <div>
+                                  {t('实际毛利')} = ({t('营销后收入倍率')} -{' '}
+                                  {t('渠道成本倍率')}) / {t('营销后收入倍率')}
+                                </div>
+                              </div>
+                            }
+                          >
+                            <IconHelpCircle
+                              size={14}
+                              className='text-gray-400 cursor-help'
+                            />
+                          </Tooltip>
+                        </div>
+                        <div className='flex flex-col gap-3'>
+                          <div>
+                            <Text className='text-xs text-gray-500'>
+                              {t('渠道经营')}
+                            </Text>
+                            <Row gutter={12}>
+                              <Col xs={24} sm={12}>
+                                <Form.InputNumber
+                                  field='pricing_ratio'
+                                  label={t('渠道倍率')}
+                                  placeholder='--'
+                                  min={0}
+                                  step={0.01}
+                                  style={{ width: '100%' }}
+                                  onNumberChange={(value) =>
+                                    handleInputChange('pricing_ratio', value)
+                                  }
+                                />
+                              </Col>
+                              <Col xs={24} sm={12}>
+                                <Form.InputNumber
+                                  field='pricing_exchange'
+                                  label={t('渠道汇率')}
+                                  placeholder='--'
+                                  min={0.000001}
+                                  step={0.01}
+                                  style={{ width: '100%' }}
+                                  onNumberChange={(value) =>
+                                    handleInputChange('pricing_exchange', value)
+                                  }
+                                />
+                              </Col>
+                            </Row>
+                          </div>
+                          <div>
+                            <Text className='text-xs text-gray-500'>
+                              {t('营销')}
+                            </Text>
+                            <Row gutter={12}>
+                              <Col xs={24} sm={12}>
+                                <Form.InputNumber
+                                  field='pricing_commission'
+                                  label={t('分销抽成')}
+                                  placeholder='0'
+                                  min={0}
+                                  max={99.99}
+                                  step={1}
+                                  suffix='%'
+                                  style={{ width: '100%' }}
+                                  onNumberChange={(value) =>
+                                    handleInputChange(
+                                      'pricing_commission',
+                                      value,
+                                    )
+                                  }
+                                />
+                              </Col>
+                              <Col xs={24} sm={12}>
+                                <Form.InputNumber
+                                  field='pricing_discount'
+                                  label={t('充值折扣')}
+                                  placeholder='100'
+                                  min={0.01}
+                                  max={100}
+                                  step={1}
+                                  suffix='%'
+                                  style={{ width: '100%' }}
+                                  onNumberChange={(value) =>
+                                    handleInputChange('pricing_discount', value)
+                                  }
+                                />
+                              </Col>
+                            </Row>
+                          </div>
+                          <div>
+                            <Text className='text-xs text-gray-500'>
+                              {t('毛利评估')}
+                            </Text>
+                            <Row gutter={12}>
+                              <Col xs={24} sm={12}>
+                                <Form.InputNumber
+                                  field='pricing_margin'
+                                  label={t('期望毛利')}
+                                  placeholder='--'
+                                  min={0}
+                                  max={99.99}
+                                  step={1}
+                                  suffix='%'
+                                  style={{ width: '100%' }}
+                                  onNumberChange={(value) =>
+                                    handleInputChange('pricing_margin', value)
+                                  }
+                                />
+                              </Col>
+                            </Row>
+                          </div>
+                        </div>
+                      </div>
 
                   {/* Model Mapping - Core Config */}
                   <JSONEditor

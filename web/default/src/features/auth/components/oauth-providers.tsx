@@ -37,6 +37,7 @@ type OAuthProvidersProps = {
   className?: string
   onWeChatLogin?: () => void
   isWeChatLoading?: boolean
+  redirectTo?: string
 }
 
 type ProviderButton = {
@@ -53,6 +54,7 @@ export function OAuthProviders({
   className,
   onWeChatLogin,
   isWeChatLoading = false,
+  redirectTo,
 }: OAuthProvidersProps) {
   const { t } = useTranslation()
   const {
@@ -65,7 +67,7 @@ export function OAuthProviders({
     handleLinuxDOLogin,
     handleTelegramLogin,
     handleCustomOAuthLogin,
-  } = useOAuthLogin(status)
+  } = useOAuthLogin(status, redirectTo)
 
   const providerButtons: ProviderButton[] = []
 

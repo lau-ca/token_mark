@@ -773,6 +773,15 @@ func applyOperations(jsonData []byte, operations []ParamOperation, conditionCont
 				}
 				auditRecorder.recordOperation("set", path, "", "", op.Value)
 			}
+		case "normalize_image_size_1k":
+			for _, path := range opPaths {
+				size := normalizeImageSize1K(gjson.GetBytes(result, path).String())
+				result, err = sjson.SetBytes(result, path, size)
+				if err != nil {
+					break
+				}
+				auditRecorder.recordOperation("normalize_image_size_1k", path, "", "", size)
+			}
 		case "move":
 			opFrom := processNegativeIndex(result, op.From)
 			opTo := processNegativeIndex(result, op.To)
@@ -1562,9 +1571,35 @@ func copyValue(data []byte, fromPath, toPath string) ([]byte, error) {
 	return sjson.SetBytes(data, toPath, sourceValue.Value())
 }
 
+func normalizeImageSize1K(size string) string {
+	const defaultSize = "1024x1024"
+	size = strings.ToLower(strings.TrimSpace(size))
+	parts := strings.Split(size, "x")
+	if len(parts) != 2 {
+		return defaultSize
+	}
+
+	width, err := strconv.Atoi(strings.TrimSpace(parts[0]))
+	if err != nil || width <= 0 {
+		return defaultSize
+	}
+	height, err := strconv.Atoi(strings.TrimSpace(parts[1]))
+	if err != nil || height <= 0 {
+		return defaultSize
+	}
+
+	if width > height {
+		return "1024x640"
+	}
+	if height > width {
+		return "640x1024"
+	}
+	return defaultSize
+}
+
 func isPathBasedOperation(mode string) bool {
 	switch mode {
-	case "delete", "set", "prepend", "append", "trim_prefix", "trim_suffix", "ensure_prefix", "ensure_suffix", "trim_space", "to_lower", "to_upper", "replace", "regex_replace", "prune_objects":
+	case "delete", "set", "normalize_image_size_1k", "prepend", "append", "trim_prefix", "trim_suffix", "ensure_prefix", "ensure_suffix", "trim_space", "to_lower", "to_upper", "replace", "regex_replace", "prune_objects":
 		return true
 	default:
 		return false

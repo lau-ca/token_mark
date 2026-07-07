@@ -22,6 +22,11 @@ import { z } from 'zod'
 // Redemption Schema & Types
 // ============================================================================
 
+const redemptionBenefitTypeSchema = z.preprocess(
+  (value) => (value === '' || value == null ? 'quota' : value),
+  z.enum(['quota', 'subscription'])
+)
+
 export const redemptionSchema = z.object({
   id: z.number(),
   user_id: z.number(),
@@ -29,6 +34,9 @@ export const redemptionSchema = z.object({
   key: z.string(),
   status: z.number(), // 1: enabled, 2: disabled, 3: used
   quota: z.number(),
+  benefit_type: redemptionBenefitTypeSchema,
+  subscription_plan_id: z.number().optional().default(0),
+  redeemed_subscription_id: z.number().optional().default(0),
   created_time: z.number(),
   redeemed_time: z.number(),
   expired_time: z.number(), // 0 for never expires
@@ -36,6 +44,7 @@ export const redemptionSchema = z.object({
 })
 
 export type Redemption = z.infer<typeof redemptionSchema>
+export type RedemptionBenefitType = Redemption['benefit_type']
 
 // ============================================================================
 // API Request/Response Types
@@ -74,6 +83,8 @@ export interface RedemptionFormData {
   id?: number
   name: string
   quota: number
+  benefit_type: RedemptionBenefitType
+  subscription_plan_id: number
   expired_time: number
   count?: number // Only for create
   status?: number // Only for status update

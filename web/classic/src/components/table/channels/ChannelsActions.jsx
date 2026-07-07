@@ -19,6 +19,9 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import {
+  IconDownload,
+} from '@douyinfe/semi-icons';
+import {
   Button,
   Dropdown,
   Modal,
@@ -40,6 +43,7 @@ const ChannelsActions = ({
   detectAllUpstreamUpdates,
   detectAllUpstreamUpdatesLoading,
   applyAllUpstreamUpdatesLoading,
+  exportChannels,
   compactMode,
   setCompactMode,
   idSort,
@@ -228,6 +232,16 @@ const ChannelsActions = ({
             setCompactMode={setCompactMode}
             t={t}
           />
+
+          <Button
+            size='small'
+            type='tertiary'
+            icon={<IconDownload />}
+            onClick={exportChannels}
+            className='w-full md:w-auto'
+          >
+            {t('导出')}
+          </Button>
         </div>
 
         {/* 右侧：设置开关区域 */}

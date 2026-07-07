@@ -3,6 +3,7 @@ package controller
 import (
 	"net/http"
 	"strconv"
+	"strings"
 	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
@@ -89,16 +90,22 @@ func AddRedemption(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": msg})
 		return
 	}
+	if err := redemption.ValidateBenefitForUpsert(nil); err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	var keys []string
 	for i := 0; i < redemption.Count; i++ {
 		key := common.GetUUID()
 		cleanRedemption := model.Redemption{
-			UserId:      c.GetInt("id"),
-			Name:        redemption.Name,
-			Key:         key,
-			CreatedTime: common.GetTimestamp(),
-			Quota:       redemption.Quota,
-			ExpiredTime: redemption.ExpiredTime,
+			UserId:             c.GetInt("id"),
+			Name:               redemption.Name,
+			Key:                key,
+			CreatedTime:        common.GetTimestamp(),
+			Quota:              redemption.Quota,
+			BenefitType:        redemption.BenefitType,
+			ExpiredTime:        redemption.ExpiredTime,
+			SubscriptionPlanId: redemption.SubscriptionPlanId,
 		}
 		err = cleanRedemption.Insert()
 		if err != nil {
@@ -153,13 +160,25 @@ func UpdateRedemption(c *gin.Context) {
 		return
 	}
 	if statusOnly == "" {
+		if strings.TrimSpace(redemption.BenefitType) == "" {
+			redemption.BenefitType = cleanRedemption.BenefitType
+			if cleanRedemption.BenefitType == common.RedemptionBenefitTypeSubscription {
+				redemption.SubscriptionPlanId = cleanRedemption.SubscriptionPlanId
+			}
+		}
 		if valid, msg := validateExpiredTime(c, redemption.ExpiredTime); !valid {
 			c.JSON(http.StatusOK, gin.H{"success": false, "message": msg})
+			return
+		}
+		if err := redemption.ValidateBenefitForUpsert(nil); err != nil {
+			common.ApiError(c, err)
 			return
 		}
 		// If you add more fields, please also update redemption.Update()
 		cleanRedemption.Name = redemption.Name
 		cleanRedemption.Quota = redemption.Quota
+		cleanRedemption.BenefitType = redemption.BenefitType
+		cleanRedemption.SubscriptionPlanId = redemption.SubscriptionPlanId
 		cleanRedemption.ExpiredTime = redemption.ExpiredTime
 	}
 	if statusOnly != "" {

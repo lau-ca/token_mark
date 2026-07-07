@@ -928,6 +928,7 @@ export const formatDynamicPriceSummary = (billingExpr, t, groupRatio = 1) => {
   const hasCoeffs = 'p' in varCoeffs || 'c' in varCoeffs;
 
   const varLabels = BILLING_PRICING_VARS.map((v) => [v.key, v.label]);
+  const requestPriceMatches = [...exprBody.matchAll(/tier\("([^"]*)",\s*([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?)?\d*)(?:\s*\*|[)\s])/g)];
 
   const hasTimeCondition = /\b(?:hour|minute|weekday|month|day)\(/.test(exprBody);
   const hasRequestCondition = /\b(?:param|header)\(/.test(exprBody);
@@ -953,6 +954,11 @@ export const formatDynamicPriceSummary = (billingExpr, t, groupRatio = 1) => {
           )}
         </>
       )}
+      {requestPriceMatches.map((match) => (
+        <span key={`request-price-${match[1]}`} style={lineStyle}>
+          {`${match[1]} ${symbol}${((Number(match[2]) / 1000000) * gr * rate).toFixed(6)} / ${t('次')}`}
+        </span>
+      ))}
       {(tierCount > 1 || hasTimeCondition || hasRequestCondition) && (
       <span style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
         <span

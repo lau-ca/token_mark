@@ -427,6 +427,7 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 }
 
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
+	forceChannelImageResponseFormat(info, &request)
 	switch info.RelayMode {
 	case relayconstant.RelayModeImagesEdits:
 		if isJSONRequest(c) {
@@ -435,6 +436,21 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 
 		var requestBody bytes.Buffer
 		writer := multipart.NewWriter(&requestBody)
+
+		if info != nil && info.ChannelMeta != nil && len(info.ParamOverride) > 0 {
+			jsonData, err := common.Marshal(request)
+			if err != nil {
+				return nil, fmt.Errorf("marshal image edit request failed: %w", err)
+			}
+			jsonData, err = relaycommon.ApplyParamOverrideWithRelayInfo(jsonData, info)
+			if err != nil {
+				return nil, err
+			}
+			if err = common.Unmarshal(jsonData, &request); err != nil {
+				return nil, fmt.Errorf("unmarshal overridden image edit request failed: %w", err)
+			}
+		}
+		forceChannelImageResponseFormat(info, &request)
 
 		writer.WriteField("model", request.Model)
 		// 使用已解析的 multipart 表单，避免重复解析
@@ -452,13 +468,21 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 		// 写入所有非文件字段
 		if mf != nil {
 			for key, values := range mf.Value {
-				if key == "model" {
+				if key == "model" ||
+					(key == "size" && request.Size != "") ||
+					(shouldForceChannelImageResponseFormat(info) && key == "response_format") {
 					continue
 				}
 				for _, value := range values {
 					writer.WriteField(key, value)
 				}
 			}
+		}
+		if request.Size != "" {
+			writer.WriteField("size", request.Size)
+		}
+		if shouldForceChannelImageResponseFormat(info) {
+			writer.WriteField("response_format", request.ResponseFormat)
 		}
 
 		if mf != nil && mf.File != nil {
@@ -558,6 +582,17 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 	default:
 		return request, nil
 	}
+}
+
+func forceChannelImageResponseFormat(info *relaycommon.RelayInfo, request *dto.ImageRequest) {
+	if request == nil || !shouldForceChannelImageResponseFormat(info) {
+		return
+	}
+	request.ResponseFormat = "b64_json"
+}
+
+func shouldForceChannelImageResponseFormat(info *relaycommon.RelayInfo) bool {
+	return shouldStripChannelImageURL(info)
 }
 
 func isJSONRequest(c *gin.Context) bool {

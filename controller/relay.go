@@ -122,6 +122,14 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		newAPIError = types.NewError(err, types.ErrorCodeGenRelayInfoFailed)
 		return
 	}
+	if relayFormat == types.RelayFormatOpenAIImage {
+		if requestInput, err := helper.BuildBillingExprRequestInputFromRequest(request, relayInfo.RequestHeaders); err != nil {
+			newAPIError = types.NewError(err, types.ErrorCodeGenRelayInfoFailed)
+			return
+		} else {
+			relayInfo.BillingRequestInput = &requestInput
+		}
+	}
 
 	needSensitiveCheck := setting.ShouldCheckPromptSensitive()
 	needCountToken := constant.CountToken

@@ -36,7 +36,18 @@ export const AuthRedirect = ({ children }) => {
   const user = localStorage.getItem('user');
 
   if (user) {
-    return <Navigate to='/console' replace />;
+    const searchParams = new URLSearchParams(window.location.search);
+    const redirect = searchParams.get('redirect');
+    if (redirect?.startsWith('/sso/start')) {
+      window.location.replace(redirect);
+      return null;
+    }
+    return (
+      <Navigate
+        to='/console'
+        replace
+      />
+    );
   }
 
   return children;

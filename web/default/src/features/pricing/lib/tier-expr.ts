@@ -268,6 +268,33 @@ export type EvalResult = {
   error: string | null
 }
 
+function imageSizeTier(size: unknown): string {
+  const normalized = String(size).trim().toLowerCase()
+  switch (normalized) {
+    case '1k':
+      return '1K'
+    case '2k':
+      return '2K'
+    case '4k':
+      return '4K'
+    case '2048x2048':
+    case '2048x1152':
+      return '2K'
+    case '3840x2160':
+    case '2160x3840':
+      return '4K'
+    default:
+      break
+  }
+
+  const match = normalized.match(/^(\d+)\s*x\s*(\d+)$/)
+  if (!match) return '2K'
+  const maxEdge = Math.max(Number(match[1]), Number(match[2]))
+  if (maxEdge <= 1024) return '1K'
+  if (maxEdge <= 2048) return '2K'
+  return '4K'
+}
+
 export function evalExprLocally(
   exprStr: string,
   promptTokens: number,
@@ -288,7 +315,9 @@ export function evalExprLocally(
     const cacheCreate1hTokens = extraTokenValues.cacheCreate1hTokens || 0
     const len =
       promptTokens + cacheReadTokens + cacheCreateTokens + cacheCreate1hTokens
+    const now = new Date()
     const env: Record<string, unknown> = {
+      nil: null,
       p: promptTokens,
       c: completionTokens,
       len,
@@ -298,6 +327,16 @@ export function evalExprLocally(
       abs: Math.abs,
       ceil: Math.ceil,
       floor: Math.floor,
+      header: () => '',
+      param: () => null,
+      has: (source: unknown, text: unknown) =>
+        source != null && String(source).includes(String(text)),
+      hour: () => now.getHours(),
+      minute: () => now.getMinutes(),
+      weekday: () => now.getDay(),
+      month: () => now.getMonth() + 1,
+      day: () => now.getDate(),
+      image_size_tier: imageSizeTier,
     }
     for (const field of ESTIMATOR_VARS) {
       env[field.var] = extraTokenValues[field.stateKey] || 0

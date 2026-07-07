@@ -97,6 +97,7 @@ export interface ChannelOtherSettings {
   disable_store?: boolean
   allow_safety_identifier?: boolean
   allow_include_obfuscation?: boolean
+  force_image_b64_json_no_url?: boolean
   allow_inference_geo?: boolean
   allow_speed?: boolean
   claude_beta_query?: boolean
