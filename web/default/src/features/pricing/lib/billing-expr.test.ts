@@ -56,6 +56,25 @@ describe('billing expression request-price parsing', () => {
         ['4k', { unit: 'second', price: 2 }],
       ]
     )
+    assert.equal(
+      tiers.some((tier) => tier.label === 'invalid'),
+      false
+    )
+  })
+
+  test('parses image size tiers with normalized image counts', () => {
+    const tiers = parseTiersFromExpr(
+      'image_size_tier(param("size")) == "1K" ? tier("1K", 120000 * (param("n") == nil || param("n") <= 0 ? 1 : param("n"))) : image_size_tier(param("size")) == "4K" ? tier("4K", 160000 * (param("n") == nil || param("n") <= 0 ? 1 : param("n"))) : tier("2K", 120000 * (param("n") == nil || param("n") <= 0 ? 1 : param("n")))'
+    )
+
+    assert.deepEqual(
+      tiers.map((tier) => [tier.label, getTierUnitPrice(tier)]),
+      [
+        ['1K', { unit: 'image', price: 0.12 }],
+        ['4K', { unit: 'image', price: 0.16 }],
+        ['2K', { unit: 'image', price: 0.12 }],
+      ]
+    )
   })
 
   test('retains token and legacy numeric expression parsing', () => {

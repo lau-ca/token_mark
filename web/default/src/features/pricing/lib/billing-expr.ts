@@ -237,11 +237,12 @@ export type ParsedTier = {
   conditions: TierCondition[]
   requestPrice?: number
   secondPrice?: number
+  imageRequestPrice?: number
   [field: string]: unknown
 }
 
 export type TierUnitPrice = {
-  unit: 'request' | 'second'
+  unit: 'request' | 'second' | 'image'
   price: number
 }
 
@@ -496,6 +497,29 @@ function parsePerRequestUnitPrice(bodyStr: string): TierUnitPrice | null {
   return null
 }
 
+function isNormalizedImageCountFactor(source: string): boolean {
+  const body = unwrapOuterParens(source)
+  const paramN = `param\\(\\s*["']n["']\\s*\\)`
+  return new RegExp(
+    `^${paramN}\\s*==\\s*nil\\s*\\|\\|\\s*${paramN}\\s*<=\\s*0\\s*\\?\\s*1\\s*:\\s*${paramN}$`
+  ).test(body)
+}
+
+function parseImageRequestUnitPrice(bodyStr: string): TierUnitPrice | null {
+  const factors = splitTopLevelMultiply(unwrapOuterParens(bodyStr))
+  if (factors.length !== 2) return null
+
+  const numericFactor = factors.find((factor) =>
+    NUMERIC_LITERAL_REGEX.test(unwrapOuterParens(factor))
+  )
+  const quantityFactor = factors.find(isNormalizedImageCountFactor)
+  if (!numericFactor || !quantityFactor) return null
+
+  const expressionUnitPrice = Number(unwrapOuterParens(numericFactor))
+  if (!Number.isFinite(expressionUnitPrice)) return null
+  return { unit: 'image', price: expressionUnitPrice / 1_000_000 }
+}
+
 function splitTopLevelAddition(expr: string): string[] | null {
   const parts: string[] = []
   let start = 0
@@ -577,6 +601,11 @@ function parseTierBody(bodyStr: string): Record<string, number> | null {
       : { secondPrice: unitPrice.price }
   }
 
+  const imageUnitPrice = parseImageRequestUnitPrice(bodyStr)
+  if (imageUnitPrice) {
+    return { imageRequestPrice: imageUnitPrice.price }
+  }
+
   const body = unwrapOuterParens(bodyStr)
   if (NUMERIC_LITERAL_REGEX.test(body)) {
     return { requestPrice: Number(body) / 1_000_000 }
@@ -627,8 +656,11 @@ export function parseTiersFromExpr(exprStr: string): ParsedTier[] {
       const tierBody = parseTierBody(call.args[1])
       if (tierBody === null) return []
       if (
-        (Number.isFinite(tierBody.requestPrice) && tierBody.requestPrice < 0) ||
-        (Number.isFinite(tierBody.secondPrice) && tierBody.secondPrice < 0)
+        (Number.isFinite(tierBody.requestPrice) &&
+          tierBody.requestPrice <= 0) ||
+        (Number.isFinite(tierBody.secondPrice) && tierBody.secondPrice <= 0) ||
+        (Number.isFinite(tierBody.imageRequestPrice) &&
+          tierBody.imageRequestPrice <= 0)
       ) {
         continue
       }
@@ -654,6 +686,10 @@ export function getTierUnitPrice(
   const secondPrice = Number(tier.secondPrice)
   if (Number.isFinite(secondPrice) && secondPrice > 0) {
     return { unit: 'second', price: secondPrice }
+  }
+  const imageRequestPrice = Number(tier.imageRequestPrice)
+  if (Number.isFinite(imageRequestPrice) && imageRequestPrice > 0) {
+    return { unit: 'image', price: imageRequestPrice }
   }
   return null
 }

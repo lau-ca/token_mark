@@ -175,8 +175,12 @@ function buildTypeDetailSegments(
     if (tieredSummary) {
       const tierLabel = tieredSummary.tier.label || t('Default')
       if (tieredSummary.unitPrice) {
-        const unitLabel =
-          tieredSummary.unitPrice.unit === 'request' ? t('request') : 's'
+        let unitLabel = 's'
+        if (tieredSummary.unitPrice.unit === 'request') {
+          unitLabel = t('request')
+        } else if (tieredSummary.unitPrice.unit === 'image') {
+          unitLabel = t('Image')
+        }
         segments.push({
           text: `${tierLabel} · ${formatPriceCompact(tieredSummary.unitPrice.price)}/${unitLabel}`,
         })
@@ -714,7 +718,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                     <Tooltip>
                       <TooltipTrigger
                         render={<CircleAlert className='size-3 text-red-500' />}
-                      ></TooltipTrigger>
+                      />
                       <TooltipContent>
                         <div className='space-y-0.5 text-xs'>
                           <p>

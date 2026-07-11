@@ -236,6 +236,9 @@ export function DynamicPricingBreakdown({
   const hasSecondPrice = tiers.some(
     (tier) => getTierUnitPrice(tier)?.unit === 'second'
   )
+  const hasImageRequestPrice = tiers.some(
+    (tier) => getTierUnitPrice(tier)?.unit === 'image'
+  )
 
   return (
     <section className={cn('min-w-0', !compact && 'py-3 sm:py-4')}>
@@ -323,6 +326,18 @@ export function DynamicPricingBreakdown({
                         <div className='truncate font-mono text-sm font-semibold'>
                           {Number(tier.secondPrice || 0) > 0
                             ? `${symbol}${(Number(tier.secondPrice) * rate).toFixed(6)}`
+                            : '-'}
+                        </div>
+                      </div>
+                    )}
+                    {hasImageRequestPrice && (
+                      <div className='min-w-0'>
+                        <div className='text-muted-foreground truncate text-[10px] font-medium tracking-wider uppercase'>
+                          {t('Image')}
+                        </div>
+                        <div className='truncate font-mono text-sm font-semibold'>
+                          {Number(tier.imageRequestPrice || 0) > 0
+                            ? `${symbol}${(Number(tier.imageRequestPrice) * rate).toFixed(6)}`
                             : '-'}
                         </div>
                       </div>
@@ -446,6 +461,27 @@ export function DynamicPricingBreakdown({
                       cellClassName: 'py-2.5 text-right align-top font-mono',
                       cell: (tier: ParsedTier) => {
                         const value = Number(tier.secondPrice || 0)
+                        return value > 0 ? (
+                          <span className='font-semibold'>
+                            {`${symbol}${(value * rate).toFixed(6)}`}
+                          </span>
+                        ) : (
+                          '-'
+                        )
+                      },
+                    },
+                  ]
+                : []),
+              ...(hasImageRequestPrice
+                ? [
+                    {
+                      id: 'imageRequestPrice',
+                      header: t('Image'),
+                      className:
+                        'text-muted-foreground py-2 text-right font-medium',
+                      cellClassName: 'py-2.5 text-right align-top font-mono',
+                      cell: (tier: ParsedTier) => {
+                        const value = Number(tier.imageRequestPrice || 0)
                         return value > 0 ? (
                           <span className='font-semibold'>
                             {`${symbol}${(value * rate).toFixed(6)}`}

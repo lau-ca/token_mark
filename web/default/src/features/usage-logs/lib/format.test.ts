@@ -33,6 +33,19 @@ describe('tiered billing log summaries', () => {
     assert.deepEqual(summary?.priceEntries, [])
   })
 
+  test('reports the matched per-image price', () => {
+    const summary = getTieredBillingSummary({
+      billing_mode: 'tiered_expr',
+      expr_b64: encodeExpr(
+        'tier("4K", 160000 * (param("n") == nil || param("n") <= 0 ? 1 : param("n")))'
+      ),
+      matched_tier: '4K',
+    })
+
+    assert.deepEqual(summary?.unitPrice, { unit: 'image', price: 0.16 })
+    assert.deepEqual(summary?.priceEntries, [])
+  })
+
   test('does not invent a structured summary for unsupported request arithmetic', () => {
     const summary = getTieredBillingSummary({
       billing_mode: 'tiered_expr',

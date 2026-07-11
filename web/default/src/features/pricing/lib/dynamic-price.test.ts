@@ -43,4 +43,15 @@ describe('dynamic pricing display entries', () => {
     )
     assert.equal(getDynamicPriceUnitLabel(entries[0], '1M', translate), '1M')
   })
+
+  test('uses image units for image-count prices', () => {
+    const tier = parseTiersFromExpr(
+      'tier("1K", 120000 * (param("n") == nil || param("n") <= 0 ? 1 : param("n")))'
+    )[0]
+    const entry = getDynamicPriceEntries(tier, OPTIONS)[0]
+
+    assert.equal(entry.value, 0.12)
+    assert.equal(entry.unit, 'image')
+    assert.equal(getDynamicPriceUnitLabel(entry, '1M', translate), 'Image')
+  })
 })

@@ -181,6 +181,18 @@ function BillingBreakdown(props: {
           value: tieredSummary.tier.label,
         })
       }
+      if (tieredSummary.unitPrice) {
+        let unitLabel = 's'
+        if (tieredSummary.unitPrice.unit === 'request') {
+          unitLabel = t('request')
+        } else if (tieredSummary.unitPrice.unit === 'image') {
+          unitLabel = t('Image')
+        }
+        rows.push({
+          label: t('Model Price'),
+          value: `${fmtPrice(tieredSummary.unitPrice.price)}/${unitLabel}`,
+        })
+      }
       for (const entry of tieredSummary.priceEntries) {
         rows.push({
           label: t(entry.shortLabel),
@@ -335,8 +347,13 @@ function BillingBreakdown(props: {
 
   return (
     <DetailSection label={t('Billing Details')}>
-      {rows.map((row, idx) => (
-        <DetailRow key={idx} label={row.label} value={row.value} mono />
+      {rows.map((row) => (
+        <DetailRow
+          key={`${row.label}:${row.value}`}
+          label={row.label}
+          value={row.value}
+          mono
+        />
       ))}
     </DetailSection>
   )
@@ -401,8 +418,13 @@ function TokenBreakdown(props: { log: UsageLog; other: LogOtherData }) {
 
   return (
     <DetailSection label={t('Token Breakdown')}>
-      {rows.map((row, idx) => (
-        <DetailRow key={idx} label={row.label} value={row.value} mono />
+      {rows.map((row) => (
+        <DetailRow
+          key={`${row.label}:${row.value}`}
+          label={row.label}
+          value={row.value}
+          mono
+        />
       ))}
     </DetailSection>
   )
@@ -468,6 +490,12 @@ export function DetailsDialog(props: DetailsDialogProps) {
         ].filter(Boolean) as Array<{ label: string; value: string }>)
       : []
   const showLegacyTopupWarning = isTopup && props.isAdmin && !adminInfo
+  let reasoningVariant: 'orange' | 'yellow' | 'green' = 'green'
+  if (other?.reasoning_effort === 'high') {
+    reasoningVariant = 'orange'
+  } else if (other?.reasoning_effort === 'medium') {
+    reasoningVariant = 'yellow'
+  }
   const showTopupAuditSection =
     isTopup &&
     props.isAdmin &&
@@ -805,9 +833,9 @@ export function DetailsDialog(props: DetailsDialogProps) {
             icon={<ShieldCheck className='size-3.5' aria-hidden='true' />}
             label={t('Top-up Audit Info')}
           >
-            {topupAuditFields.map((field, idx) => (
+            {topupAuditFields.map((field) => (
               <DetailRow
-                key={idx}
+                key={`${field.label}:${field.value}`}
                 label={field.label}
                 value={field.value}
                 mono
@@ -894,9 +922,9 @@ export function DetailsDialog(props: DetailsDialogProps) {
             {operationText != null && (
               <DetailRow label={t('Operation')} value={operationText} />
             )}
-            {loginAuditFields.map((field, idx) => (
+            {loginAuditFields.map((field) => (
               <DetailRow
-                key={idx}
+                key={`${field.label}:${field.value}`}
                 label={field.label}
                 value={field.value}
                 mono
@@ -949,13 +977,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
             value={
               <StatusBadge
                 label={other.reasoning_effort}
-                variant={
-                  other.reasoning_effort === 'high'
-                    ? 'orange'
-                    : other.reasoning_effort === 'medium'
-                      ? 'yellow'
-                      : 'green'
-                }
+                variant={reasoningVariant}
                 size='sm'
                 copyable={false}
               />
@@ -1141,12 +1163,12 @@ export function DetailsDialog(props: DetailsDialogProps) {
             icon={<Settings2 className='size-3.5' aria-hidden='true' />}
             label={`${t('Param Override')} (${other.po.length})`}
           >
-            {other.po.filter(Boolean).map((line, idx) => {
+            {other.po.filter(Boolean).map((line) => {
               const parsed = parseAuditLine(line)
               if (!parsed) return null
               return (
                 <div
-                  key={idx}
+                  key={line}
                   className='bg-background/60 flex min-w-0 flex-col gap-1.5 rounded border p-2 sm:flex-row sm:items-start sm:gap-2'
                 >
                   <StatusBadge

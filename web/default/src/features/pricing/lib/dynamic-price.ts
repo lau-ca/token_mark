@@ -45,7 +45,7 @@ export type DynamicPriceEntry = {
   shortLabel: string
   value: number
   formatted: string
-  unit: 'token' | 'request' | 'second'
+  unit: 'token' | 'request' | 'second' | 'image'
   variable?: BillingVar
 }
 
@@ -66,6 +66,7 @@ const PRIMARY_DYNAMIC_FIELDS = new Set([
   'outputPrice',
   'requestPrice',
   'secondPrice',
+  'imageRequestPrice',
 ])
 
 export function isDynamicPricingModel(model: PricingModel): boolean {
@@ -149,6 +150,7 @@ export function getDynamicPriceUnitLabel(
 ): string {
   if (entry.unit === 'request') return t('request')
   if (entry.unit === 'second') return 's'
+  if (entry.unit === 'image') return t('Image')
   return tokenUnitLabel
 }
 
@@ -198,11 +200,19 @@ export function getDynamicPriceEntries(
   const unitPrice = getTierUnitPrice(tier)
   if (unitPrice) {
     const isPerRequest = unitPrice.unit === 'request'
+    const isPerImage = unitPrice.unit === 'image'
+    const field = isPerImage ? 'imageRequestPrice' : `${unitPrice.unit}Price`
+    let label = '/s'
+    if (isPerRequest) {
+      label = 'Per request'
+    } else if (isPerImage) {
+      label = 'Image'
+    }
     entries.push({
       key: `${unitPrice.unit}Price`,
-      field: `${unitPrice.unit}Price`,
-      label: isPerRequest ? 'Per request' : '/s',
-      shortLabel: isPerRequest ? 'Per request' : '/s',
+      field,
+      label,
+      shortLabel: label,
       value: unitPrice.price,
       formatted: formatDynamicFixedPrice(unitPrice.price, options),
       unit: unitPrice.unit,
