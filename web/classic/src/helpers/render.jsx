@@ -21,11 +21,8 @@ import i18next from 'i18next';
 import { Modal, Tag, Typography, Avatar } from '@douyinfe/semi-ui';
 import { copy, showSuccess } from './utils';
 import { MOBILE_BREAKPOINT } from '../hooks/common/useIsMobile';
-import {
-  BILLING_PRICING_VARS,
-  BILLING_VAR_KEY_TO_FIELD,
-  BILLING_VAR_REGEX,
-} from '../constants';
+import { BILLING_PRICING_VARS } from '../constants';
+import { parseTiersFromExpr, stripExprVersion } from './billingExpr';
 import { visit } from 'unist-util-visit';
 import * as LobeIcons from '@lobehub/icons';
 import {
@@ -2206,58 +2203,7 @@ export function renderLogContent(opts) {
   }
 }
 
-export function stripExprVersion(exprStr) {
-  if (!exprStr) return { version: 1, body: '' };
-  const m = exprStr.match(/^v(\d+):([\s\S]*)$/);
-  if (m) return { version: Number(m[1]), body: m[2] };
-  return { version: 1, body: exprStr };
-}
-
-function parseTierBody(bodyStr) {
-  const coeffs = {};
-  const re = new RegExp(BILLING_VAR_REGEX.source, 'g');
-  let m;
-  while ((m = re.exec(bodyStr)) !== null) {
-    if (!(m[1] in coeffs)) coeffs[m[1]] = Number(m[2]);
-  }
-  const tier = {};
-  for (const [varName, field] of Object.entries(BILLING_VAR_KEY_TO_FIELD)) {
-    tier[field] = coeffs[varName] || 0;
-  }
-  const requestPriceMatch = bodyStr.trim().match(/^([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)(?:\s*\*|$)/);
-  if (Object.keys(coeffs).length === 0 && requestPriceMatch) {
-    tier.requestPrice = Number(requestPriceMatch[1]) / 1000000;
-  }
-  return tier;
-}
-
-export function parseTiersFromExpr(exprStr) {
-  if (!exprStr) return [];
-  try {
-    const { body } = stripExprVersion(exprStr);
-    const condGroup = `((?:(?:p|c|len)\\s*(?:<|<=|>|>=)\\s*[\\d.eE+]+)(?:\\s*&&\\s*(?:p|c|len)\\s*(?:<|<=|>|>=)\\s*[\\d.eE+]+)*)`;
-    const tierRe = new RegExp(`(?:${condGroup}\\s*\\?\\s*)?tier\\("([^"]*)",\\s*([^)]+)\\)`, 'g');
-    const tiers = [];
-    let m;
-    while ((m = tierRe.exec(body)) !== null) {
-      const condStr = m[1] || '';
-      const conditions = [];
-      if (condStr) {
-        for (const cp of condStr.split(/\s*&&\s*/)) {
-          const cm = cp.trim().match(/^(p|c|len)\s*(<|<=|>|>=)\s*([\d.eE+]+)$/);
-          if (cm) conditions.push({ var: cm[1], op: cm[2], value: Number(cm[3]) });
-        }
-      }
-      const tier = parseTierBody(m[3]);
-      tier.label = m[2];
-      tier.conditions = conditions;
-      tiers.push(tier);
-    }
-    return tiers;
-  } catch {
-    return [];
-  }
-}
+export { parseTiersFromExpr, stripExprVersion };
 
 export const decodeFromBase64 = (base64) => {
   if (!base64) return '';
@@ -2306,7 +2252,11 @@ export function renderTieredModelPrice(opts) {
   try { exprStr = decodeFromBase64(exprB64); } catch { /* ignore */ }
   const tiers = parseTiersFromExpr(exprStr);
   if (tiers.length === 0) {
-    return i18next.t('阶梯计费（表达式解析失败）');
+    return exprStr ? (
+      <code style={{ fontSize: 12, wordBreak: 'break-all' }}>{exprStr}</code>
+    ) : (
+      i18next.t('阶梯计费（表达式解析失败）')
+    );
   }
 
   const tier =
@@ -2333,6 +2283,9 @@ export function renderTieredModelPrice(opts) {
     buildBillingText('命中档位：{{tier}}', { tier: matchedTier || tier.label }),
     ...(tier.requestPrice > 0
         ? [buildBillingPriceText('单次价格：{{symbol}}{{price}} / 次', { symbol, usdAmount: tier.requestPrice, rate })]
+        : []),
+    ...(tier.secondPrice > 0
+        ? [`${i18next.t('价格')}：${symbol}${formatBillingDisplayPrice(tier.secondPrice, rate)} / ${i18next.t('秒')}`]
         : []),
     ...priceLines
         .filter(([field]) => tier[field] > 0)
@@ -2379,7 +2332,7 @@ export function renderTieredModelPriceSimple(opts) {
       segments.push({
         tone: 'secondary',
         text: tiers.length === 0
-            ? i18next.t('阶梯计费（表达式解析失败）')
+            ? exprStr || i18next.t('阶梯计费（表达式解析失败）')
             : i18next.t('阶梯计费（未匹配到对应阶梯）'),
       });
     } else if (isPriceDisplayMode(displayMode)) {
@@ -2394,6 +2347,12 @@ export function renderTieredModelPriceSimple(opts) {
           text: i18next.t('单次 {{price}} / 次', {
             price: formatCompactDisplayPrice(tier.requestPrice),
           }),
+        });
+      }
+      if (tier.secondPrice > 0) {
+        segments.push({
+          tone: 'secondary',
+          text: `${i18next.t('价格')} ${formatCompactDisplayPrice(tier.secondPrice)} / ${i18next.t('秒')}`,
         });
       }
       for (const [field, label] of priceSegments) {

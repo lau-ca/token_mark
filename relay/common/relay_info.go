@@ -688,16 +688,24 @@ type TaskRelayInfo struct {
 }
 
 type TaskSubmitReq struct {
-	Prompt         string                 `json:"prompt"`
-	Model          string                 `json:"model,omitempty"`
-	Mode           string                 `json:"mode,omitempty"`
-	Image          string                 `json:"image,omitempty"`
-	Images         []string               `json:"images,omitempty"`
-	Size           string                 `json:"size,omitempty"`
-	Duration       int                    `json:"duration,omitempty"`
-	Seconds        string                 `json:"seconds,omitempty"`
-	InputReference string                 `json:"input_reference,omitempty"`
-	Metadata       map[string]interface{} `json:"metadata,omitempty"`
+	Prompt          string                 `json:"prompt"`
+	Model           string                 `json:"model,omitempty"`
+	Mode            string                 `json:"mode,omitempty"`
+	Image           string                 `json:"image,omitempty"`
+	Images          []string               `json:"images,omitempty"`
+	Size            string                 `json:"size,omitempty"`
+	Duration        int                    `json:"duration,omitempty"`
+	Seconds         string                 `json:"seconds,omitempty"`
+	Ratio           string                 `json:"ratio,omitempty"`
+	Resolution      string                 `json:"resolution,omitempty"`
+	ReferenceImages []string               `json:"referenceImages,omitempty"`
+	ReferenceVideos []string               `json:"referenceVideos,omitempty"`
+	ReferenceAudios []string               `json:"referenceAudios,omitempty"`
+	InputReference  string                 `json:"input_reference,omitempty"`
+	Metadata        map[string]interface{} `json:"metadata,omitempty"`
+
+	durationProvided bool
+	durationParseErr error
 }
 
 func (t *TaskSubmitReq) GetPrompt() string {
@@ -722,16 +730,23 @@ func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
+	t.durationProvided = len(aux.Duration) > 0
+	t.durationParseErr = nil
 	if len(aux.Duration) > 0 {
+		t.Duration = 0
 		var durationInt int
-		if err := common.Unmarshal(aux.Duration, &durationInt); err == nil {
+		if strings.TrimSpace(string(aux.Duration)) == "null" {
+			t.durationParseErr = fmt.Errorf("duration must be an integer")
+		} else if err := common.Unmarshal(aux.Duration, &durationInt); err == nil {
 			t.Duration = durationInt
 		} else {
 			var durationStr string
-			if err := common.Unmarshal(aux.Duration, &durationStr); err == nil && durationStr != "" {
-				if v, err := strconv.Atoi(durationStr); err == nil {
-					t.Duration = v
-				}
+			if err := common.Unmarshal(aux.Duration, &durationStr); err != nil || durationStr == "" {
+				t.durationParseErr = fmt.Errorf("duration must be an integer")
+			} else if duration, err := strconv.Atoi(durationStr); err != nil {
+				t.durationParseErr = fmt.Errorf("duration must be an integer")
+			} else {
+				t.Duration = duration
 			}
 		}
 	}

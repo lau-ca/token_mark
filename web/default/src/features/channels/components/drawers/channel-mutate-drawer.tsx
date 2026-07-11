@@ -289,6 +289,7 @@ const SENSITIVE_FORM_FIELDS = [
   'claude_beta_query',
   'disable_task_polling_sleep',
   'force_image_b64_json_no_url',
+  'replace_video_urls_with_proxy',
   'upstream_model_update_check_enabled',
   'upstream_model_update_auto_sync_enabled',
   'upstream_model_update_ignored_models',
@@ -335,6 +336,7 @@ function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
     values.system_prompt_override ||
     values.claude_beta_query ||
     values.force_image_b64_json_no_url ||
+    values.replace_video_urls_with_proxy ||
     values.upstream_model_update_check_enabled ||
     values.upstream_model_update_auto_sync_enabled ||
     values.upstream_model_update_ignored_models?.trim()
@@ -732,6 +734,9 @@ export function ChannelMutateDrawer({
   const currentDisableStore = form.watch('disable_store')
   const currentAllowSafetyIdentifier = form.watch('allow_safety_identifier')
   const currentAllowIncludeObfuscation = form.watch('allow_include_obfuscation')
+  const currentReplaceVideoUrlsWithProxy = form.watch(
+    'replace_video_urls_with_proxy'
+  )
   const currentAllowInferenceGeo = form.watch('allow_inference_geo')
   const currentAllowSpeed = form.watch('allow_speed')
   const currentClaudeBetaQuery = form.watch('claude_beta_query')
@@ -940,6 +945,7 @@ export function ChannelMutateDrawer({
       currentDisableStore ||
       currentAllowSafetyIdentifier ||
       currentAllowIncludeObfuscation ||
+      (currentType === 1 && currentReplaceVideoUrlsWithProxy) ||
       currentAllowInferenceGeo
     )
   } else if (currentType === 14) {
@@ -949,6 +955,8 @@ export function ChannelMutateDrawer({
       currentAllowSpeed ||
       currentClaudeBetaQuery
     )
+  } else if (currentType === 55) {
+    fieldPassthroughConfigured = Boolean(currentReplaceVideoUrlsWithProxy)
   }
   const upstreamModelDetectionConfigured = Boolean(
     upstreamModelUpdateCheckEnabled ||
@@ -985,7 +993,12 @@ export function ChannelMutateDrawer({
       configured: extraSettingsConfigured,
     },
   ]
-  if (currentType === 1 || currentType === 14 || currentType === 57) {
+  if (
+    currentType === 1 ||
+    currentType === 14 ||
+    currentType === 55 ||
+    currentType === 57
+  ) {
     advancedNavChildren.push({
       id: ADVANCED_SETTINGS_SECTION_IDS.fieldPassthrough,
       title: t('Field passthrough controls'),
@@ -4110,6 +4123,7 @@ export function ChannelMutateDrawer({
 
                         {(currentType === 1 ||
                           currentType === 14 ||
+                          currentType === 55 ||
                           currentType === 57) && (
                           <div
                             id={ADVANCED_SETTINGS_SECTION_IDS.fieldPassthrough}
@@ -4129,30 +4143,36 @@ export function ChannelMutateDrawer({
                               className='disabled:opacity-60'
                             >
                               <div className='divide-border space-y-0 divide-y border-y'>
-                                <FormField
-                                  control={form.control}
-                                  name='allow_service_tier'
-                                  render={({ field }) => (
-                                    <FormItem className='flex items-center justify-between gap-3 px-4 py-3'>
-                                      <div className='space-y-0.5'>
-                                        <FormLabel className='text-sm'>
-                                          {t('Allow service_tier passthrough')}
-                                        </FormLabel>
-                                        <FormDescription>
-                                          {t(
-                                            'Pass through the service_tier field'
-                                          )}
-                                        </FormDescription>
-                                      </div>
-                                      <FormControl>
-                                        <Switch
-                                          checked={field.value}
-                                          onCheckedChange={field.onChange}
-                                        />
-                                      </FormControl>
-                                    </FormItem>
-                                  )}
-                                />
+                                {(currentType === 1 ||
+                                  currentType === 14 ||
+                                  currentType === 57) && (
+                                  <FormField
+                                    control={form.control}
+                                    name='allow_service_tier'
+                                    render={({ field }) => (
+                                      <FormItem className='flex items-center justify-between gap-3 px-4 py-3'>
+                                        <div className='space-y-0.5'>
+                                          <FormLabel className='text-sm'>
+                                            {t(
+                                              'Allow service_tier passthrough'
+                                            )}
+                                          </FormLabel>
+                                          <FormDescription>
+                                            {t(
+                                              'Pass through the service_tier field'
+                                            )}
+                                          </FormDescription>
+                                        </div>
+                                        <FormControl>
+                                          <Switch
+                                            checked={field.value}
+                                            onCheckedChange={field.onChange}
+                                          />
+                                        </FormControl>
+                                      </FormItem>
+                                    )}
+                                  />
+                                )}
 
                                 {(currentType === 1 || currentType === 57) && (
                                   <>
@@ -4287,6 +4307,33 @@ export function ChannelMutateDrawer({
                                       )}
                                     />
                                   </>
+                                )}
+
+                                {(currentType === 1 || currentType === 55) && (
+                                  <FormField
+                                    control={form.control}
+                                    name='replace_video_urls_with_proxy'
+                                    render={({ field }) => (
+                                      <FormItem className='flex items-center justify-between gap-3 px-4 py-3'>
+                                        <div className='space-y-0.5'>
+                                          <FormLabel className='text-sm'>
+                                            {t('Replace video response URLs')}
+                                          </FormLabel>
+                                          <FormDescription>
+                                            {t(
+                                              "Replace upstream video URLs with this platform's authenticated content endpoint"
+                                            )}
+                                          </FormDescription>
+                                        </div>
+                                        <FormControl>
+                                          <Switch
+                                            checked={field.value}
+                                            onCheckedChange={field.onChange}
+                                          />
+                                        </FormControl>
+                                      </FormItem>
+                                    )}
+                                  />
                                 )}
 
                                 {currentType === 14 && (

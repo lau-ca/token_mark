@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type ColumnDef } from '@tanstack/react-table'
+import type { ColumnDef } from '@tanstack/react-table'
 import { CircleAlert, GitBranch, Sparkles, KeyRound } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -46,6 +46,7 @@ import { cn } from '@/lib/utils'
 import { LOG_TYPE_ALL_VALUE } from '../../constants'
 import type { UsageLog } from '../../data/schema'
 import {
+  decodeBillingExprB64,
   formatModelName,
   getFirstResponseTimeColor,
   getResponseTimeColor,
@@ -172,11 +173,19 @@ function buildTypeDetailSegments(
   const tieredSummary = getTieredBillingSummary(other)
   if (isTieredExpr) {
     if (tieredSummary) {
+      const tierLabel = tieredSummary.tier.label || t('Default')
+      if (tieredSummary.unitPrice) {
+        const unitLabel =
+          tieredSummary.unitPrice.unit === 'request' ? t('request') : 's'
+        segments.push({
+          text: `${tierLabel} · ${formatPriceCompact(tieredSummary.unitPrice.price)}/${unitLabel}`,
+        })
+      }
+
       const baseEntries = tieredSummary.priceEntries
         .filter((entry) => ['inputPrice', 'outputPrice'].includes(entry.field))
         .map((entry) => formatPriceCompact(entry.price))
       if (baseEntries.length > 0) {
-        const tierLabel = tieredSummary.tier.label || t('Default')
         segments.push({
           text: `${tierLabel} · ${formatPriceList(baseEntries, true)}`,
         })
@@ -217,8 +226,11 @@ function buildTypeDetailSegments(
         })
       }
     } else {
+      const rawExpression = decodeBillingExprB64(other.expr_b64)
       segments.push({
-        text: `${t('Dynamic Pricing')} · ${t('No matching results')}`,
+        text: rawExpression
+          ? `${t('Dynamic Pricing')} · ${rawExpression}`
+          : `${t('Dynamic Pricing')} · ${t('No matching results')}`,
         muted: true,
       })
     }
@@ -226,7 +238,7 @@ function buildTypeDetailSegments(
     const isPerCall = isPerCallBilling(other.model_price)
     if (isPerCall) {
       segments.push({
-        text: `${t('Per-call')} · ${formatBillingCurrencyFromUSD(other.model_price!, priceOpts)}`,
+        text: `${t('Per-call')} · ${formatBillingCurrencyFromUSD(other.model_price ?? 0, priceOpts)}`,
       })
     } else if (other.model_ratio != null) {
       const inputPriceUSD = other.model_ratio * 2.0
@@ -837,6 +849,12 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         const segments = buildDetailSegments(log, other, t, isAdmin)
         const primary = segments[0]
         const hasMore = segments.length > 1
+        let primaryTextClassName = 'text-foreground'
+        if (primary?.muted) {
+          primaryTextClassName = 'text-muted-foreground/60'
+        } else if (primary?.danger) {
+          primaryTextClassName = 'text-red-600 dark:text-red-400'
+        }
 
         return (
           <>
@@ -846,15 +864,11 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
               onClick={() => setDialogOpen(true)}
               title={t('Click to view full details')}
             >
-              {primary ? (
+              {primary && (
                 <span
                   className={cn(
                     'truncate leading-snug group-hover:underline',
-                    primary.muted
-                      ? 'text-muted-foreground/60'
-                      : primary.danger
-                        ? 'text-red-600 dark:text-red-400'
-                        : 'text-foreground'
+                    primaryTextClassName
                   )}
                 >
                   {primary.text}
@@ -864,11 +878,13 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                     </span>
                   )}
                 </span>
-              ) : log.content ? (
+              )}
+              {!primary && Boolean(log.content) && (
                 <span className='text-muted-foreground truncate group-hover:underline'>
                   {log.content}
                 </span>
-              ) : (
+              )}
+              {!primary && !log.content && (
                 <span className='text-muted-foreground/40'>—</span>
               )}
             </button>

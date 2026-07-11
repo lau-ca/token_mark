@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/console_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
@@ -124,6 +125,13 @@ func UpdateOption(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": "无效的参数",
+		})
+		return
+	}
+	if option.Key == billing_setting.BillingModeOptionKey || option.Key == billing_setting.BillingExprOptionKey {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "模型计费模式和表达式必须通过专用接口一起保存",
 		})
 		return
 	}

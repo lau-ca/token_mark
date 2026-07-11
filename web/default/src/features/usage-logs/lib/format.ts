@@ -19,9 +19,11 @@ For commercial licensing, please contact support@quantumnous.com
 import type { StatusBadgeProps } from '@/components/status-badge'
 import {
   BILLING_PRICING_VARS,
+  getTierUnitPrice,
   normalizeTierLabel,
   parseTiersFromExpr,
   type ParsedTier,
+  type TierUnitPrice,
 } from '@/features/pricing/lib/billing-expr'
 
 import type { UsageLog } from '../data/schema'
@@ -230,6 +232,7 @@ export function resolveMatchedTier(
 export interface TieredBillingSummary {
   tiers: ParsedTier[]
   tier: ParsedTier
+  unitPrice: TierUnitPrice | null
   priceEntries: Array<{ field: string; shortLabel: string; price: number }>
 }
 
@@ -276,7 +279,7 @@ export function getTieredBillingSummary(
       })
     }
   }
-  return { tiers, tier, priceEntries }
+  return { tiers, tier, unitPrice: getTierUnitPrice(tier), priceEntries }
 }
 
 /**

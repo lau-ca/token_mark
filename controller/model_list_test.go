@@ -12,7 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
-	"github.com/QuantumNous/new-api/setting/config"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
@@ -97,27 +97,13 @@ func initModelListColumnNames(t *testing.T) {
 func withTieredBillingConfig(t *testing.T, modes map[string]string, exprs map[string]string) {
 	t.Helper()
 
-	saved := map[string]string{}
-	require.NoError(t, config.GlobalConfig.SaveToDB(func(key, value string) error {
-		if strings.HasPrefix(key, "billing_setting.") {
-			saved[key] = value
-		}
-		return nil
-	}))
+	saved := billing_setting.GetConfigCopy()
 	t.Cleanup(func() {
-		require.NoError(t, config.GlobalConfig.LoadFromDB(saved))
+		billing_setting.ReplaceConfig(saved.BillingMode, saved.BillingExpr)
 		model.InvalidatePricingCache()
 	})
 
-	modeBytes, err := common.Marshal(modes)
-	require.NoError(t, err)
-	exprBytes, err := common.Marshal(exprs)
-	require.NoError(t, err)
-
-	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
-		"billing_setting.billing_mode": string(modeBytes),
-		"billing_setting.billing_expr": string(exprBytes),
-	}))
+	billing_setting.ReplaceConfig(modes, exprs)
 	model.InvalidatePricingCache()
 }
 

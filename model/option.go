@@ -1,12 +1,14 @@
 package model
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/performance_setting"
@@ -182,6 +184,15 @@ func InitOptionMap() {
 	for k, v := range modelConfigs {
 		common.OptionMap[k] = v
 	}
+	billingConfig := billing_setting.GetConfigCopy()
+	billingModeJSON, billingModeErr := common.Marshal(billingConfig.BillingMode)
+	billingExprJSON, billingExprErr := common.Marshal(billingConfig.BillingExpr)
+	if billingModeErr != nil || billingExprErr != nil {
+		common.SysError(fmt.Sprintf("failed to marshal billing settings: mode=%v expression=%v", billingModeErr, billingExprErr))
+	} else {
+		common.OptionMap[billing_setting.BillingModeOptionKey] = string(billingModeJSON)
+		common.OptionMap[billing_setting.BillingExprOptionKey] = string(billingExprJSON)
+	}
 
 	common.OptionMapRWMutex.Unlock()
 	loadOptionsFromDatabase()
@@ -189,12 +200,39 @@ func InitOptionMap() {
 
 func loadOptionsFromDatabase() {
 	options, _ := AllOption()
+	var billingModeJSON string
+	var billingExprJSON string
+	hasBillingMode := false
+	hasBillingExpr := false
 	for _, option := range options {
+		switch option.Key {
+		case billing_setting.BillingModeOptionKey:
+			billingModeJSON = option.Value
+			hasBillingMode = true
+			continue
+		case billing_setting.BillingExprOptionKey:
+			billingExprJSON = option.Value
+			hasBillingExpr = true
+			continue
+		}
 		err := updateOptionMap(option.Key, option.Value)
 		if err != nil {
 			common.SysLog("failed to update option map: " + err.Error())
 		}
 	}
+	if !hasBillingMode && !hasBillingExpr {
+		return
+	}
+	if !hasBillingMode || !hasBillingExpr {
+		common.SysError("billing mode and expression options must be loaded together")
+		return
+	}
+	parsed, err := billing_setting.ParseConfigJSON(billingModeJSON, billingExprJSON)
+	if err != nil {
+		common.SysError("failed to load billing settings: " + err.Error())
+		return
+	}
+	applyBillingOptionPair(billingModeJSON, billingExprJSON, parsed)
 }
 
 func SyncOptions(frequency int) {
@@ -206,6 +244,9 @@ func SyncOptions(frequency int) {
 }
 
 func UpdateOption(key string, value string) error {
+	if key == billing_setting.BillingModeOptionKey || key == billing_setting.BillingExprOptionKey {
+		return fmt.Errorf("%s must be updated through the atomic model billing endpoint", key)
+	}
 	// Save to database first
 	option := Option{
 		Key: key,
@@ -230,6 +271,22 @@ func UpdateOptionsBulk(values map[string]string) error {
 	if len(values) == 0 {
 		return nil
 	}
+	modeJSON, hasBillingMode := values[billing_setting.BillingModeOptionKey]
+	exprJSON, hasBillingExpr := values[billing_setting.BillingExprOptionKey]
+	if hasBillingMode != hasBillingExpr {
+		return fmt.Errorf("billing mode and expression options must be updated together")
+	}
+	var parsedBillingConfig *billing_setting.BillingSetting
+	if hasBillingMode && hasBillingExpr {
+		parsed, err := billing_setting.ParseConfigJSON(modeJSON, exprJSON)
+		if err != nil {
+			return err
+		}
+		if err := billing_setting.ValidateModelBillingConfig(parsed.BillingMode, parsed.BillingExpr); err != nil {
+			return err
+		}
+		parsedBillingConfig = &parsed
+	}
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		for k, v := range values {
 			option := Option{Key: k}
@@ -247,11 +304,30 @@ func UpdateOptionsBulk(values map[string]string) error {
 		return err
 	}
 	for k, v := range values {
+		if parsedBillingConfig != nil && (k == billing_setting.BillingModeOptionKey || k == billing_setting.BillingExprOptionKey) {
+			continue
+		}
 		if err := updateOptionMap(k, v); err != nil {
 			return err
 		}
 	}
+	if parsedBillingConfig != nil {
+		applyBillingOptionPair(modeJSON, exprJSON, *parsedBillingConfig)
+	}
 	return nil
+}
+
+func applyBillingOptionPair(modeJSON, exprJSON string, parsed billing_setting.BillingSetting) {
+	common.OptionMapRWMutex.Lock()
+	if common.OptionMap == nil {
+		common.OptionMap = make(map[string]string)
+	}
+	common.OptionMap[billing_setting.BillingModeOptionKey] = modeJSON
+	common.OptionMap[billing_setting.BillingExprOptionKey] = exprJSON
+	common.OptionMapRWMutex.Unlock()
+	billing_setting.ReplaceConfig(parsed.BillingMode, parsed.BillingExpr)
+	InvalidatePricingCache()
+	ratio_setting.InvalidateExposedDataCache()
 }
 
 func updateOptionMap(key string, value string) (err error) {

@@ -64,6 +64,23 @@ func TestBuildBillingExprRequestInputFromRequest(t *testing.T) {
 	require.Equal(t, float64(3000), gjson.GetBytes(input.Body, "max_tokens").Float())
 }
 
+func TestBuildBillingExprRequestInputFromTask(t *testing.T) {
+	request := &relaycommon.TaskSubmitReq{
+		Model:      "videos-standard",
+		Resolution: "4k",
+		Duration:   15,
+	}
+
+	input, err := BuildBillingExprRequestInputFromRequest(request, map[string]string{
+		"X-Test": "value",
+	})
+	require.NoError(t, err)
+	require.Equal(t, "videos-standard", gjson.GetBytes(input.Body, "model").String())
+	require.Equal(t, "4k", gjson.GetBytes(input.Body, "resolution").String())
+	require.Equal(t, int64(15), gjson.GetBytes(input.Body, "duration").Int())
+	require.Equal(t, "value", input.Headers["X-Test"])
+}
+
 func TestBuildBillingExprRequestInputFromImageGenerationRequest(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

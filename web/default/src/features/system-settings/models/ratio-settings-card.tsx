@@ -27,7 +27,7 @@ import * as z from 'zod'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
-import { resetModelRatios } from '../api'
+import { resetModelRatios, updateModelBillingOptions } from '../api'
 import { SettingsPageTitleStatusPortal } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
@@ -58,18 +58,18 @@ function formatJsonValidationError(
     )
   }
 
-  const parts = [
-    error.line && error.column
-      ? t('JSON is invalid at line {{line}}, column {{column}}.', {
-          line: error.line,
-          column: error.column,
-        })
-      : error.position !== undefined
-        ? t('JSON is invalid at position {{position}}.', {
-            position: error.position,
-          })
-        : t('JSON is invalid. Please check the syntax.'),
-  ]
+  let message = t('JSON is invalid. Please check the syntax.')
+  if (error.line && error.column) {
+    message = t('JSON is invalid at line {{line}}, column {{column}}.', {
+      line: error.line,
+      column: error.column,
+    })
+  } else if (error.position !== undefined) {
+    message = t('JSON is invalid at position {{position}}.', {
+      position: error.position,
+    })
+  }
+  const parts = [message]
 
   if (error.missingCommaLine) {
     parts.push(
@@ -151,6 +151,7 @@ export function RatioSettingsCard({
   const updateOption = useUpdateOption()
   const queryClient = useQueryClient()
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [isSavingModel, setIsSavingModel] = useState(false)
 
   const resetMutation = useMutation({
     mutationFn: resetModelRatios,
@@ -314,11 +315,6 @@ export function RatioSettingsCard({
         BillingExpr: normalizeJsonString(values.BillingExpr),
       }
 
-      const apiKeyMap: Record<string, string> = {
-        BillingMode: 'billing_setting.billing_mode',
-        BillingExpr: 'billing_setting.billing_expr',
-      }
-
       const updates = (
         Object.keys(normalized) as Array<keyof ModelFormValues>
       ).filter(
@@ -330,15 +326,47 @@ export function RatioSettingsCard({
         return
       }
 
-      for (const key of updates) {
-        const apiKey = apiKeyMap[key as string] || (key as string)
-        await updateOption.mutateAsync({ key: apiKey, value: normalized[key] })
-      }
+      setIsSavingModel(true)
+      try {
+        const optionUpdates = updates.filter(
+          (key) => key !== 'BillingMode' && key !== 'BillingExpr'
+        )
+        const options = optionUpdates.reduce<Record<string, string>>(
+          (result, key) => {
+            const value = normalized[key]
+            result[key] = typeof value === 'string' ? value : String(value)
+            return result
+          },
+          {}
+        )
+        const result = await updateModelBillingOptions({
+          billing_mode: JSON.parse(normalized.BillingMode) as Record<
+            string,
+            string
+          >,
+          billing_expr: JSON.parse(normalized.BillingExpr) as Record<
+            string,
+            string
+          >,
+          ...(Object.keys(options).length > 0 ? { options } : {}),
+        })
+        if (result.success !== true) {
+          throw new Error(result.message || t('Failed to update setting'))
+        }
 
-      modelNormalizedDefaults.current = normalized
-      setSavedModelValues(normalized)
+        modelNormalizedDefaults.current = normalized
+        setSavedModelValues(normalized)
+        queryClient.invalidateQueries({ queryKey: ['system-options'] })
+        toast.success(t('Setting updated successfully'))
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : t('Failed to update setting')
+        toast.error(message)
+      } finally {
+        setIsSavingModel(false)
+      }
     },
-    [t, updateOption]
+    [queryClient, t]
   )
 
   const saveGroupRatios = useCallback(
@@ -407,7 +435,7 @@ export function RatioSettingsCard({
           savedValues={savedModelValues}
           onSave={saveModelRatios}
           onReset={handleResetRatios}
-          isSaving={updateOption.isPending}
+          isSaving={isSavingModel}
           isResetting={resetMutation.isPending}
         />
       )

@@ -39,6 +39,12 @@ export type UpdateOptionResponse = {
   message: string
 }
 
+export type UpdateModelBillingOptionsRequest = {
+  billing_mode: Record<string, string>
+  billing_expr: Record<string, string>
+  options?: Record<string, string>
+}
+
 export type ConfirmPaymentComplianceResponse = {
   success: boolean
   message: string

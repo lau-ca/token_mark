@@ -1069,26 +1069,19 @@ export function useModelPricingEditorState({
         }
       }
 
-      const requestQueue = [
-        ...Object.entries(output).map(([key, value]) =>
-          API.put('/api/option/', {
-            key,
-            value: JSON.stringify(value, null, 2),
-          }),
-        ),
-        ...Object.entries(tieredOutput).map(([key, value]) =>
-          API.put('/api/option/', {
-            key,
-            value: JSON.stringify(value, null, 2),
-          }),
-        ),
-      ];
-
-      const results = await Promise.all(requestQueue);
-      for (const res of results) {
-        if (!res?.data?.success) {
-          throw new Error(res?.data?.message || t('保存失败，请重试'));
-        }
+      const options = Object.fromEntries(
+        Object.entries(output).map(([key, value]) => [
+          key,
+          JSON.stringify(value, null, 2),
+        ]),
+      );
+      const response = await API.put('/api/option/model-billing', {
+        billing_mode: tieredOutput['billing_setting.billing_mode'],
+        billing_expr: tieredOutput['billing_setting.billing_expr'],
+        options,
+      });
+      if (response?.data?.success !== true) {
+        throw new Error(response?.data?.message || t('保存失败，请重试'));
       }
 
       showSuccess(t('保存成功'));

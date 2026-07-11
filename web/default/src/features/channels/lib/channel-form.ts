@@ -202,6 +202,7 @@ export const channelFormSchema = z
     allow_safety_identifier: z.boolean().optional(), // OpenAI only
     allow_include_obfuscation: z.boolean().optional(), // OpenAI: include usage obfuscation
     force_image_b64_json_no_url: z.boolean().optional(), // OpenAI image APIs
+    replace_video_urls_with_proxy: z.boolean().optional(), // OpenAI/Sora video APIs
     allow_inference_geo: z.boolean().optional(), // OpenAI/Anthropic: inference geography
     allow_speed: z.boolean().optional(), // Anthropic: speed mode control
     claude_beta_query: z.boolean().optional(), // Anthropic: beta query passthrough
@@ -343,6 +344,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   allow_safety_identifier: false,
   allow_include_obfuscation: false,
   force_image_b64_json_no_url: false,
+  replace_video_urls_with_proxy: false,
   allow_inference_geo: false,
   allow_speed: false,
   claude_beta_query: false,
@@ -400,6 +402,7 @@ export function transformChannelToFormDefaults(
   let allowSafetyIdentifier = false
   let allowIncludeObfuscation = false
   let forceImageB64JSONNoURL = false
+  let replaceVideoURLsWithProxy = false
   let allowInferenceGeo = false
   let allowSpeed = false
   let claudeBetaQuery = false
@@ -421,6 +424,7 @@ export function transformChannelToFormDefaults(
       allowSafetyIdentifier = parsed.allow_safety_identifier === true
       allowIncludeObfuscation = parsed.allow_include_obfuscation === true
       forceImageB64JSONNoURL = parsed.force_image_b64_json_no_url === true
+      replaceVideoURLsWithProxy = parsed.replace_video_urls_with_proxy === true
       allowInferenceGeo = parsed.allow_inference_geo === true
       allowSpeed = parsed.allow_speed === true
       claudeBetaQuery = parsed.claude_beta_query === true
@@ -480,6 +484,7 @@ export function transformChannelToFormDefaults(
     disable_store: disableStore,
     allow_include_obfuscation: allowIncludeObfuscation,
     force_image_b64_json_no_url: forceImageB64JSONNoURL,
+    replace_video_urls_with_proxy: replaceVideoURLsWithProxy,
     allow_inference_geo: allowInferenceGeo,
     allow_speed: allowSpeed,
     claude_beta_query: claudeBetaQuery,
@@ -570,15 +575,28 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
       formData.force_image_b64_json_no_url === true
     settingsObj.allow_inference_geo = formData.allow_inference_geo === true
   } else {
-    if ('disable_store' in settingsObj) delete settingsObj.disable_store
-    if ('allow_safety_identifier' in settingsObj)
+    if ('disable_store' in settingsObj) {
+      delete settingsObj.disable_store
+    }
+    if ('allow_safety_identifier' in settingsObj) {
       delete settingsObj.allow_safety_identifier
-    if ('allow_include_obfuscation' in settingsObj)
+    }
+    if ('allow_include_obfuscation' in settingsObj) {
       delete settingsObj.allow_include_obfuscation
-    if ('force_image_b64_json_no_url' in settingsObj)
+    }
+    if ('force_image_b64_json_no_url' in settingsObj) {
       delete settingsObj.force_image_b64_json_no_url
-    if (formData.type !== 14 && 'allow_inference_geo' in settingsObj)
+    }
+    if (formData.type !== 14 && 'allow_inference_geo' in settingsObj) {
       delete settingsObj.allow_inference_geo
+    }
+  }
+
+  if (formData.type === 1 || formData.type === 55) {
+    settingsObj.replace_video_urls_with_proxy =
+      formData.replace_video_urls_with_proxy === true
+  } else if ('replace_video_urls_with_proxy' in settingsObj) {
+    delete settingsObj.replace_video_urls_with_proxy
   }
 
   // Anthropic (type 14): claude_beta_query, allow_inference_geo, allow_speed
@@ -601,14 +619,14 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
     settingsObj.upstream_model_update_auto_sync_enabled =
       settingsObj.upstream_model_update_check_enabled === true &&
       formData.upstream_model_update_auto_sync_enabled === true
-    settingsObj.upstream_model_update_ignored_models = Array.from(
-      new Set(
+    settingsObj.upstream_model_update_ignored_models = [
+      ...new Set(
         String(formData.upstream_model_update_ignored_models || '')
           .split(',')
           .map((model) => model.trim())
           .filter(Boolean)
-      )
-    )
+      ),
+    ]
     if (
       !Array.isArray(settingsObj.upstream_model_update_last_detected_models) ||
       settingsObj.upstream_model_update_check_enabled !== true

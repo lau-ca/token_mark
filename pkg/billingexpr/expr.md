@@ -76,6 +76,7 @@ Powered by [expr-lang/expr](https://github.com/expr-lang/expr). Expressions are 
 | Function | Signature | Purpose |
 |----------|-----------|---------|
 | `tier` | `tier(name, value) → float64` | Records which pricing tier matched; must wrap the cost expression |
+| `per_request` | `per_request(amount) → float64` | Converts a per-request price into expression units (`amount * 1,000,000`) |
 | `param` | `param(path) → any` | Reads a JSON path from the request body (uses gjson) |
 | `header` | `header(key) → string` | Reads a request header value |
 | `has` | `has(source, substr) → bool` | Substring check |
@@ -89,6 +90,10 @@ Powered by [expr-lang/expr](https://github.com/expr-lang/expr). Expressions are 
 | `abs` | `abs(x) → float64` | Absolute value |
 | `ceil` | `ceil(x) → float64` | Ceiling |
 | `floor` | `floor(x) → float64` | Floor |
+
+`per_request(2.5)` represents a price of `2.5` for one request. It scales the amount by `1,000,000` so the existing quota conversion produces the same final charge as other per-call billing paths. Multiplying it by a normalized request parameter supports per-unit pricing; for example, `per_request(0.9) * param("duration")` represents `0.9` per second.
+
+Request-dependent Task expressions must contain `per_request()` as an explicit opt-in marker. Expressions without it retain the existing token and legacy Task billing behavior.
 
 ### Expression Examples
 
@@ -106,6 +111,12 @@ tier("base", p * 2 + c * 8 + img * 2.5)
 
 # Multimodal with audio
 tier("base", p * 0.43 + c * 3.06 + img * 0.78 + ai * 3.81 + ao * 15.11)
+
+# Fixed per-request price
+tier("720p", per_request(3.5))
+
+# Per-second price using normalized Task duration
+tier("1080p", per_request(0.9) * param("duration"))
 ```
 
 ### Request Rules (appended after `|||`)
@@ -143,10 +154,12 @@ The editor outputs a billing expression string and an optional request rule expr
 **File**: `setting/billing_setting/tiered_billing.go`
 
 Two option maps stored in the `options` DB table:
-- `ModelBillingMode`: `{ "model-name": "tiered_expr" }` — activates tiered billing for a model
-- `ModelBillingExpr`: `{ "model-name": "tier(\"base\", p * 2.5 + c * 15)" }` — the expression
+- `billing_setting.billing_mode`: `{ "model-name": "tiered_expr" }` — activates tiered billing for a model
+- `billing_setting.billing_expr`: `{ "model-name": "tier(\"base\", p * 2.5 + c * 15)" }` — the expression
 
-On save, the expression is validated:
+The admin UI saves these maps, together with related model price and ratio maps, through `PUT /api/option/model-billing` in one database transaction. Individual writes to either billing key are rejected.
+
+Before save, the expression is validated:
 1. Compiled via `billingexpr.CompileFromCache()` — syntax check
 2. Smoke-tested with sample token vectors — ensures non-negative results
 
@@ -155,7 +168,7 @@ On save, the expression is validated:
 **File**: `relay/helper/price.go` → `modelPriceHelperTiered()`
 
 When a request arrives and the model uses `tiered_expr` billing:
-1. Loads expression from `billing_setting.GetBillingExpr()`
+1. Loads the mode and expression from one `billing_setting.GetModelBillingConfig()` snapshot
 2. Builds `RequestInput` (headers + body) for `param()` / `header()` functions
 3. Runs expression with estimated tokens: `RunExprWithRequest(expr, {P, C}, requestInput)`
 4. Converts output to quota: `rawCost / 1,000,000 * QuotaPerUnit`

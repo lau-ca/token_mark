@@ -33,7 +33,12 @@ import {
 } from '@douyinfe/semi-ui';
 import { IconCopy, IconDelete, IconPlus } from '@douyinfe/semi-icons';
 import { renderQuota } from '../../../../helpers/render';
-import { copy, showSuccess } from '../../../../helpers';
+import { copy, showError, showSuccess } from '../../../../helpers';
+import {
+  getBillingExprBody,
+  isRequestDependentBillingExpr,
+  parseTierCalls,
+} from '../../../../helpers/billingExpr';
 import { BILLING_EXTRA_VARS, BILLING_CACHE_VAR_MAP, BILLING_CONDITION_VARS } from '../../../../constants';
 import {
   createEmptyCondition,
@@ -198,8 +203,7 @@ function generateExprFromVisualConfig(config) {
 function tryParseVisualConfig(exprStr) {
   if (!exprStr) return null;
   try {
-    const versionMatch = exprStr.match(/^v\d+:([\s\S]*)$/);
-    if (versionMatch) exprStr = versionMatch[1];
+    const exprBody = getBillingExprBody(exprStr);
     const cacheVarNames = CACHE_VAR_MAP.map((cv) => cv.exprVar);
     const optCacheStr = cacheVarNames
       .map((v) => `(?:\\s*\\+\\s*${v}\\s*\\*\\s*([\\d.eE+-]+))?`)
@@ -207,66 +211,43 @@ function tryParseVisualConfig(exprStr) {
 
     // Body pattern: p * X + c * Y [+ cr * A] [+ cc * B] [+ cc1h * C]
     const bodyPat = `p\\s*\\*\\s*([\\d.eE+-]+)\\s*\\+\\s*c\\s*\\*\\s*([\\d.eE+-]+)${optCacheStr}`;
-
-    // Single-tier: tier("label", body)
-    const singleRe = new RegExp(`^tier\\("([^"]*)",\\s*${bodyPat}\\)$`);
-    const simple = exprStr.match(singleRe);
-    if (simple) {
-      const tier = {
-        conditions: [],
-        input_unit_cost: Number(simple[2]),
-        output_unit_cost: Number(simple[3]),
-        label: simple[1],
-      };
-      CACHE_VAR_MAP.forEach((cv, i) => {
-        const val = simple[4 + i];
-        if (val != null) tier[cv.field] = Number(val);
-      });
-      return normalizeVisualConfig({ tiers: [normalizeVisualTier(tier)] });
+    const bodyRegex = new RegExp(`^${bodyPat}$`);
+    const calls = parseTierCalls(exprBody);
+    if (!calls || calls.length === 0 || calls.some((call) => !call.isDirectBranch)) {
+      return null;
     }
 
-    // Multi-tier: cond1 ? tier(body) : cond2 ? tier(body) : tier(body)
-    const condGroup = `((?:(?:p|c|len)\\s*(?:<|<=|>|>=)\\s*[\\d.eE+]+)(?:\\s*&&\\s*(?:p|c|len)\\s*(?:<|<=|>|>=)\\s*[\\d.eE+]+)*)`;
-    const tierRe = new RegExp(
-      `(?:${condGroup}\\s*\\?\\s*)?tier\\("([^"]*)",\\s*${bodyPat}\\)`,
-      'g',
-    );
     const tiers = [];
-    let match;
-    while ((match = tierRe.exec(exprStr)) !== null) {
-      const condStr = match[1] || '';
-      const conditions = [];
-      if (condStr) {
-        const condParts = condStr.split(/\s*&&\s*/);
-        for (const cp of condParts) {
-          const cm = cp.trim().match(/^(p|c|len)\s*(<|<=|>|>=)\s*([\d.eE+]+)$/);
-          if (cm) {
-            conditions.push({ var: cm[1], op: cm[2], value: Number(cm[3]) });
-          }
-        }
-      }
+    for (const call of calls) {
+      const match = call.body.match(bodyRegex);
+      if (!match) return null;
       const tier = {
-        conditions,
-        input_unit_cost: Number(match[3]),
-        output_unit_cost: Number(match[4]),
-        label: match[2],
+        conditions: call.conditions,
+        input_unit_cost: Number(match[1]),
+        output_unit_cost: Number(match[2]),
+        label: call.label,
       };
       CACHE_VAR_MAP.forEach((cv, i) => {
-        const val = match[5 + i];
+        const val = match[3 + i];
         if (val != null) tier[cv.field] = Number(val);
       });
       tiers.push(normalizeVisualTier(tier));
     }
-    if (tiers.length === 0) return null;
 
     const cfg = normalizeVisualConfig({ tiers });
     const regenerated = generateExprFromVisualConfig(cfg);
-    if (regenerated.replace(/\s+/g, '') !== exprStr.replace(/\s+/g, ''))
+    if (regenerated.replace(/\s+/g, '') !== exprBody.replace(/\s+/g, ''))
       return null;
     return cfg;
   } catch {
     return null;
   }
+}
+
+function canUseVisualEditor(exprStr) {
+  if (!exprStr?.trim()) return true;
+  if (isRequestDependentBillingExpr(exprStr)) return false;
+  return tryParseVisualConfig(exprStr) !== null;
 }
 
 // ---------------------------------------------------------------------------
@@ -1460,13 +1441,15 @@ export default function TieredPricingEditor({ model, onExprChange, requestRuleEx
 
   useEffect(() => {
     const parsed = tryParseVisualConfig(currentExpr);
+    const combinedExpr =
+      combineBillingExpr(currentExpr, currentRequestRuleExpr) || currentExpr;
     if (parsed) {
       setEditorMode('visual');
       setVisualConfig(parsed);
-      setRawExpr(currentExpr);
+      setRawExpr(combinedExpr);
     } else if (currentExpr) {
       setEditorMode('raw');
-      setRawExpr(currentExpr);
+      setRawExpr(combinedExpr);
       setVisualConfig(null);
     } else {
       setEditorMode('visual');
@@ -1475,13 +1458,19 @@ export default function TieredPricingEditor({ model, onExprChange, requestRuleEx
     }
   }, [model?.name]);
 
+  const rawExpressionParts = useMemo(
+    () => splitBillingExprAndRequestRules(rawExpr),
+    [rawExpr],
+  );
+  const canSwitchToVisual = canUseVisualEditor(rawExpressionParts.billingExpr);
+
   const effectiveExpr = useMemo(() => {
     if (editorMode === 'visual') {
       return generateExprFromVisualConfig(visualConfig);
     }
-    const { billingExpr } = splitBillingExprAndRequestRules(rawExpr);
-    return billingExpr;
-  }, [editorMode, visualConfig, rawExpr]);
+    return rawExpressionParts.billingExpr;
+  }, [editorMode, visualConfig, rawExpressionParts.billingExpr]);
+  const isRequestExpression = isRequestDependentBillingExpr(effectiveExpr);
 
   useEffect(() => {
     if (effectiveExpr !== currentExpr) {
@@ -1504,12 +1493,14 @@ export default function TieredPricingEditor({ model, onExprChange, requestRuleEx
       const newMode = e.target.value;
       if (newMode === 'visual') {
         const { billingExpr, requestRuleExpr: ruleStr } = splitBillingExprAndRequestRules(rawExpr);
-        const parsed = tryParseVisualConfig(billingExpr);
-        if (parsed) {
-          setVisualConfig(parsed);
-        } else {
-          setVisualConfig(createDefaultVisualConfig());
+        if (!canUseVisualEditor(billingExpr)) {
+          showError(
+            t('这个公式比较复杂，下面的简化表单没法完整还原，请在表达式编辑模式下修改。'),
+          );
+          return;
         }
+        const parsed = tryParseVisualConfig(billingExpr);
+        setVisualConfig(parsed);
         const parsedGroups = tryParseRequestRuleExpr(ruleStr);
         setRequestRuleGroups(parsedGroups || []);
         onRequestRuleExprChange(ruleStr);
@@ -1520,7 +1511,7 @@ export default function TieredPricingEditor({ model, onExprChange, requestRuleEx
       }
       setEditorMode(newMode);
     },
-    [rawExpr, visualConfig, requestRuleGroups, onRequestRuleExprChange],
+    [rawExpr, visualConfig, requestRuleGroups, onRequestRuleExprChange, t],
   );
 
   const applyPreset = useCallback(
@@ -1554,13 +1545,14 @@ export default function TieredPricingEditor({ model, onExprChange, requestRuleEx
   };
 
   const evalResult = useMemo(() => {
+      if (isRequestExpression) return null;
       const result = evalExprLocally(effectiveExpr, promptTokens, completionTokens, extraTokenValues);
       if (!result.error) {
         result.cost = result.cost / 1000000 * (parseFloat(localStorage.getItem('quota_per_unit')) || 500000);
       }
       return result;
     },
-    [effectiveExpr, promptTokens, completionTokens,
+    [isRequestExpression, effectiveExpr, promptTokens, completionTokens,
       cacheReadTokens, cacheCreateTokens, cacheCreate1hTokens,
       imageTokens, imageOutputTokens, audioInputTokens, audioOutputTokens],
   );
@@ -1574,7 +1566,9 @@ export default function TieredPricingEditor({ model, onExprChange, requestRuleEx
           value={editorMode}
           onChange={handleModeSwitch}
         >
-          <Radio value='visual'>{t('可视化编辑')}</Radio>
+          <Radio value='visual' disabled={!canSwitchToVisual}>
+            {t('可视化编辑')}
+          </Radio>
           <Radio value='raw'>{t('表达式编辑')}</Radio>
         </RadioGroup>
       </div>
@@ -1653,7 +1647,8 @@ export default function TieredPricingEditor({ model, onExprChange, requestRuleEx
         )}
       </Card>
 
-      <Card
+      {!isRequestExpression && (
+        <Card
         bodyStyle={{ padding: 16 }}
         style={{ marginBottom: 12, background: 'var(--semi-color-fill-0)' }}
       >
@@ -1738,7 +1733,8 @@ export default function TieredPricingEditor({ model, onExprChange, requestRuleEx
             </div>
           )}
         </div>
-      </Card>
+        </Card>
+      )}
 
       <LlmPromptHelper t={t} model={model} />
 

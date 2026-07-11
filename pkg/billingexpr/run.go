@@ -68,6 +68,7 @@ func runProgram(prog *vm.Program, params TokenParams, request RequestInput) (flo
 			trace.Cost = value
 			return value
 		},
+		"per_request": perRequest,
 		"header": func(key string) string {
 			return headers[strings.ToLower(strings.TrimSpace(key))]
 		},

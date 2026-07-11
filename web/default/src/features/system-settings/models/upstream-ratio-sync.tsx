@@ -27,11 +27,12 @@ import { Button } from '@/components/ui/button'
 import {
   fetchUpstreamRatios,
   getUpstreamChannels,
-  updateSystemOption,
+  updateModelBillingOptions,
 } from '../api'
 import type {
   DifferencesMap,
   RatioType,
+  UpdateModelBillingOptionsRequest,
   UpstreamChannel,
   UpstreamConfig,
 } from '../types'
@@ -92,8 +93,9 @@ function getDefaultEndpointForChannel(channel: UpstreamChannel): string {
 
 function getBillingCategory(ratioType: string): 'price' | 'ratio' | 'tiered' {
   if (ratioType === 'model_price') return 'price'
-  if (ratioType === 'billing_mode' || ratioType === 'billing_expr')
+  if (ratioType === 'billing_mode' || ratioType === 'billing_expr') {
     return 'tiered'
+  }
   return 'ratio'
 }
 
@@ -214,9 +216,10 @@ export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
   })
 
   const { mutate: syncMutate, isPending: isSyncPending } = useMutation({
-    mutationFn: async (updates: Array<{ key: string; value: string }>) => {
-      for (const update of updates) {
-        await updateSystemOption(update)
+    mutationFn: async (request: UpdateModelBillingOptionsRequest) => {
+      const result = await updateModelBillingOptions(request)
+      if (result.success !== true) {
+        throw new Error(result.message || t('Failed to sync prices'))
       }
     },
     onSuccess: () => {
@@ -370,8 +373,9 @@ export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
       currentRatios.ImageRatio[model] !== undefined ||
       currentRatios.AudioRatio[model] !== undefined ||
       currentRatios.AudioCompletionRatio[model] !== undefined
-    )
+    ) {
       return 'ratio'
+    }
     return null
   }
 
@@ -422,16 +426,36 @@ export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
         })
       })
 
-      const updates = Object.entries(finalRatios).map(([key, value]) => ({
-        key,
-        value: JSON.stringify(value, null, 2),
-      }))
+      const billingMode = finalRatios['billing_setting.billing_mode'] as Record<
+        string,
+        string
+      >
+      const billingExpr = finalRatios['billing_setting.billing_expr'] as Record<
+        string,
+        string
+      >
+      const options = Object.fromEntries(
+        Object.entries(finalRatios)
+          .filter(
+            ([key]) =>
+              key !== 'billing_setting.billing_mode' &&
+              key !== 'billing_setting.billing_expr'
+          )
+          .map(([key, value]) => [key, JSON.stringify(value, null, 2)])
+      )
 
       return new Promise<boolean>((resolve) => {
-        syncMutate(updates, {
-          onSuccess: () => resolve(true),
-          onError: () => resolve(false),
-        })
+        syncMutate(
+          {
+            billing_mode: billingMode,
+            billing_expr: billingExpr,
+            options,
+          },
+          {
+            onSuccess: () => resolve(true),
+            onError: () => resolve(false),
+          }
+        )
       })
     },
     [resolutions, syncMutate]

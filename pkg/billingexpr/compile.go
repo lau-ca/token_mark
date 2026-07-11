@@ -11,7 +11,10 @@ import (
 	"github.com/expr-lang/expr/vm"
 )
 
-const maxCacheSize = 256
+const (
+	maxCacheSize    = 256
+	perRequestScale = 1_000_000
+)
 
 // DefaultExprVersion is used when an expression string has no version prefix.
 const DefaultExprVersion = 1
@@ -50,6 +53,7 @@ var compileEnvPrototypeV1 = map[string]interface{}{
 	"ai":              float64(0),
 	"ao":              float64(0),
 	"tier":            func(string, float64) float64 { return 0 },
+	"per_request":     perRequest,
 	"header":          func(string) string { return "" },
 	"param":           func(string) interface{} { return nil },
 	"has":             func(interface{}, string) bool { return false },
@@ -64,6 +68,10 @@ var compileEnvPrototypeV1 = map[string]interface{}{
 	"abs":             math.Abs,
 	"ceil":            math.Ceil,
 	"floor":           math.Floor,
+}
+
+func perRequest(amount float64) float64 {
+	return amount * perRequestScale
 }
 
 func getCompileEnv(version int) map[string]interface{} {

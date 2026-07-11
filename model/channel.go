@@ -1000,15 +1000,22 @@ func (channel *Channel) SetSetting(setting dto.ChannelSettings) {
 	channel.Setting = common.GetPointer[string](string(settingBytes))
 }
 
-func (channel *Channel) GetOtherSettings() dto.ChannelOtherSettings {
+func (channel *Channel) ParseOtherSettings() (dto.ChannelOtherSettings, error) {
 	setting := dto.ChannelOtherSettings{}
 	if channel.OtherSettings != "" {
-		err := common.UnmarshalJsonStr(channel.OtherSettings, &setting)
-		if err != nil {
-			common.SysLog(fmt.Sprintf("failed to unmarshal setting: channel_id=%d, error=%v", channel.Id, err))
-			channel.OtherSettings = "{}" // 清空设置以避免后续错误
-			_ = channel.Save()           // 保存修改
+		if err := common.UnmarshalJsonStr(channel.OtherSettings, &setting); err != nil {
+			return setting, err
 		}
+	}
+	return setting, nil
+}
+
+func (channel *Channel) GetOtherSettings() dto.ChannelOtherSettings {
+	setting, err := channel.ParseOtherSettings()
+	if err != nil {
+		common.SysLog(fmt.Sprintf("failed to unmarshal setting: channel_id=%d, error=%v", channel.Id, err))
+		channel.OtherSettings = "{}" // 清空设置以避免后续错误
+		_ = channel.Save()           // 保存修改
 	}
 	return setting
 }

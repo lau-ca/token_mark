@@ -83,6 +83,53 @@ func validatePrompt(prompt string) *dto.TaskError {
 // overflow quota calculation into a negative charge.
 const MaxTaskDurationSeconds = 3600
 
+const (
+	SeedanceVideoModelFast     = "videos-fast"
+	SeedanceVideoModelMini     = "videos-mini"
+	SeedanceVideoModelStandard = "videos-standard"
+
+	minSeedanceVideoDurationSeconds = 4
+	maxSeedanceVideoDurationSeconds = 15
+)
+
+func IsSeedanceVideoModel(model string) bool {
+	switch model {
+	case SeedanceVideoModelFast, SeedanceVideoModelMini, SeedanceVideoModelStandard:
+		return true
+	default:
+		return false
+	}
+}
+
+func ResolveSeedanceVideoDuration(req TaskSubmitReq) (int, error) {
+	if req.durationParseErr != nil {
+		return 0, req.durationParseErr
+	}
+
+	duration := minSeedanceVideoDurationSeconds
+	hasDuration := req.durationProvided || req.Duration != 0
+	if hasDuration {
+		duration = req.Duration
+	}
+	if req.Seconds != "" {
+		parsedSeconds, err := strconv.Atoi(req.Seconds)
+		if err != nil {
+			return 0, fmt.Errorf("seconds must be an integer")
+		}
+		if hasDuration && parsedSeconds != duration {
+			return 0, fmt.Errorf("duration and seconds must match when both are provided")
+		}
+		if !hasDuration {
+			duration = parsedSeconds
+		}
+	}
+
+	if duration < minSeedanceVideoDurationSeconds || duration > maxSeedanceVideoDurationSeconds {
+		return 0, fmt.Errorf("seconds must be between %d and %d", minSeedanceVideoDurationSeconds, maxSeedanceVideoDurationSeconds)
+	}
+	return duration, nil
+}
+
 func validateTaskDurationBounds(req TaskSubmitReq) *dto.TaskError {
 	seconds := req.Duration
 	if seconds == 0 && req.Seconds != "" {
@@ -172,7 +219,32 @@ func ValidateMultipartDirect(c *gin.Context, info *RelayInfo) *dto.TaskError {
 		return taskErr
 	}
 
-	if taskErr := validateTaskDurationBounds(req); taskErr != nil {
+	if IsSeedanceVideoModel(model) {
+		if len(req.ReferenceImages) > 0 {
+			hasInputReference = true
+		}
+
+		duration, err := ResolveSeedanceVideoDuration(req)
+		if err != nil {
+			return createTaskError(err, "invalid_seconds", http.StatusBadRequest, true)
+		}
+
+		resolution := strings.ToLower(strings.TrimSpace(req.Resolution))
+		isSupportedResolution := false
+		switch model {
+		case SeedanceVideoModelFast, SeedanceVideoModelMini:
+			isSupportedResolution = lo.Contains([]string{"480p", "720p"}, resolution)
+		case SeedanceVideoModelStandard:
+			isSupportedResolution = lo.Contains([]string{"480p", "720p", "1080p", "4k"}, resolution)
+		}
+		if !isSupportedResolution {
+			return createTaskError(fmt.Errorf("resolution %q is not supported by model %s", req.Resolution, model), "invalid_resolution", http.StatusBadRequest, true)
+		}
+
+		req.Duration = duration
+		req.Seconds = ""
+		req.Resolution = resolution
+	} else if taskErr := validateTaskDurationBounds(req); taskErr != nil {
 		return taskErr
 	}
 

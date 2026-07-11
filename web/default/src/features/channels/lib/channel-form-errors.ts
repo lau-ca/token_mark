@@ -46,6 +46,7 @@ const ADVANCED_SETTINGS_FIELDS = new Set<FieldPath<ChannelFormValues>>([
   'allow_safety_identifier',
   'allow_include_obfuscation',
   'force_image_b64_json_no_url',
+  'replace_video_urls_with_proxy',
   'allow_inference_geo',
   'allow_speed',
   'claude_beta_query',

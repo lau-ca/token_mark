@@ -98,6 +98,7 @@ export interface ChannelOtherSettings {
   allow_safety_identifier?: boolean
   allow_include_obfuscation?: boolean
   force_image_b64_json_no_url?: boolean
+  replace_video_urls_with_proxy?: boolean
   allow_inference_geo?: boolean
   allow_speed?: boolean
   claude_beta_query?: boolean

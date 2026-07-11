@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"math"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/glebarez/sqlite"
@@ -214,6 +216,39 @@ func TestTaskBillingOtherFiltersHistoricalOtherRatios(t *testing.T) {
 	assert.NotContains(t, other, "negative")
 	assert.NotContains(t, other, "nan")
 	assert.NotContains(t, other, "inf")
+}
+
+func TestTaskBillingOtherIncludesFrozenTieredSnapshot(t *testing.T) {
+	expression := `tier("1080p", per_request(0.9) * param("duration"))`
+	task := makeTask(1, 1, 100, 0, BillingSourceWallet, 0)
+	task.PrivateData.BillingContext.ModelPrice = 0
+	task.PrivateData.BillingContext.GroupRatio = 1
+	task.PrivateData.BillingContext.TieredBillingSnapshot = &billingexpr.BillingSnapshot{
+		BillingMode:   "tiered_expr",
+		ExprString:    expression,
+		ExprHash:      "frozen-hash",
+		EstimatedTier: "1080p",
+		GroupRatio:    1,
+	}
+	task.PrivateData.BillingContext.QuotaClamp = &common.QuotaClamp{
+		Op:       "QuotaRound",
+		Kind:     common.QuotaClampOverflow,
+		Original: 1e20,
+		Clamped:  common.MaxQuota,
+	}
+
+	other := taskBillingOther(task)
+
+	assert.NotContains(t, other, "model_price")
+	assert.Equal(t, "tiered_expr", other["billing_mode"])
+	assert.Equal(t, "frozen-hash", other["expr_hash"])
+	assert.Equal(t, "1080p", other["matched_tier"])
+	assert.Equal(t, 1.0, other["group_ratio"])
+	expressionBytes, err := base64.StdEncoding.DecodeString(other["expr_b64"].(string))
+	require.NoError(t, err)
+	assert.Equal(t, expression, string(expressionBytes))
+	adminInfo := other["admin_info"].(map[string]interface{})
+	assert.Contains(t, adminInfo, "quota_saturation")
 }
 
 func TestTaskBillingContextPriceDataFiltersMultiplier(t *testing.T) {
@@ -718,6 +753,7 @@ func TestNonTerminalUpdate_NoBilling(t *testing.T) {
 
 type mockAdaptor struct {
 	adjustReturn int
+	adjustCalls  int
 }
 
 func (m *mockAdaptor) Init(_ *relaycommon.RelayInfo) {}
@@ -726,6 +762,7 @@ func (m *mockAdaptor) FetchTask(string, string, map[string]any, string) (*http.R
 }
 func (m *mockAdaptor) ParseTaskResult([]byte) (*relaycommon.TaskInfo, error) { return nil, nil }
 func (m *mockAdaptor) AdjustBillingOnComplete(_ *model.Task, _ *relaycommon.TaskInfo) int {
+	m.adjustCalls++
 	return m.adjustReturn
 }
 
@@ -785,6 +822,24 @@ func TestSettle_PerCallBilling_SkipsTotalTokens(t *testing.T) {
 	assert.Equal(t, tokenRemain, getTokenRemainQuota(t, tokenID))
 	assert.Equal(t, preConsumed, task.Quota)
 	assert.Equal(t, int64(0), countLogs(t))
+}
+
+func TestSettle_TieredSnapshot_SkipsCompletionRecalculation(t *testing.T) {
+	task := makeTask(1, 1, 4000, 0, BillingSourceWallet, 0)
+	task.PrivateData.BillingContext.PerCallBilling = false
+	task.PrivateData.BillingContext.TieredBillingSnapshot = &billingexpr.BillingSnapshot{
+		BillingMode:   "tiered_expr",
+		EstimatedTier: "4k",
+	}
+	adaptor := &mockAdaptor{adjustReturn: 2000}
+
+	settleTaskBillingOnComplete(context.Background(), adaptor, task, &relaycommon.TaskInfo{
+		Status:      model.TaskStatusSuccess,
+		TotalTokens: 9999,
+	})
+
+	assert.Zero(t, adaptor.adjustCalls)
+	assert.Equal(t, 4000, task.Quota)
 }
 
 func TestSettle_NonPerCallBilling_AppliesAdaptorAdjustment(t *testing.T) {

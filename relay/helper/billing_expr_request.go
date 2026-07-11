@@ -4,7 +4,6 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/gin-gonic/gin"
@@ -34,7 +33,7 @@ func ResolveIncomingBillingExprRequestInput(c *gin.Context, info *relaycommon.Re
 	return input, nil
 }
 
-func BuildBillingExprRequestInputFromRequest(request dto.Request, headers map[string]string) (billingexpr.RequestInput, error) {
+func BuildBillingExprRequestInputFromRequest(request any, headers map[string]string) (billingexpr.RequestInput, error) {
 	input := billingexpr.RequestInput{
 		Headers: cloneStringMap(headers),
 	}

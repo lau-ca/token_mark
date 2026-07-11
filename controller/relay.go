@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	"github.com/QuantumNous/new-api/relay"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -592,14 +593,8 @@ func RelayTask(c *gin.Context) {
 		task.PrivateData.SubscriptionId = relayInfo.SubscriptionId
 		task.PrivateData.TokenId = relayInfo.TokenId
 		task.PrivateData.NodeName = common.NodeName
-		task.PrivateData.BillingContext = &model.TaskBillingContext{
-			ModelPrice:      relayInfo.PriceData.ModelPrice,
-			GroupRatio:      relayInfo.PriceData.GroupRatioInfo.GroupRatio,
-			ModelRatio:      relayInfo.PriceData.ModelRatio,
-			OtherRatios:     relayInfo.PriceData.OtherRatios(),
-			OriginModelName: relayInfo.OriginModelName,
-			PerCallBilling:  common.StringsContains(constant.TaskPricePatches, relayInfo.OriginModelName) || relayInfo.PriceData.UsePrice,
-		}
+		taskRequest, _ := relaycommon.GetTaskRequest(c)
+		task.PrivateData.BillingContext = buildTaskBillingContext(relayInfo, taskRequest)
 		task.Quota = result.Quota
 		task.Data = result.TaskData
 		task.Action = relayInfo.Action
@@ -610,6 +605,34 @@ func RelayTask(c *gin.Context) {
 
 	if taskErr != nil {
 		respondTaskError(c, taskErr)
+	}
+}
+
+func buildTaskBillingContext(info *relaycommon.RelayInfo, request relaycommon.TaskSubmitReq) *model.TaskBillingContext {
+	if info == nil {
+		return nil
+	}
+	var snapshotCopy *billingexpr.BillingSnapshot
+	if info.TieredBillingSnapshot != nil {
+		snapshot := *info.TieredBillingSnapshot
+		snapshotCopy = &snapshot
+	}
+	var quotaClampCopy *common.QuotaClamp
+	if info.QuotaClamp != nil {
+		quotaClamp := *info.QuotaClamp
+		quotaClampCopy = &quotaClamp
+	}
+	return &model.TaskBillingContext{
+		ModelPrice:            info.PriceData.ModelPrice,
+		GroupRatio:            info.PriceData.GroupRatioInfo.GroupRatio,
+		ModelRatio:            info.PriceData.ModelRatio,
+		OtherRatios:           info.PriceData.OtherRatios(),
+		OriginModelName:       info.OriginModelName,
+		PerCallBilling:        common.StringsContains(constant.TaskPricePatches, info.OriginModelName) || info.PriceData.UsePrice || snapshotCopy != nil,
+		TieredBillingSnapshot: snapshotCopy,
+		QuotaClamp:            quotaClampCopy,
+		Resolution:            request.Resolution,
+		Duration:              request.Duration,
 	}
 }
 

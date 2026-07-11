@@ -25,6 +25,8 @@ type OpenAIVideo struct {
 	ExpiresAt          int64             `json:"expires_at,omitempty"`
 	Seconds            string            `json:"seconds,omitempty"`
 	Size               string            `json:"size,omitempty"`
+	URL                string            `json:"url,omitempty"`
+	VideoURL           string            `json:"video_url,omitempty"`
 	RemixedFromVideoID string            `json:"remixed_from_video_id,omitempty"`
 	Error              *OpenAIVideoError `json:"error,omitempty"`
 	Metadata           map[string]any    `json:"metadata,omitempty"`
@@ -40,6 +42,14 @@ func (m *OpenAIVideo) SetMetadata(k string, v any) {
 	}
 	m.Metadata[k] = v
 }
+
+func (m *OpenAIVideo) ReplaceMetadataURL(url string) {
+	m.Metadata = nil
+	if url != "" {
+		m.Metadata = map[string]any{"url": url}
+	}
+}
+
 func NewOpenAIVideo() *OpenAIVideo {
 	return &OpenAIVideo{
 		Object: "video",

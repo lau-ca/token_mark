@@ -1,17 +1,20 @@
 package controller
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
@@ -61,6 +64,19 @@ func VideoProxy(c *gin.Context) {
 		videoProxyError(c, http.StatusInternalServerError, "server_error", "Failed to retrieve channel information")
 		return
 	}
+	replaceVideoURLsWithProxy := false
+	if dto.SupportsVideoURLProxyReplacement(channel.Type) {
+		channelOtherSettings, settingsErr := channel.ParseOtherSettings()
+		if settingsErr != nil {
+			logger.LogError(c.Request.Context(), fmt.Sprintf("Failed to parse channel settings for task %s: %s", taskID, settingsErr.Error()))
+			videoProxyError(c, http.StatusInternalServerError, "server_error", "Failed to retrieve channel information")
+			return
+		}
+		replaceVideoURLsWithProxy = channelOtherSettings.ShouldReplaceVideoURLs(channel.Type)
+	}
+	if replaceVideoURLsWithProxy {
+		c.Writer.Header().Set("Cache-Control", "private, no-store")
+	}
 	baseURL := channel.GetBaseURL()
 	if baseURL == "" {
 		baseURL = "https://api.openai.com"
@@ -80,6 +96,13 @@ func VideoProxy(c *gin.Context) {
 			return
 		}
 	}
+	if replaceVideoURLsWithProxy {
+		privateClient := *client
+		privateClient.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
+			return http.ErrUseLastResponse
+		}
+		client = &privateClient
+	}
 
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 60*time.Second)
 	defer cancel()
@@ -88,6 +111,15 @@ func VideoProxy(c *gin.Context) {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Failed to create request: %s", err.Error()))
 		videoProxyError(c, http.StatusInternalServerError, "server_error", "Failed to create proxy request")
 		return
+	}
+	if replaceVideoURLsWithProxy {
+		req.Header.Set("Accept-Encoding", "identity")
+		if value := c.GetHeader("Range"); value != "" {
+			req.Header.Set("Range", value)
+		}
+		if value := c.GetHeader("If-Range"); value != "" {
+			req.Header.Set("If-Range", value)
+		}
 	}
 
 	switch channel.Type {
@@ -113,9 +145,13 @@ func VideoProxy(c *gin.Context) {
 			return
 		}
 	case constant.ChannelTypeOpenAI, constant.ChannelTypeSora:
-		videoURL = fmt.Sprintf("%s/v1/videos/%s/content", baseURL, task.GetUpstreamTaskID())
-		req.Header.Set("Authorization", "Bearer "+channel.Key)
-		skipFetchURLValidation = true
+		if replaceVideoURLsWithProxy && strings.HasPrefix(strings.TrimSpace(task.GetResultURL()), "data:") {
+			videoURL = task.GetResultURL()
+		} else {
+			videoURL = fmt.Sprintf("%s/v1/videos/%s/content", baseURL, task.GetUpstreamTaskID())
+			req.Header.Set("Authorization", "Bearer "+channel.Key)
+			skipFetchURLValidation = true
+		}
 	default:
 		// Video URL is stored in PrivateData.ResultURL (fallback to FailReason for old data)
 		videoURL = task.GetResultURL()
@@ -129,7 +165,12 @@ func VideoProxy(c *gin.Context) {
 	}
 
 	if strings.HasPrefix(videoURL, "data:") {
-		if err := writeVideoDataURL(c, videoURL); err != nil {
+		if replaceVideoURLsWithProxy {
+			err = writePrivateVideoDataURL(c, videoURL)
+		} else {
+			err = writeVideoDataURL(c, videoURL)
+		}
+		if err != nil {
 			logger.LogError(c.Request.Context(), fmt.Sprintf("Failed to decode video data URL for task %s: %s", taskID, err.Error()))
 			videoProxyError(c, http.StatusBadGateway, "server_error", "Failed to fetch video content")
 		}
@@ -165,6 +206,47 @@ func VideoProxy(c *gin.Context) {
 		return
 	}
 	defer resp.Body.Close()
+	if replaceVideoURLsWithProxy {
+		switch resp.StatusCode {
+		case http.StatusOK, http.StatusPartialContent:
+		case http.StatusRequestedRangeNotSatisfiable:
+			if contentRange := resp.Header.Get("Content-Range"); contentRange != "" {
+				c.Writer.Header().Set("Content-Range", contentRange)
+			}
+			c.Writer.WriteHeader(http.StatusRequestedRangeNotSatisfiable)
+			c.Writer.WriteHeaderNow()
+			return
+		default:
+			logger.LogError(c.Request.Context(), fmt.Sprintf("Upstream returned status %d for %s", resp.StatusCode, videoURL))
+			videoProxyError(c, http.StatusBadGateway, "server_error",
+				fmt.Sprintf("Upstream service returned status %d", resp.StatusCode))
+			return
+		}
+
+		for _, key := range []string{
+			"Content-Type",
+			"Content-Length",
+			"Content-Range",
+			"Accept-Ranges",
+			"Content-Disposition",
+			"ETag",
+			"Last-Modified",
+		} {
+			for _, value := range resp.Header.Values(key) {
+				c.Writer.Header().Add(key, value)
+			}
+		}
+		if resp.ContentLength >= 0 && c.Writer.Header().Get("Content-Length") == "" {
+			c.Writer.Header().Set("Content-Length", strconv.FormatInt(resp.ContentLength, 10))
+		}
+
+		c.Writer.Header().Set("Cache-Control", "private, no-store")
+		c.Writer.WriteHeader(resp.StatusCode)
+		if _, err = io.Copy(c.Writer, resp.Body); err != nil {
+			logger.LogError(c.Request.Context(), fmt.Sprintf("Failed to stream video content: %s", err.Error()))
+		}
+		return
+	}
 
 	if resp.StatusCode != http.StatusOK {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Upstream returned status %d for %s", resp.StatusCode, videoURL))
@@ -187,15 +269,40 @@ func VideoProxy(c *gin.Context) {
 }
 
 func writeVideoDataURL(c *gin.Context, dataURL string) error {
+	mimeType, videoBytes, err := decodeVideoDataURL(dataURL)
+	if err != nil {
+		return err
+	}
+
+	c.Writer.Header().Set("Content-Type", mimeType)
+	c.Writer.Header().Set("Cache-Control", "public, max-age=86400")
+	c.Writer.WriteHeader(http.StatusOK)
+	_, err = c.Writer.Write(videoBytes)
+	return err
+}
+
+func writePrivateVideoDataURL(c *gin.Context, dataURL string) error {
+	mimeType, videoBytes, err := decodeVideoDataURL(dataURL)
+	if err != nil {
+		return err
+	}
+
+	c.Writer.Header().Set("Content-Type", mimeType)
+	c.Writer.Header().Set("Cache-Control", "private, no-store")
+	http.ServeContent(c.Writer, c.Request, "video", time.Time{}, bytes.NewReader(videoBytes))
+	return nil
+}
+
+func decodeVideoDataURL(dataURL string) (string, []byte, error) {
 	parts := strings.SplitN(dataURL, ",", 2)
 	if len(parts) != 2 {
-		return fmt.Errorf("invalid data url")
+		return "", nil, fmt.Errorf("invalid data url")
 	}
 
 	header := parts[0]
 	payload := parts[1]
 	if !strings.HasPrefix(header, "data:") || !strings.Contains(header, ";base64") {
-		return fmt.Errorf("unsupported data url")
+		return "", nil, fmt.Errorf("unsupported data url")
 	}
 
 	mimeType := strings.TrimPrefix(header, "data:")
@@ -208,13 +315,8 @@ func writeVideoDataURL(c *gin.Context, dataURL string) error {
 	if err != nil {
 		videoBytes, err = base64.RawStdEncoding.DecodeString(payload)
 		if err != nil {
-			return err
+			return "", nil, err
 		}
 	}
-
-	c.Writer.Header().Set("Content-Type", mimeType)
-	c.Writer.Header().Set("Cache-Control", "public, max-age=86400")
-	c.Writer.WriteHeader(http.StatusOK)
-	_, err = c.Writer.Write(videoBytes)
-	return err
+	return mimeType, videoBytes, nil
 }

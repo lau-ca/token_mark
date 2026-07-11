@@ -18,9 +18,10 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import { Toast, Pagination } from '@douyinfe/semi-ui';
-import { toastConstants, BILLING_PRICING_VARS, BILLING_VAR_REGEX } from '../constants';
+import { toastConstants, BILLING_PRICING_VARS } from '../constants';
 import React from 'react';
 import { toast } from 'react-toastify';
+import { parseTiersFromExpr } from './billingExpr';
 import {
   THINK_TAG_REGEX,
   MESSAGE_ROLES,
@@ -900,6 +901,15 @@ export const getModelPriceItems = (
 export const formatDynamicPriceSummary = (billingExpr, t, groupRatio = 1) => {
   if (!billingExpr) return <span style={{ color: 'var(--semi-color-text-1)' }}>{t('动态计费')}</span>;
 
+  const tiers = parseTiersFromExpr(billingExpr);
+  if (tiers.length === 0) {
+    return (
+      <code style={{ color: 'var(--semi-color-text-1)', wordBreak: 'break-all' }}>
+        {billingExpr}
+      </code>
+    );
+  }
+
   const quotaDisplayType = localStorage.getItem('quota_display_type') || 'USD';
   let symbol = '$';
   let rate = 1;
@@ -916,19 +926,8 @@ export const formatDynamicPriceSummary = (billingExpr, t, groupRatio = 1) => {
 
   const gr = groupRatio || 1;
   const exprBody = billingExpr.replace(/^v\d+:/, '');
-  const tierMatches = exprBody.match(/tier\(/g) || [];
-  const tierCount = tierMatches.length;
-
-  const varCoeffs = {};
-  const varRe = new RegExp(BILLING_VAR_REGEX.source, 'g');
-  let vm;
-  while ((vm = varRe.exec(exprBody)) !== null) {
-    if (!(vm[1] in varCoeffs)) varCoeffs[vm[1]] = Number(vm[2]);
-  }
-  const hasCoeffs = 'p' in varCoeffs || 'c' in varCoeffs;
-
-  const varLabels = BILLING_PRICING_VARS.map((v) => [v.key, v.label]);
-  const requestPriceMatches = [...exprBody.matchAll(/tier\("([^"]*)",\s*([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?)?\d*)(?:\s*\*|[)\s])/g)];
+  const tierCount = tiers.length;
+  const varLabels = BILLING_PRICING_VARS.map((v) => [v.field, v.label]);
 
   const hasTimeCondition = /\b(?:hour|minute|weekday|month|day)\(/.test(exprBody);
   const hasRequestCondition = /\b(?:param|header)\(/.test(exprBody);
@@ -943,22 +942,31 @@ export const formatDynamicPriceSummary = (billingExpr, t, groupRatio = 1) => {
 
   return (
     <>
-      {hasCoeffs && (
-        <>
-          {varLabels.map(([key, label]) =>
-            key in varCoeffs ? (
-              <span key={key} style={lineStyle}>
-                {`${t(label)} ${symbol}${(varCoeffs[key] * gr * rate).toFixed(4)}${unitSuffix}`}
+      {tiers.map((tier, tierIndex) => {
+        const tierPrefix = tierCount > 1 ? `${tier.label} ` : '';
+        return (
+          <React.Fragment key={`tier-${tierIndex}-${tier.label}`}>
+            {tier.billingUnit === 'token' &&
+              varLabels.map(([field, label]) =>
+                tier[field] > 0 ? (
+                  <span key={`${tierIndex}-${field}`} style={lineStyle}>
+                    {`${tierPrefix}${t(label)} ${symbol}${(tier[field] * gr * rate).toFixed(4)}${unitSuffix}`}
+                  </span>
+                ) : null,
+              )}
+            {tier.requestPrice > 0 && (
+              <span key={`${tierIndex}-request`} style={lineStyle}>
+                {`${tierPrefix}${symbol}${(tier.requestPrice * gr * rate).toFixed(6)} / ${t('次')}`}
               </span>
-            ) : null,
-          )}
-        </>
-      )}
-      {requestPriceMatches.map((match) => (
-        <span key={`request-price-${match[1]}`} style={lineStyle}>
-          {`${match[1]} ${symbol}${((Number(match[2]) / 1000000) * gr * rate).toFixed(6)} / ${t('次')}`}
-        </span>
-      ))}
+            )}
+            {tier.secondPrice > 0 && (
+              <span key={`${tierIndex}-second`} style={lineStyle}>
+                {`${tierPrefix}${symbol}${(tier.secondPrice * gr * rate).toFixed(6)} / ${t('秒')}`}
+              </span>
+            )}
+          </React.Fragment>
+        );
+      })}
       {(tierCount > 1 || hasTimeCondition || hasRequestCondition) && (
       <span style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
         <span

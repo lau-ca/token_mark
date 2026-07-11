@@ -62,6 +62,7 @@ func GetUserTask(c *gin.Context) {
 
 func tasksToDto(tasks []*model.Task, fillUser bool) []*dto.TaskDto {
 	var userIdMap map[int]*model.UserBase
+	var channelMap map[int]*model.Channel
 	if fillUser {
 		userIdMap = make(map[int]*model.UserBase)
 		userIds := types.NewSet[int]()
@@ -74,6 +75,8 @@ func tasksToDto(tasks []*model.Task, fillUser bool) []*dto.TaskDto {
 				userIdMap[userId] = cacheUser
 			}
 		}
+	} else {
+		channelMap = make(map[int]*model.Channel)
 	}
 	result := make([]*dto.TaskDto, len(tasks))
 	for i, task := range tasks {
@@ -82,7 +85,20 @@ func tasksToDto(tasks []*model.Task, fillUser bool) []*dto.TaskDto {
 				task.Username = user.Username
 			}
 		}
-		result[i] = relay.TaskModel2Dto(task)
+		if fillUser {
+			result[i] = relay.TaskModel2Dto(task)
+			continue
+		}
+		if !relay.ShouldResolveVideoPrivacyChannel(task) {
+			result[i] = relay.TaskModel2Dto(task)
+			continue
+		}
+		channel, loaded := channelMap[task.ChannelId]
+		if !loaded {
+			channel, _ = model.GetChannelById(task.ChannelId, true)
+			channelMap[task.ChannelId] = channel
+		}
+		result[i] = relay.TaskModel2UserDto(task, channel)
 	}
 	return result
 }

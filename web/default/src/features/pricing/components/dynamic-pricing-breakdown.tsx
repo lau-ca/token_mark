@@ -34,6 +34,7 @@ import {
   MATCH_LT,
   MATCH_RANGE,
   SOURCE_TIME,
+  getTierUnitPrice,
   normalizeTierLabel,
   parseTiersFromExpr,
   splitBillingExprAndRequestRules,
@@ -230,7 +231,10 @@ export function DynamicPricingBreakdown({
     )
   })
   const hasRequestPrice = tiers.some(
-    (tier) => Number(tier.requestPrice || 0) > 0
+    (tier) => getTierUnitPrice(tier)?.unit === 'request'
+  )
+  const hasSecondPrice = tiers.some(
+    (tier) => getTierUnitPrice(tier)?.unit === 'second'
   )
 
   return (
@@ -263,7 +267,7 @@ export function DynamicPricingBreakdown({
             {t('Tiered price table')}
           </div>
           <div className='space-y-1.5 sm:hidden'>
-            {tiers.map((tier, i) => {
+            {tiers.map((tier) => {
               const condSummary = formatConditionSummary(tier.conditions, t)
               const isMatched =
                 matchedTierLabel != null &&
@@ -271,7 +275,7 @@ export function DynamicPricingBreakdown({
                 tier.label === matchedTierLabel
               return (
                 <div
-                  key={`tier-mobile-${i}`}
+                  key={JSON.stringify(tier)}
                   className={cn(
                     'rounded-md border p-2',
                     isMatched && 'border-emerald-500/40 bg-emerald-500/10'
@@ -307,6 +311,18 @@ export function DynamicPricingBreakdown({
                         <div className='truncate font-mono text-sm font-semibold'>
                           {Number(tier.requestPrice || 0) > 0
                             ? `${symbol}${(Number(tier.requestPrice) * rate).toFixed(6)}`
+                            : '-'}
+                        </div>
+                      </div>
+                    )}
+                    {hasSecondPrice && (
+                      <div className='min-w-0'>
+                        <div className='text-muted-foreground truncate text-[10px] font-medium tracking-wider uppercase'>
+                          /s
+                        </div>
+                        <div className='truncate font-mono text-sm font-semibold'>
+                          {Number(tier.secondPrice || 0) > 0
+                            ? `${symbol}${(Number(tier.secondPrice) * rate).toFixed(6)}`
                             : '-'}
                         </div>
                       </div>
@@ -420,6 +436,27 @@ export function DynamicPricingBreakdown({
                     },
                   ]
                 : []),
+              ...(hasSecondPrice
+                ? [
+                    {
+                      id: 'secondPrice',
+                      header: '/s',
+                      className:
+                        'text-muted-foreground py-2 text-right font-medium',
+                      cellClassName: 'py-2.5 text-right align-top font-mono',
+                      cell: (tier: ParsedTier) => {
+                        const value = Number(tier.secondPrice || 0)
+                        return value > 0 ? (
+                          <span className='font-semibold'>
+                            {`${symbol}${(value * rate).toFixed(6)}`}
+                          </span>
+                        ) : (
+                          '-'
+                        )
+                      },
+                    },
+                  ]
+                : []),
               ...visiblePriceFields.map((v, index) => ({
                 id: v.field ?? `price-${index}`,
                 header: t(v.shortLabel),
@@ -461,9 +498,9 @@ export function DynamicPricingBreakdown({
             {t('Conditional multipliers')}
           </div>
           <ul className='space-y-1.5'>
-            {ruleGroups.map((group, gi) => (
+            {ruleGroups.map((group) => (
               <li
-                key={`group-${gi}`}
+                key={JSON.stringify(group)}
                 className='bg-muted/50 flex items-center justify-between gap-3 rounded-md px-3 py-2'
               >
                 <span

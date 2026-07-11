@@ -18,19 +18,14 @@ import (
 func TestModelPriceHelperTieredUsesPreloadedRequestInput(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	saved := map[string]string{}
-	require.NoError(t, config.GlobalConfig.SaveToDB(func(key, value string) error {
-		saved[key] = value
-		return nil
-	}))
+	savedBilling := billing_setting.GetConfigCopy()
 	t.Cleanup(func() {
-		require.NoError(t, config.GlobalConfig.LoadFromDB(saved))
+		billing_setting.ReplaceConfig(savedBilling.BillingMode, savedBilling.BillingExpr)
 	})
-
-	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
-		"billing_setting.billing_mode": `{"tiered-test-model":"tiered_expr"}`,
-		"billing_setting.billing_expr": `{"tiered-test-model":"param(\"stream\") == true ? tier(\"stream\", p * 3) : tier(\"base\", p * 2)"}`,
-	}))
+	billing_setting.ReplaceConfig(
+		map[string]string{"tiered-test-model": billing_setting.BillingModeTieredExpr},
+		map[string]string{"tiered-test-model": `param("stream") == true ? tier("stream", p * 3) : tier("base", p * 2)`},
+	)
 
 	recorder := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(recorder)
@@ -72,10 +67,16 @@ func TestModelPriceHelperTieredPreConsumeMaxTokensFallback(t *testing.T) {
 	t.Cleanup(func() {
 		require.NoError(t, config.GlobalConfig.LoadFromDB(saved))
 	})
+	savedBilling := billing_setting.GetConfigCopy()
+	t.Cleanup(func() {
+		billing_setting.ReplaceConfig(savedBilling.BillingMode, savedBilling.BillingExpr)
+	})
+	billing_setting.ReplaceConfig(
+		map[string]string{"tiered-fallback-model": billing_setting.BillingModeTieredExpr},
+		map[string]string{"tiered-fallback-model": `tier("base", p * 3 + c * 15)`},
+	)
 
 	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
-		"billing_setting.billing_mode":    `{"tiered-fallback-model":"tiered_expr"}`,
-		"billing_setting.billing_expr":    `{"tiered-fallback-model":"tier(\"base\", p * 3 + c * 15)"}`,
 		"group_ratio_setting.group_ratio": `{"default":1,"free":0}`,
 	}))
 

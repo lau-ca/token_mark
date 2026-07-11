@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -158,6 +159,40 @@ func TestRequestProbeHelpers(t *testing.T) {
 	if math.Abs(cost-want) > 1e-6 {
 		t.Errorf("cost = %f, want %f", cost, want)
 	}
+}
+
+func TestPerRequestHelper(t *testing.T) {
+	exprStr := `tier("request", per_request(2.5))`
+	cost, trace, err := billingexpr.RunExprWithRequest(
+		exprStr,
+		billingexpr.TokenParams{},
+		billingexpr.RequestInput{},
+	)
+	require.NoError(t, err)
+	assert.Equal(t, 2_500_000.0, cost)
+	assert.Equal(t, "request", trace.MatchedTier)
+	assert.True(t, billingexpr.UsedVars(exprStr)["per_request"])
+}
+
+func TestPerRequestHelperWithDuration(t *testing.T) {
+	cost, trace, err := billingexpr.RunExprWithRequest(
+		`tier("1080p", per_request(0.9) * param("duration"))`,
+		billingexpr.TokenParams{},
+		billingexpr.RequestInput{Body: []byte(`{"duration":15}`)},
+	)
+	require.NoError(t, err)
+	assert.Equal(t, 13_500_000.0, cost)
+	assert.Equal(t, "1080p", trace.MatchedTier)
+}
+
+func TestPerRequestHelperDoesNotChangeTokenExpressions(t *testing.T) {
+	cost, trace, err := billingexpr.RunExpr(
+		`tier("base", p * 2.5 + c * 15)`,
+		billingexpr.TokenParams{P: 1000, C: 500},
+	)
+	require.NoError(t, err)
+	assert.Equal(t, 10_000.0, cost)
+	assert.Equal(t, "base", trace.MatchedTier)
 }
 
 func TestImageSizeTierHelper(t *testing.T) {

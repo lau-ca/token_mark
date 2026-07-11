@@ -30,6 +30,11 @@ type TaskSubmitResult struct {
 	//PerCallPrice   types.PriceData
 }
 
+type taskSubmitBillingAdaptor interface {
+	EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64
+	AdjustBillingOnSubmit(info *relaycommon.RelayInfo, taskData []byte) map[string]float64
+}
+
 // ResolveOriginTask 处理基于已有任务的提交（remix / continuation）：
 // 查找原始任务、从中提取模型名称、将渠道锁定到原始任务的渠道
 // （通过 info.LockedChannel，重试时复用同一渠道并轮换 key），
@@ -179,28 +184,14 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 
 	// 4. 价格计算：基础模型价格
 	info.OriginModelName = modelName
-	priceData, err := helper.ModelPriceHelperPerCall(c, info)
+	priceData, err := helper.ModelPriceHelperTask(c, info)
 	if err != nil {
 		return nil, service.TaskErrorWrapper(err, "model_price_error", http.StatusBadRequest)
 	}
 	info.PriceData = priceData
 
-	// 5. 计费估算：让适配器根据用户请求提供 OtherRatios（时长、分辨率等）
-	//    必须在 ModelPriceHelperPerCall 之后调用（它会重建 PriceData）。
-	//    ResolveOriginTask 可能已在 remix 路径中预设了 OtherRatios，此处合并。
-	if estimatedRatios := adaptor.EstimateBilling(c, info); len(estimatedRatios) > 0 {
-		for k, v := range estimatedRatios {
-			info.PriceData.AddOtherRatio(k, v)
-		}
-	}
-
-	// 6. 将 OtherRatios 应用到基础额度（饱和转换，防止溢出成负数）
-	if !common.StringsContains(constant.TaskPricePatches, modelName) {
-		quotaWithRatios := info.PriceData.ApplyOtherRatiosToFloat(float64(info.PriceData.Quota))
-		quota, clamp := common.QuotaFromFloatChecked(quotaWithRatios)
-		info.PriceData.Quota = quota
-		noteTaskQuotaClamp(info, clamp)
-	}
+	// 5-6. 传统任务由适配器估算倍率；表达式任务的最终额度已冻结。
+	applyTaskBillingEstimate(c, info, adaptor, modelName)
 
 	// 7. 预扣费（仅首次 — 重试时 info.Billing 已存在，跳过）
 	if info.Billing == nil && !info.PriceData.FreeModel {
@@ -241,15 +232,7 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	}
 
 	// 11. 提交后计费调整：让适配器根据上游实际返回调整 OtherRatios
-	finalQuota := info.PriceData.Quota
-	if adjustedRatios := adaptor.AdjustBillingOnSubmit(info, taskData); len(adjustedRatios) > 0 {
-		if adjustedQuota, ok := recalcQuotaFromRatios(info, adjustedRatios); ok {
-			// 基于调整后的 ratios 重新计算 quota
-			finalQuota = adjustedQuota
-			info.PriceData.ReplaceOtherRatios(adjustedRatios)
-			info.PriceData.Quota = finalQuota
-		}
-	}
+	finalQuota := finalizeTaskBillingOnSubmit(info, adaptor, taskData)
 
 	return &TaskSubmitResult{
 		UpstreamTaskID: upstreamTaskID,
@@ -257,6 +240,37 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 		Platform:       platform,
 		Quota:          finalQuota,
 	}, nil
+}
+
+func applyTaskBillingEstimate(c *gin.Context, info *relaycommon.RelayInfo, adaptor taskSubmitBillingAdaptor, modelName string) {
+	if info.TieredBillingSnapshot != nil {
+		return
+	}
+	if estimatedRatios := adaptor.EstimateBilling(c, info); len(estimatedRatios) > 0 {
+		for key, ratio := range estimatedRatios {
+			info.PriceData.AddOtherRatio(key, ratio)
+		}
+	}
+	if common.StringsContains(constant.TaskPricePatches, modelName) {
+		return
+	}
+	quotaWithRatios := info.PriceData.ApplyOtherRatiosToFloat(float64(info.PriceData.Quota))
+	quota, clamp := common.QuotaFromFloatChecked(quotaWithRatios)
+	info.PriceData.Quota = quota
+	noteTaskQuotaClamp(info, clamp)
+}
+
+func finalizeTaskBillingOnSubmit(info *relaycommon.RelayInfo, adaptor taskSubmitBillingAdaptor, taskData []byte) int {
+	if info.TieredBillingSnapshot != nil {
+		return info.PriceData.Quota
+	}
+	if adjustedRatios := adaptor.AdjustBillingOnSubmit(info, taskData); len(adjustedRatios) > 0 {
+		if adjustedQuota, ok := recalcQuotaFromRatios(info, adjustedRatios); ok {
+			info.PriceData.ReplaceOtherRatios(adjustedRatios)
+			info.PriceData.Quota = adjustedQuota
+		}
+	}
+	return info.PriceData.Quota
 }
 
 // recalcQuotaFromRatios 根据 adjustedRatios 重新计算 quota。
@@ -393,8 +407,19 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 		return
 	}
 
+	shouldResolvePrivacyChannel := ShouldResolveVideoPrivacyChannel(originTask)
+	var channelModel *model.Channel
+	var channelErr error
+	if shouldResolvePrivacyChannel {
+		channelModel, channelErr = model.GetChannelById(originTask.ChannelId, true)
+	}
+
 	// OpenAI Video API 格式: 走各 adaptor 的 ConvertToOpenAIVideo
 	if isOpenAIVideoAPI {
+		if shouldResolvePrivacyChannel && channelErr != nil {
+			taskResp = service.TaskErrorWrapper(channelErr, "get_channel_failed", http.StatusInternalServerError)
+			return
+		}
 		adaptor := GetTaskAdaptor(originTask.Platform)
 		if adaptor == nil {
 			taskResp = service.TaskErrorWrapperLocal(fmt.Errorf("invalid channel id: %d", originTask.ChannelId), "invalid_channel_id", http.StatusBadRequest)
@@ -406,7 +431,14 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 				taskResp = service.TaskErrorWrapper(err, "convert_to_openai_video_failed", http.StatusInternalServerError)
 				return
 			}
-			respBody = openAIVideoData
+			if !shouldResolvePrivacyChannel {
+				respBody = openAIVideoData
+				return
+			}
+			respBody, err = ApplyVideoResponsePrivacy(openAIVideoData, originTask, channelModel)
+			if err != nil {
+				taskResp = service.TaskErrorWrapper(err, "sanitize_openai_video_failed", http.StatusInternalServerError)
+			}
 			return
 		}
 		taskResp = service.TaskErrorWrapperLocal(fmt.Errorf("not_implemented:%s", originTask.Platform), "not_implemented", http.StatusNotImplemented)
@@ -414,9 +446,13 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 	}
 
 	// 通用 TaskDto 格式
+	taskDto := TaskModel2Dto(originTask)
+	if shouldResolvePrivacyChannel {
+		taskDto = TaskModel2UserDto(originTask, channelModel)
+	}
 	respBody, err = common.Marshal(dto.TaskResponse[any]{
 		Code: "success",
-		Data: TaskModel2Dto(originTask),
+		Data: taskDto,
 	})
 	if err != nil {
 		taskResp = service.TaskErrorWrapper(err, "marshal_response_failed", http.StatusInternalServerError)

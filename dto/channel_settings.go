@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+
+	"github.com/QuantumNous/new-api/constant"
 )
 
 type ChannelSettings struct {
@@ -49,7 +51,16 @@ type ChannelOtherSettings struct {
 	UpstreamModelUpdateLastDetectedModels []string              `json:"upstream_model_update_last_detected_models,omitempty"` // 上次检测到的可加入模型
 	UpstreamModelUpdateLastRemovedModels  []string              `json:"upstream_model_update_last_removed_models,omitempty"`  // 上次检测到的可删除模型
 	UpstreamModelUpdateIgnoredModels      []string              `json:"upstream_model_update_ignored_models,omitempty"`       // 手动忽略的模型
+	ReplaceVideoURLsWithProxy             bool                  `json:"replace_video_urls_with_proxy,omitempty"`
 	AdvancedCustom                        *AdvancedCustomConfig `json:"advanced_custom,omitempty"`
+}
+
+func (s ChannelOtherSettings) ShouldReplaceVideoURLs(channelType int) bool {
+	return s.ReplaceVideoURLsWithProxy && SupportsVideoURLProxyReplacement(channelType)
+}
+
+func SupportsVideoURLProxyReplacement(channelType int) bool {
+	return channelType == constant.ChannelTypeOpenAI || channelType == constant.ChannelTypeSora
 }
 
 func (s *ChannelOtherSettings) IsOpenRouterEnterprise() bool {

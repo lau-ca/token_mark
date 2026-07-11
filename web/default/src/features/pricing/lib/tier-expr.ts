@@ -16,7 +16,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { BILLING_CACHE_VAR_MAP } from './billing-expr'
+import {
+  BILLING_CACHE_VAR_MAP,
+  isRequestDependentBillingExpr,
+} from './billing-expr'
 
 export const CACHE_MODE_TIMED = 'timed'
 export const CACHE_MODE_GENERIC = 'generic'
@@ -164,6 +167,7 @@ export function tryParseVisualConfig(
   exprStr: string | null | undefined
 ): VisualConfig | null {
   if (!exprStr) return null
+  if (isRequestDependentBillingExpr(exprStr)) return null
   try {
     let body = exprStr
     const versionMatch = body.match(/^v\d+:([\s\S]*)$/)
@@ -234,13 +238,20 @@ export function tryParseVisualConfig(
 
     const cfg = normalizeVisualConfig({ tiers })
     const regenerated = generateExprFromVisualConfig(cfg)
-    if (regenerated.replace(/\s+/g, '') !== body.replace(/\s+/g, '')) {
+    if (regenerated.replaceAll(/\s+/g, '') !== body.replaceAll(/\s+/g, '')) {
       return null
     }
     return cfg
   } catch {
     return null
   }
+}
+
+export function canUseVisualEditor(
+  exprStr: string | null | undefined
+): boolean {
+  if (!exprStr?.trim()) return true
+  return tryParseVisualConfig(exprStr) !== null
 }
 
 // ---------------------------------------------------------------------------

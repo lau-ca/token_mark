@@ -160,9 +160,9 @@ export const BILLING_CACHE_VAR_MAP = BILLING_EXTRA_VARS.map((v) => ({
   exprVar: v.key,
 }))
 
-const BILLING_VAR_REGEX = new RegExp(
-  `\\b(${BILLING_PRICING_VARS.map((v) => v.key).join('|')})\\s*\\*\\s*([\\d.eE+-]+)`,
-  'g'
+const NUMERIC_LITERAL_REGEX = /^-?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/
+const BILLING_VAR_NAME_SET = new Set(
+  BILLING_PRICING_VARS.map((variable) => variable.key)
 )
 
 // ---------------------------------------------------------------------------
@@ -202,8 +202,6 @@ export const COMMON_TIMEZONES: { value: string; label: string }[] = [
   { value: 'Australia/Sydney', label: 'UTC+10 Sydney (Australia/Sydney)' },
 ]
 
-const NUMERIC_LITERAL_REGEX = /^-?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/
-
 export type ParamHeaderCondition = {
   source: 'param' | 'header'
   path: string
@@ -237,7 +235,14 @@ export type TierCondition = {
 export type ParsedTier = {
   label: string
   conditions: TierCondition[]
+  requestPrice?: number
+  secondPrice?: number
   [field: string]: unknown
+}
+
+export type TierUnitPrice = {
+  unit: 'request' | 'second'
+  price: number
 }
 
 // ---------------------------------------------------------------------------
@@ -251,57 +256,385 @@ function stripExprVersion(exprStr: string): { version: number; body: string } {
   return { version: 1, body: exprStr }
 }
 
-function parseTierBody(bodyStr: string): Record<string, number> {
-  const coeffs: Record<string, number> = {}
-  const re = new RegExp(BILLING_VAR_REGEX.source, 'g')
-  let m
-  while ((m = re.exec(bodyStr)) !== null) {
-    if (!(m[1] in coeffs)) coeffs[m[1]] = Number(m[2])
+type ParsedFunctionCall = {
+  start: number
+  end: number
+  args: string[]
+}
+
+function isIdentifierChar(char: string | undefined): boolean {
+  return /[A-Za-z0-9_]/.test(char || '')
+}
+
+function findMatchingParen(expr: string, openingIndex: number): number {
+  let depth = 0
+  let quote = ''
+  let escaped = false
+
+  for (let index = openingIndex; index < expr.length; index += 1) {
+    const char = expr[index]
+    if (quote) {
+      if (escaped) {
+        escaped = false
+      } else if (char === '\\') {
+        escaped = true
+      } else if (char === quote) {
+        quote = ''
+      }
+      continue
+    }
+    if (char === '"' || char === "'") {
+      quote = char
+      continue
+    }
+    if (char === '(') depth += 1
+    if (char === ')') {
+      depth -= 1
+      if (depth === 0) return index
+    }
   }
+  return -1
+}
+
+function splitTopLevelArguments(expr: string): string[] {
+  const parts: string[] = []
+  let start = 0
+  let depth = 0
+  let quote = ''
+  let escaped = false
+
+  for (let index = 0; index < expr.length; index += 1) {
+    const char = expr[index]
+    if (quote) {
+      if (escaped) {
+        escaped = false
+      } else if (char === '\\') {
+        escaped = true
+      } else if (char === quote) {
+        quote = ''
+      }
+      continue
+    }
+    if (char === '"' || char === "'") {
+      quote = char
+      continue
+    }
+    if (char === '(') depth += 1
+    if (char === ')') depth -= 1
+    if (char === ',' && depth === 0) {
+      parts.push(expr.slice(start, index).trim())
+      start = index + 1
+    }
+  }
+  parts.push(expr.slice(start).trim())
+  return parts
+}
+
+function findFunctionCalls(
+  expr: string,
+  functionName: string
+): ParsedFunctionCall[] {
+  const calls: ParsedFunctionCall[] = []
+  let quote = ''
+  let escaped = false
+
+  for (let index = 0; index < expr.length; index += 1) {
+    const char = expr[index]
+    if (quote) {
+      if (escaped) {
+        escaped = false
+      } else if (char === '\\') {
+        escaped = true
+      } else if (char === quote) {
+        quote = ''
+      }
+      continue
+    }
+    if (char === '"' || char === "'") {
+      quote = char
+      continue
+    }
+    if (!expr.startsWith(functionName, index)) continue
+
+    const before = expr[index - 1]
+    const afterName = expr[index + functionName.length]
+    if (
+      (before && /[\w$]/.test(before)) ||
+      (afterName && /[\w$]/.test(afterName))
+    ) {
+      continue
+    }
+
+    let openingIndex = index + functionName.length
+    while (/\s/.test(expr[openingIndex] || '')) openingIndex += 1
+    if (expr[openingIndex] !== '(') continue
+
+    const closingIndex = findMatchingParen(expr, openingIndex)
+    if (closingIndex === -1) continue
+    calls.push({
+      start: index,
+      end: closingIndex,
+      args: splitTopLevelArguments(expr.slice(openingIndex + 1, closingIndex)),
+    })
+    index = closingIndex
+  }
+  return calls
+}
+
+function hasFullOuterParens(expr: string): boolean {
+  return (
+    expr.startsWith('(') &&
+    expr.endsWith(')') &&
+    findMatchingParen(expr, 0) === expr.length - 1
+  )
+}
+
+function unwrapOuterParens(expr: string): string {
+  let current = (expr || '').trim()
+  while (hasFullOuterParens(current)) {
+    current = current.slice(1, -1).trim()
+  }
+  return current
+}
+
+function parseStringLiteral(value: string): string | null {
+  try {
+    const parsed = JSON.parse(value.trim()) as unknown
+    return typeof parsed === 'string' ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+function isDirectTierBranch(
+  source: string,
+  start: number,
+  end: number
+): boolean {
+  let previousIndex = start - 1
+  while (previousIndex >= 0 && /\s/.test(source[previousIndex])) {
+    previousIndex -= 1
+  }
+
+  if (previousIndex >= 0) {
+    const previousChar = source[previousIndex]
+    if (!['?', ':', '('].includes(previousChar)) return false
+    if (previousChar === '(') {
+      let beforeParenthesis = previousIndex - 1
+      while (beforeParenthesis >= 0 && /\s/.test(source[beforeParenthesis])) {
+        beforeParenthesis -= 1
+      }
+      if (isIdentifierChar(source[beforeParenthesis])) return false
+    }
+  }
+
+  let nextIndex = end + 1
+  while (nextIndex < source.length && /\s/.test(source[nextIndex])) {
+    nextIndex += 1
+  }
+  if (nextIndex >= source.length) return true
+  return [':', ')'].includes(source[nextIndex])
+}
+
+export function isRequestDependentBillingExpr(exprStr: string): boolean {
+  if (!exprStr) return false
+  const { body } = stripExprVersion(exprStr)
+  return ['per_request', 'param', 'header'].some(
+    (functionName) => findFunctionCalls(body, functionName).length > 0
+  )
+}
+
+function parseCompleteFunctionCall(
+  expr: string,
+  functionName: string
+): ParsedFunctionCall | null {
+  const body = unwrapOuterParens(expr)
+  const calls = findFunctionCalls(body, functionName)
+  if (
+    calls.length !== 1 ||
+    calls[0].start !== 0 ||
+    calls[0].end !== body.length - 1
+  ) {
+    return null
+  }
+  return calls[0]
+}
+
+function parsePerRequestUnitPrice(bodyStr: string): TierUnitPrice | null {
+  const factors = splitTopLevelMultiply(unwrapOuterParens(bodyStr))
+  let price: number | null = null
+  let hasDuration = false
+
+  for (const factor of factors) {
+    const perRequestCall = parseCompleteFunctionCall(factor, 'per_request')
+    if (perRequestCall) {
+      if (price !== null || perRequestCall.args.length !== 1) return null
+      const amount = perRequestCall.args[0].trim()
+      if (!NUMERIC_LITERAL_REGEX.test(amount)) return null
+      price = Number(amount)
+      if (!Number.isFinite(price)) return null
+      continue
+    }
+
+    const paramCall = parseCompleteFunctionCall(factor, 'param')
+    if (paramCall) {
+      if (hasDuration || paramCall.args.length !== 1) return null
+      hasDuration = parseStringLiteral(paramCall.args[0]) === 'duration'
+      if (!hasDuration) return null
+      continue
+    }
+    return null
+  }
+
+  if (price === null) return null
+  if (factors.length === 1 && !hasDuration) {
+    return { unit: 'request', price }
+  }
+  if (factors.length === 2 && hasDuration) {
+    return { unit: 'second', price }
+  }
+  return null
+}
+
+function splitTopLevelAddition(expr: string): string[] | null {
+  const parts: string[] = []
+  let start = 0
+  let depth = 0
+
+  for (let index = 0; index < expr.length; index += 1) {
+    const char = expr[index]
+    if (char === '(') {
+      depth += 1
+      continue
+    }
+    if (char === ')') {
+      depth -= 1
+      if (depth < 0) return null
+      continue
+    }
+    if (depth !== 0 || char !== '+') continue
+
+    let previousIndex = index - 1
+    while (previousIndex >= 0 && /\s/.test(expr[previousIndex])) {
+      previousIndex -= 1
+    }
+    const previousChar = expr[previousIndex]
+    if (
+      previousIndex < 0 ||
+      ['*', '/', '+', '-', '('].includes(previousChar) ||
+      previousChar === 'e' ||
+      previousChar === 'E'
+    ) {
+      continue
+    }
+
+    parts.push(expr.slice(start, index).trim())
+    start = index + 1
+  }
+
+  if (depth !== 0) return null
+  parts.push(expr.slice(start).trim())
+  return parts.every(Boolean) ? parts : null
+}
+
+function parseTokenTierBody(body: string): Record<string, number> | null {
+  const terms = splitTopLevelAddition(body)
+  if (!terms) return null
+
+  const coefficients: Record<string, number> = {}
+  for (const term of terms) {
+    const factors = splitTopLevelMultiply(unwrapOuterParens(term))
+    if (factors.length < 1 || factors.length > 2) return null
+
+    const variableName = unwrapOuterParens(factors[0])
+    if (!BILLING_VAR_NAME_SET.has(variableName)) return null
+    if (variableName in coefficients) return null
+
+    let coefficient = 1
+    if (factors.length === 2) {
+      const coefficientSource = unwrapOuterParens(factors[1])
+      if (!NUMERIC_LITERAL_REGEX.test(coefficientSource)) return null
+      coefficient = Number(coefficientSource)
+      if (!Number.isFinite(coefficient)) return null
+    }
+    coefficients[variableName] = coefficient
+  }
+
   const tier: Record<string, number> = {}
-  for (const [varName, field] of Object.entries(BILLING_VAR_KEY_TO_FIELD)) {
-    tier[field] = coeffs[varName] || 0
-  }
-  const requestPriceMatch = bodyStr
-    .trim()
-    .match(/^([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)(?:\s*\*|$)/)
-  if (Object.keys(coeffs).length === 0 && requestPriceMatch) {
-    tier.requestPrice = Number(requestPriceMatch[1]) / 1_000_000
+  for (const [variableName, field] of Object.entries(
+    BILLING_VAR_KEY_TO_FIELD
+  )) {
+    tier[field] = coefficients[variableName] || 0
   }
   return tier
+}
+
+function parseTierBody(bodyStr: string): Record<string, number> | null {
+  const unitPrice = parsePerRequestUnitPrice(bodyStr)
+  if (unitPrice) {
+    return unitPrice.unit === 'request'
+      ? { requestPrice: unitPrice.price }
+      : { secondPrice: unitPrice.price }
+  }
+
+  const body = unwrapOuterParens(bodyStr)
+  if (NUMERIC_LITERAL_REGEX.test(body)) {
+    return { requestPrice: Number(body) / 1_000_000 }
+  }
+  return parseTokenTierBody(body)
+}
+
+const TRAILING_TIER_CONDITION_REGEX = new RegExp(
+  `((?:(?:p|c|len)\\s*(?:<=|>=|<|>)\\s*${NUMERIC_LITERAL_REGEX.source.slice(1, -1)})` +
+    `(?:\\s*&&\\s*(?:p|c|len)\\s*(?:<=|>=|<|>)\\s*${NUMERIC_LITERAL_REGEX.source.slice(1, -1)})*)\\s*\\?\\s*$`
+)
+
+function parseTierConditions(prefix: string): TierCondition[] {
+  const conditionMatch = prefix.match(TRAILING_TIER_CONDITION_REGEX)
+  if (!conditionMatch) return []
+
+  const conditions: TierCondition[] = []
+  for (const conditionPart of conditionMatch[1].split(/\s*&&\s*/)) {
+    const match = conditionPart
+      .trim()
+      .match(
+        /^(p|c|len)\s*(<=|>=|<|>)\s*(-?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)$/
+      )
+    if (!match) continue
+    conditions.push({
+      var: match[1] as TierCondition['var'],
+      op: match[2] as TierCondition['op'],
+      value: Number(match[3]),
+    })
+  }
+  return conditions
 }
 
 export function parseTiersFromExpr(exprStr: string): ParsedTier[] {
   if (!exprStr) return []
   try {
     const { body } = stripExprVersion(exprStr)
-    const condGroup =
-      `((?:(?:p|c|len)\\s*(?:<|<=|>|>=)\\s*[\\d.eE+]+)` +
-      `(?:\\s*&&\\s*(?:p|c|len)\\s*(?:<|<=|>|>=)\\s*[\\d.eE+]+)*)`
-    const tierRe = new RegExp(
-      `(?:${condGroup}\\s*\\?\\s*)?tier\\("([^"]*)",\\s*([^)]+)\\)`,
-      'g'
-    )
+    const calls = findFunctionCalls(body, 'tier')
+    if (calls.some((call) => !isDirectTierBranch(body, call.start, call.end))) {
+      return []
+    }
+
     const tiers: ParsedTier[] = []
-    let m
-    while ((m = tierRe.exec(body)) !== null) {
-      const condStr = m[1] || ''
-      const conditions: TierCondition[] = []
-      if (condStr) {
-        for (const cp of condStr.split(/\s*&&\s*/)) {
-          const cm = cp.trim().match(/^(p|c|len)\s*(<|<=|>|>=)\s*([\d.eE+]+)$/)
-          if (cm) {
-            conditions.push({
-              var: cm[1] as TierCondition['var'],
-              op: cm[2] as TierCondition['op'],
-              value: Number(cm[3]),
-            })
-          }
-        }
+    for (const call of calls) {
+      if (call.args.length !== 2) continue
+      const label = parseStringLiteral(call.args[0])
+      if (label === null) continue
+      const tierBody = parseTierBody(call.args[1])
+      if (tierBody === null) return []
+      if (
+        (Number.isFinite(tierBody.requestPrice) && tierBody.requestPrice < 0) ||
+        (Number.isFinite(tierBody.secondPrice) && tierBody.secondPrice < 0)
+      ) {
+        continue
       }
-      const tier = parseTierBody(m[3]) as ParsedTier
-      tier.label = m[2]
-      tier.conditions = conditions
+      const tier = tierBody as ParsedTier
+      tier.label = label
+      tier.conditions = parseTierConditions(body.slice(0, call.start))
       tiers.push(tier)
     }
     return tiers
@@ -310,12 +643,27 @@ export function parseTiersFromExpr(exprStr: string): ParsedTier[] {
   }
 }
 
+export function getTierUnitPrice(
+  tier: ParsedTier | null | undefined
+): TierUnitPrice | null {
+  if (!tier) return null
+  const requestPrice = Number(tier.requestPrice)
+  if (Number.isFinite(requestPrice) && requestPrice > 0) {
+    return { unit: 'request', price: requestPrice }
+  }
+  const secondPrice = Number(tier.secondPrice)
+  if (Number.isFinite(secondPrice) && secondPrice > 0) {
+    return { unit: 'second', price: secondPrice }
+  }
+  return null
+}
+
 export function normalizeTierLabel(label: string | undefined): string {
   if (!label) return ''
   return label
-    .replace(/<[=＝]?|≤|＜[=＝]?/g, '<')
-    .replace(/>[=＝]?|≥|＞[=＝]?/g, '>')
-    .replace(/\s+/g, '')
+    .replaceAll(/<[=＝]?|≤|＜[=＝]?/g, '<')
+    .replaceAll(/>[=＝]?|≥|＞[=＝]?/g, '>')
+    .replaceAll(/\s+/g, '')
     .toLowerCase()
 }
 
@@ -327,14 +675,29 @@ function splitTopLevelMultiply(expr: string): string[] {
   const parts: string[] = []
   let start = 0
   let depth = 0
+  let quote = ''
+  let escaped = false
   for (let index = 0; index < expr.length; index += 1) {
     const char = expr[index]
+    if (quote) {
+      if (escaped) {
+        escaped = false
+      } else if (char === '\\') {
+        escaped = true
+      } else if (char === quote) {
+        quote = ''
+      }
+      continue
+    }
+    if (char === '"' || char === "'") {
+      quote = char
+      continue
+    }
     if (char === '(') depth += 1
     if (char === ')') depth -= 1
-    if (depth === 0 && expr.slice(index, index + 3) === ' * ') {
+    if (depth === 0 && char === '*') {
       parts.push(expr.slice(start, index).trim())
-      start = index + 3
-      index += 2
+      start = index + 1
     }
   }
   parts.push(expr.slice(start).trim())
@@ -432,24 +795,26 @@ function tryParseRequestCondition(expr: string): RequestCondition | null {
   if (m) return { source: 'param', path: m[1], mode: MATCH_EXISTS, value: '' }
 
   m = expr.match(/^has\(header\("([^"]+)"\), ((?:"(?:[^"\\]|\\.)*"))\)$/)
-  if (m)
+  if (m) {
     return {
       source: 'header',
       path: m[1],
       mode: MATCH_CONTAINS,
       value: JSON.parse(m[2]) as string,
     }
+  }
 
   m = expr.match(
     /^param\("([^"]+)"\) != nil && has\(param\("([^"]+)"\), ((?:"(?:[^"\\]|\\.)*"))\)$/
   )
-  if (m && m[1] === m[2])
+  if (m && m[1] === m[2]) {
     return {
       source: 'param',
       path: m[1],
       mode: MATCH_CONTAINS,
       value: JSON.parse(m[3]) as string,
     }
+  }
 
   m = expr.match(
     /^param\("([^"]+)"\) != nil && param\("([^"]+)"\) (>|>=|<|<=) ([\d.eE+-]+)$/
@@ -516,25 +881,6 @@ export function tryParseRequestRuleExpr(
 // ---------------------------------------------------------------------------
 // Combine / split billing expr and request rules
 // ---------------------------------------------------------------------------
-
-function hasFullOuterParens(expr: string): boolean {
-  if (!expr.startsWith('(') || !expr.endsWith(')')) return false
-  let depth = 0
-  for (let i = 0; i < expr.length; i += 1) {
-    if (expr[i] === '(') depth += 1
-    if (expr[i] === ')') depth -= 1
-    if (depth === 0 && i < expr.length - 1) return false
-  }
-  return depth === 0
-}
-
-function unwrapOuterParens(expr: string): string {
-  let current = (expr || '').trim()
-  while (hasFullOuterParens(current)) {
-    current = current.slice(1, -1).trim()
-  }
-  return current
-}
 
 export function splitBillingExprAndRequestRules(expr: string): {
   billingExpr: string
@@ -648,12 +994,12 @@ function isTimeFunc(value: unknown): value is TimeFunc {
 export function normalizeCondition(
   cond: Partial<RequestCondition> | null | undefined
 ): RequestCondition {
-  const source =
-    cond?.source === 'time'
-      ? 'time'
-      : cond?.source === 'header'
-        ? 'header'
-        : 'param'
+  let source: RequestCondition['source'] = 'param'
+  if (cond?.source === 'time') {
+    source = 'time'
+  } else if (cond?.source === 'header') {
+    source = 'header'
+  }
 
   if (source === 'time') {
     const timeCond = cond as Partial<TimeCondition> | null | undefined

@@ -62,7 +62,6 @@ function formatConditionSummary(conditions, t) {
     .join(' && ');
 }
 
-
 function describeCondition(cond, t) {
   if (cond.source === SOURCE_TIME) {
     const fn = t(TIME_FUNC_LABELS[cond.timeFunc] || cond.timeFunc);
@@ -96,8 +95,9 @@ export default function DynamicPricingBreakdown({ billingExpr, t }) {
 
   const hasTiers = tiers && tiers.length > 0;
   const hasRules = ruleGroups && ruleGroups.length > 0;
+  const hasUnparsedRules = Boolean(ruleExpr?.trim()) && !hasRules;
 
-  if (!hasTiers && !hasRules) {
+  if (!hasTiers || hasUnparsedRules) {
     return (
       <div>
         <div className='flex items-center mb-3'>
@@ -115,6 +115,7 @@ export default function DynamicPricingBreakdown({ billingExpr, t }) {
 
   const priceFields = BILLING_PRICING_VARS.map((v) => [v.field, v.shortLabel]);
   const hasRequestPrice = hasTiers && tiers.some((tier) => tier.requestPrice > 0);
+  const hasSecondPrice = hasTiers && tiers.some((tier) => tier.secondPrice > 0);
 
   const tierColumns = [
     {
@@ -136,6 +137,13 @@ export default function DynamicPricingBreakdown({ billingExpr, t }) {
           render: (v) => v > 0 ? <Text strong>{`${symbol}${(v * rate).toFixed(6)}`}</Text> : '-',
         }]
       : []),
+    ...(hasSecondPrice
+      ? [{
+          title: `${t('价格')} (${symbol}/${t('秒')})`,
+          dataIndex: 'secondPrice',
+          render: (v) => v > 0 ? <Text strong>{`${symbol}${(v * rate).toFixed(6)}`}</Text> : '-',
+        }]
+      : []),
     ...priceFields
       .filter(([field]) => hasTiers && tiers.some((tier) => tier[field] > 0))
       .map(([field, label]) => ({
@@ -151,6 +159,7 @@ export default function DynamicPricingBreakdown({ billingExpr, t }) {
         label: tier.label,
         condSummary: formatConditionSummary(tier.conditions, t),
         requestPrice: tier.requestPrice || 0,
+        secondPrice: tier.secondPrice || 0,
         ...Object.fromEntries(priceFields.map(([field]) => [field, tier[field] || 0])),
       }))
     : [];

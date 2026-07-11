@@ -2,9 +2,12 @@ package billing_setting
 
 import (
 	"fmt"
+	"math"
+	"strings"
+	"sync"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
-	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/samber/lo"
 )
 
@@ -13,10 +16,10 @@ const (
 	BillingModeTieredExpr = "tiered_expr"
 	BillingModeField      = "billing_mode"
 	BillingExprField      = "billing_expr"
+	BillingModeOptionKey  = "billing_setting.billing_mode"
+	BillingExprOptionKey  = "billing_setting.billing_expr"
 )
 
-// BillingSetting is managed by config.GlobalConfig.Register.
-// DB keys: billing_setting.billing_mode, billing_setting.billing_expr
 type BillingSetting struct {
 	BillingMode map[string]string `json:"billing_mode"`
 	BillingExpr map[string]string `json:"billing_expr"`
@@ -27,15 +30,15 @@ var billingSetting = BillingSetting{
 	BillingExpr: make(map[string]string),
 }
 
-func init() {
-	config.GlobalConfig.Register("billing_setting", &billingSetting)
-}
+var billingSettingMu sync.RWMutex
 
 // ---------------------------------------------------------------------------
 // Read accessors (hot path, must be fast)
 // ---------------------------------------------------------------------------
 
 func GetBillingMode(model string) string {
+	billingSettingMu.RLock()
+	defer billingSettingMu.RUnlock()
 	if mode, ok := billingSetting.BillingMode[model]; ok {
 		return mode
 	}
@@ -43,25 +46,69 @@ func GetBillingMode(model string) string {
 }
 
 func GetBillingExpr(model string) (string, bool) {
+	billingSettingMu.RLock()
+	defer billingSettingMu.RUnlock()
 	expr, ok := billingSetting.BillingExpr[model]
 	return expr, ok
 }
 
+func GetModelBillingConfig(model string) (string, string, bool) {
+	billingSettingMu.RLock()
+	defer billingSettingMu.RUnlock()
+	mode := BillingModeRatio
+	if configuredMode, ok := billingSetting.BillingMode[model]; ok {
+		mode = configuredMode
+	}
+	expr, hasExpr := billingSetting.BillingExpr[model]
+	return mode, expr, hasExpr
+}
+
+func GetConfigCopy() BillingSetting {
+	billingSettingMu.RLock()
+	defer billingSettingMu.RUnlock()
+	return BillingSetting{
+		BillingMode: lo.Assign(billingSetting.BillingMode),
+		BillingExpr: lo.Assign(billingSetting.BillingExpr),
+	}
+}
+
 func GetBillingModeCopy() map[string]string {
-	return lo.Assign(billingSetting.BillingMode)
+	return GetConfigCopy().BillingMode
 }
 
 func GetBillingExprCopy() map[string]string {
-	return lo.Assign(billingSetting.BillingExpr)
+	return GetConfigCopy().BillingExpr
+}
+
+func ParseConfigJSON(modeJSON, exprJSON string) (BillingSetting, error) {
+	parsed := BillingSetting{
+		BillingMode: make(map[string]string),
+		BillingExpr: make(map[string]string),
+	}
+	if err := common.UnmarshalJsonStr(modeJSON, &parsed.BillingMode); err != nil {
+		return BillingSetting{}, fmt.Errorf("parse billing mode: %w", err)
+	}
+	if err := common.UnmarshalJsonStr(exprJSON, &parsed.BillingExpr); err != nil {
+		return BillingSetting{}, fmt.Errorf("parse billing expression: %w", err)
+	}
+	return parsed, nil
+}
+
+func ReplaceConfig(modes, expressions map[string]string) {
+	billingSettingMu.Lock()
+	defer billingSettingMu.Unlock()
+	billingSetting.BillingMode = lo.Assign(modes)
+	billingSetting.BillingExpr = lo.Assign(expressions)
 }
 
 func GetPricingSyncData(base map[string]any) map[string]any {
+	settings := GetConfigCopy()
 	extra := make(map[string]any, 2)
-	if modes := GetBillingModeCopy(); len(modes) > 0 {
-		extra[BillingModeField] = modes
+	if len(settings.BillingMode) > 0 {
+		extra[BillingModeField] = settings.BillingMode
 	}
-	if exprs := GetBillingExprCopy(); len(exprs) > 0 {
-		extra[BillingExprField] = exprs
+	if len(settings.BillingExpr) > 0 {
+		extra[BillingExprField] = settings.BillingExpr
 	}
 	return lo.Assign(base, extra)
 }
@@ -97,8 +144,75 @@ func smokeTestExpr(exprStr string) error {
 			if err != nil {
 				return fmt.Errorf("vector {p=%g, c=%g}: run failed: %w", v.P, v.C, err)
 			}
-			if result < 0 {
-				return fmt.Errorf("vector {p=%g, c=%g}: result %f < 0", v.P, v.C, result)
+			if math.IsNaN(result) || math.IsInf(result, 0) || result < 0 {
+				return fmt.Errorf("vector {p=%g, c=%g}: invalid result %g", v.P, v.C, result)
+			}
+		}
+	}
+	return nil
+}
+
+func ValidateModelBillingConfig(modes, expressions map[string]string) error {
+	for modelName, mode := range modes {
+		if mode != BillingModeRatio && mode != BillingModeTieredExpr {
+			return fmt.Errorf("model %s has unsupported billing mode %q", modelName, mode)
+		}
+	}
+	for modelName, exprStr := range expressions {
+		if strings.TrimSpace(exprStr) == "" {
+			continue
+		}
+		if _, err := billingexpr.CompileFromCache(exprStr); err != nil {
+			return fmt.Errorf("model %s billing expression is invalid: %w", modelName, err)
+		}
+	}
+	for modelName, mode := range modes {
+		if mode != BillingModeTieredExpr {
+			continue
+		}
+		exprStr := strings.TrimSpace(expressions[modelName])
+		if exprStr == "" {
+			return fmt.Errorf("model %s uses tiered_expr but has no billing expression", modelName)
+		}
+		if billingexpr.UsedVars(exprStr)["per_request"] {
+			if err := smokeTestTaskExpr(modelName, exprStr); err != nil {
+				return fmt.Errorf("model %s task billing expression failed validation: %w", modelName, err)
+			}
+			continue
+		}
+		if err := smokeTestExpr(exprStr); err != nil {
+			return fmt.Errorf("model %s billing expression failed validation: %w", modelName, err)
+		}
+	}
+	return nil
+}
+
+func smokeTestTaskExpr(modelName, exprStr string) error {
+	var resolutions []string
+	switch modelName {
+	case "videos-mini", "videos-fast":
+		resolutions = []string{"480p", "720p"}
+	case "videos-standard":
+		resolutions = []string{"480p", "720p", "1080p", "4k"}
+	default:
+		return nil
+	}
+	for _, resolution := range resolutions {
+		for _, duration := range []int{4, 15} {
+			body, err := common.Marshal(map[string]interface{}{
+				"model":      modelName,
+				"resolution": resolution,
+				"duration":   duration,
+			})
+			if err != nil {
+				return err
+			}
+			result, _, err := billingexpr.RunExprWithRequest(exprStr, billingexpr.TokenParams{}, billingexpr.RequestInput{Body: body})
+			if err != nil {
+				return fmt.Errorf("resolution=%s duration=%d: %w", resolution, duration, err)
+			}
+			if math.IsNaN(result) || math.IsInf(result, 0) || result < 0 {
+				return fmt.Errorf("resolution=%s duration=%d: invalid result %g", resolution, duration, result)
 			}
 		}
 	}

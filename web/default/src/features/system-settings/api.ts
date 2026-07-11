@@ -25,6 +25,7 @@ import type {
   SystemOptionsResponse,
   SystemTaskListResponse,
   SystemTaskResponse,
+  UpdateModelBillingOptionsRequest,
   UpdateOptionRequest,
   UpdateOptionResponse,
   UpstreamChannelsResponse,
@@ -38,6 +39,16 @@ export async function getSystemOptions() {
 
 export async function updateSystemOption(request: UpdateOptionRequest) {
   const res = await api.put<UpdateOptionResponse>('/api/option/', request)
+  return res.data
+}
+
+export async function updateModelBillingOptions(
+  request: UpdateModelBillingOptionsRequest
+) {
+  const res = await api.put<UpdateOptionResponse>(
+    '/api/option/model-billing',
+    request
+  )
   return res.data
 }
 

@@ -566,16 +566,24 @@ export default function UpstreamRatioSync(props) {
       showInfo(t('正在同步价格，请稍候'));
       let success = false;
       try {
-        const updates = Object.entries(finalRatios).map(([key, value]) =>
-          API.put('/api/option/', {
-            key,
-            value: JSON.stringify(value, null, 2),
-          }),
+        const billingMode = finalRatios['billing_setting.billing_mode'];
+        const billingExpr = finalRatios['billing_setting.billing_expr'];
+        const options = Object.fromEntries(
+          Object.entries(finalRatios)
+            .filter(
+              ([key]) =>
+                key !== 'billing_setting.billing_mode' &&
+                key !== 'billing_setting.billing_expr',
+            )
+            .map(([key, value]) => [key, JSON.stringify(value, null, 2)]),
         );
+        const response = await API.put('/api/option/model-billing', {
+          billing_mode: billingMode,
+          billing_expr: billingExpr,
+          options,
+        });
 
-        const results = await Promise.all(updates);
-
-        if (results.every((res) => res.data.success)) {
+        if (response?.data?.success === true) {
           showSuccess(t('同步成功'));
           props.refresh();
 
@@ -600,10 +608,10 @@ export default function UpstreamRatioSync(props) {
           setResolutions({});
           success = true;
         } else {
-          showError(t('部分保存失败'));
+          showError(response?.data?.message || t('保存失败'));
         }
       } catch (error) {
-        showError(t('保存失败'));
+        showError(error?.message || t('保存失败'));
       } finally {
         setLoading(false);
       }
