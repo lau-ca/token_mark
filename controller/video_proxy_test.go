@@ -206,6 +206,65 @@ func TestVideoProxyPrivacyForwardsRangesAndFiltersResponseHeaders(t *testing.T) 
 	}
 }
 
+func TestSeedanceVideoProxyFollowsRedirectWithoutLeakingCredentials(t *testing.T) {
+	db := setupVideoProxyTestDB(t)
+	var contentHeaders http.Header
+	contentServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		contentHeaders = r.Header.Clone()
+		w.Header().Set("Content-Type", "video/mp4")
+		w.Header().Set("Content-Range", "bytes 0-3/10")
+		w.Header().Set("Accept-Ranges", "bytes")
+		w.WriteHeader(http.StatusPartialContent)
+		_, _ = w.Write([]byte("video"))
+	}))
+	defer contentServer.Close()
+
+	var upstreamAuthorization string
+	upstreamServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upstreamAuthorization = r.Header.Get("Authorization")
+		http.Redirect(w, r, contentServer.URL+"/content", http.StatusFound)
+	}))
+	defer upstreamServer.Close()
+
+	seedVideoProxyTest(t, db, videoProxyTestOptions{
+		channelType: constant.ChannelTypeSeedance,
+		baseURL:     upstreamServer.URL,
+	})
+	recorder := performVideoProxyRequest(t, videoProxyTestUserID, map[string]string{
+		"Range":    "bytes=0-3",
+		"If-Range": `"video-v1"`,
+	})
+
+	assert.Equal(t, "Bearer upstream-secret-key", upstreamAuthorization)
+	require.NotNil(t, contentHeaders)
+	assert.Empty(t, contentHeaders.Get("Authorization"))
+	assert.Equal(t, "bytes=0-3", contentHeaders.Get("Range"))
+	assert.Equal(t, `"video-v1"`, contentHeaders.Get("If-Range"))
+	require.Equal(t, http.StatusPartialContent, recorder.Code)
+	assert.Equal(t, "video", recorder.Body.String())
+	assert.Equal(t, "video/mp4", recorder.Header().Get("Content-Type"))
+	assert.Empty(t, recorder.Header().Get("Location"))
+	assert.Equal(t, "private, no-store", recorder.Header().Get("Cache-Control"))
+}
+
+func TestSeedanceVideoProxyRejectsNonVideoContent(t *testing.T) {
+	db := setupVideoProxyTestDB(t)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		_, _ = w.Write([]byte("not a video"))
+	}))
+	defer server.Close()
+
+	seedVideoProxyTest(t, db, videoProxyTestOptions{
+		channelType: constant.ChannelTypeSeedance,
+		baseURL:     server.URL,
+	})
+	recorder := performVideoProxyRequest(t, videoProxyTestUserID, nil)
+
+	assert.Equal(t, http.StatusBadGateway, recorder.Code)
+	assert.NotContains(t, recorder.Body.String(), server.URL)
+}
+
 func TestVideoProxyPrivacyPropagatesRangeNotSatisfiable(t *testing.T) {
 	db := setupVideoProxyTestDB(t)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

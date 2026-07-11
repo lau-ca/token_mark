@@ -89,9 +89,6 @@ func validateRemixRequest(c *gin.Context) *dto.TaskError {
 
 func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) (taskErr *dto.TaskError) {
 	if info.Action == constant.TaskActionRemix {
-		if relaycommon.IsSeedanceVideoModel(info.OriginModelName) {
-			return service.TaskErrorWrapperLocal(fmt.Errorf("remix is not supported for this model"), "unsupported_operation", http.StatusBadRequest)
-		}
 		return validateRemixRequest(c)
 	}
 	return relaycommon.ValidateMultipartDirect(c, info)
@@ -108,10 +105,6 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 	if err != nil {
 		return nil
 	}
-	if relaycommon.IsSeedanceVideoModel(req.Model) {
-		return nil
-	}
-
 	seconds, _ := strconv.Atoi(req.Seconds)
 	if seconds == 0 {
 		seconds = req.Duration
@@ -159,18 +152,10 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		return nil, errors.Wrap(err, "read_body_bytes_failed")
 	}
 	contentType := c.GetHeader("Content-Type")
-	taskReq, taskReqErr := relaycommon.GetTaskRequest(c)
-	isSeedanceVideoRequest := taskReqErr == nil && info.Action != constant.TaskActionRemix && relaycommon.IsSeedanceVideoModel(taskReq.Model)
-
 	if strings.HasPrefix(contentType, "application/json") {
 		var bodyMap map[string]interface{}
 		if err := common.Unmarshal(cachedBody, &bodyMap); err == nil {
 			bodyMap["model"] = info.UpstreamModelName
-			if isSeedanceVideoRequest {
-				bodyMap["duration"] = taskReq.Duration
-				bodyMap["resolution"] = taskReq.Resolution
-				delete(bodyMap, "seconds")
-			}
 			if newBody, err := common.Marshal(bodyMap); err == nil {
 				return bytes.NewReader(newBody), nil
 			}
@@ -186,12 +171,8 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		var buf bytes.Buffer
 		writer := multipart.NewWriter(&buf)
 		writer.WriteField("model", info.UpstreamModelName)
-		if isSeedanceVideoRequest {
-			writer.WriteField("duration", strconv.Itoa(taskReq.Duration))
-			writer.WriteField("resolution", taskReq.Resolution)
-		}
 		for key, values := range formData.Value {
-			if key == "model" || isSeedanceVideoRequest && (key == "duration" || key == "seconds" || key == "resolution") {
+			if key == "model" {
 				continue
 			}
 			for _, v := range values {

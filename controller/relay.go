@@ -598,6 +598,12 @@ func RelayTask(c *gin.Context) {
 		task.Quota = result.Quota
 		task.Data = result.TaskData
 		task.Action = relayInfo.Action
+		if result.InitialStatus != "" {
+			task.Status = result.InitialStatus
+		}
+		if result.InitialProgress != "" {
+			task.Progress = result.InitialProgress
+		}
 		if insertErr := task.Insert(); insertErr != nil {
 			common.SysError("insert task error: " + insertErr.Error())
 		}

@@ -45,26 +45,6 @@ func buildValidatedRequestBody(t *testing.T, body string) map[string]interface{}
 	return bodyMap
 }
 
-func TestBuildRequestBodyCanonicalizesSeedanceVideoParameters(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	bodyMap := buildValidatedRequestBody(t, `{
-		"model":"videos-standard",
-		"prompt":"make a short film",
-		"duration":4,
-		"seconds":"4",
-		"resolution":" 4K ",
-		"ratio":"16:9",
-		"referenceImages":["https://example.com/image.png"]
-	}`)
-
-	assert.Equal(t, "upstream-video-model", bodyMap["model"])
-	assert.Equal(t, float64(4), bodyMap["duration"])
-	assert.Equal(t, "4k", bodyMap["resolution"])
-	assert.NotContains(t, bodyMap, "seconds")
-	assert.Equal(t, "16:9", bodyMap["ratio"])
-	assert.Contains(t, bodyMap, "referenceImages")
-}
-
 func TestBuildRequestBodyKeepsLegacyVideoParameters(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	bodyMap := buildValidatedRequestBody(t, `{
@@ -79,49 +59,6 @@ func TestBuildRequestBodyKeepsLegacyVideoParameters(t *testing.T) {
 	assert.Equal(t, 4.5, bodyMap["duration"])
 	assert.Equal(t, "four", bodyMap["seconds"])
 	assert.Equal(t, " 4K ", bodyMap["resolution"])
-}
-
-func TestEstimateBillingSeedanceVideoDoesNotReturnPricingRatios(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	for _, modelName := range []string{
-		relaycommon.SeedanceVideoModelFast,
-		relaycommon.SeedanceVideoModelMini,
-		relaycommon.SeedanceVideoModelStandard,
-	} {
-		t.Run(modelName, func(t *testing.T) {
-			ratios := estimateBillingRatios(t, relaycommon.TaskSubmitReq{
-				Model:      modelName,
-				Duration:   15,
-				Resolution: "720p",
-			})
-			assert.Empty(t, ratios)
-		})
-	}
-}
-
-func TestValidateRequestRejectsSeedanceRemixOnly(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	newContext := func(modelName string) *gin.Context {
-		request := httptest.NewRequest(http.MethodPost, "/v1/videos/task/remix", strings.NewReader(`{"model":"`+modelName+`","prompt":"change the scene"}`))
-		request.Header.Set("Content-Type", "application/json")
-		context, _ := gin.CreateTestContext(httptest.NewRecorder())
-		context.Request = request
-		return context
-	}
-
-	seedanceInfo := &relaycommon.RelayInfo{
-		OriginModelName: relaycommon.SeedanceVideoModelStandard,
-		TaskRelayInfo:   &relaycommon.TaskRelayInfo{Action: "remix"},
-	}
-	seedanceErr := (&TaskAdaptor{}).ValidateRequestAndSetAction(newContext(relaycommon.SeedanceVideoModelStandard), seedanceInfo)
-	require.NotNil(t, seedanceErr)
-	assert.Equal(t, http.StatusBadRequest, seedanceErr.StatusCode)
-
-	legacyInfo := &relaycommon.RelayInfo{
-		OriginModelName: "sora-2",
-		TaskRelayInfo:   &relaycommon.TaskRelayInfo{Action: "remix"},
-	}
-	assert.Nil(t, (&TaskAdaptor{}).ValidateRequestAndSetAction(newContext("sora-2"), legacyInfo))
 }
 
 func TestEstimateBillingKeepsLegacySoraRatios(t *testing.T) {

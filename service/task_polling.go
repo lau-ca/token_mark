@@ -33,6 +33,10 @@ type TaskPollingAdaptor interface {
 	AdjustBillingOnComplete(task *model.Task, taskResult *relaycommon.TaskInfo) int
 }
 
+type taskDataSanitizer interface {
+	SanitizeTaskData(body []byte) []byte
+}
+
 // GetTaskAdaptorFunc 由 main 包注入，用于获取指定平台的任务适配器。
 // 打破 service -> relay -> relay/channel -> service 的循环依赖。
 var GetTaskAdaptorFunc func(platform constant.TaskPlatform) TaskPollingAdaptor
@@ -483,6 +487,9 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 	}
 
 	task.Data = redactVideoResponseBody(responseBody)
+	if sanitizer, ok := adaptor.(taskDataSanitizer); ok {
+		task.Data = sanitizer.SanitizeTaskData(responseBody)
+	}
 
 	logger.LogDebug(ctx, "updateVideoSingleTask taskResult: %+v", taskResult)
 
@@ -556,7 +563,7 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 	default:
 		return fmt.Errorf("unknown task status %s for task %s", taskResult.Status, task.TaskID)
 	}
-	if taskResult.Progress != "" {
+	if shouldApplyTaskProgress(task, taskResult) {
 		task.Progress = taskResult.Progress
 	}
 
@@ -589,6 +596,15 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 	}
 
 	return nil
+}
+
+func shouldApplyTaskProgress(task *model.Task, taskResult *relaycommon.TaskInfo) bool {
+	if taskResult.Progress == "" {
+		return false
+	}
+	isSeedanceTerminal := task.Platform == constant.TaskPlatform(fmt.Sprintf("%d", constant.ChannelTypeSeedance)) &&
+		(task.Status == model.TaskStatusSuccess || task.Status == model.TaskStatusFailure)
+	return !isSeedanceTerminal
 }
 
 func redactVideoResponseBody(body []byte) []byte {

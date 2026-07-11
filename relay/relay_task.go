@@ -23,10 +23,12 @@ import (
 )
 
 type TaskSubmitResult struct {
-	UpstreamTaskID string
-	TaskData       []byte
-	Platform       constant.TaskPlatform
-	Quota          int
+	UpstreamTaskID  string
+	TaskData        []byte
+	Platform        constant.TaskPlatform
+	Quota           int
+	InitialStatus   model.TaskStatus
+	InitialProgress string
 	//PerCallPrice   types.PriceData
 }
 
@@ -233,12 +235,22 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 
 	// 11. 提交后计费调整：让适配器根据上游实际返回调整 OtherRatios
 	finalQuota := finalizeTaskBillingOnSubmit(info, adaptor, taskData)
+	initialStatus := model.TaskStatus("")
+	initialProgress := ""
+	if info.ChannelType == constant.ChannelTypeSeedance {
+		if taskResult, parseErr := adaptor.ParseTaskResult(taskData); parseErr == nil {
+			initialStatus = model.TaskStatus(taskResult.Status)
+			initialProgress = taskResult.Progress
+		}
+	}
 
 	return &TaskSubmitResult{
-		UpstreamTaskID: upstreamTaskID,
-		TaskData:       taskData,
-		Platform:       platform,
-		Quota:          finalQuota,
+		UpstreamTaskID:  upstreamTaskID,
+		TaskData:        taskData,
+		Platform:        platform,
+		Quota:           finalQuota,
+		InitialStatus:   initialStatus,
+		InitialProgress: initialProgress,
 	}, nil
 }
 

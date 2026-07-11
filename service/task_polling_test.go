@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"sync"
@@ -330,4 +331,45 @@ func TestUpdateVideoTasksMixedChannelSleepSettings(t *testing.T) {
 
 	require.ErrorIs(t, err, context.DeadlineExceeded)
 	assert.ElementsMatch(t, []string{"upstream_sleepy_1", "upstream_fast_1", "upstream_fast_2"}, adaptor.fetchedTaskIDs())
+}
+
+func TestShouldApplyTaskProgressKeepsSeedanceTerminalAtComplete(t *testing.T) {
+	seedancePlatform := constant.TaskPlatform(fmt.Sprintf("%d", constant.ChannelTypeSeedance))
+	tests := []struct {
+		name       string
+		task       *model.Task
+		taskResult *relaycommon.TaskInfo
+		want       bool
+	}{
+		{
+			name:       "Seedance success ignores stale progress",
+			task:       &model.Task{Platform: seedancePlatform, Status: model.TaskStatusSuccess},
+			taskResult: &relaycommon.TaskInfo{Progress: "50%"},
+			want:       false,
+		},
+		{
+			name:       "Seedance in progress accepts progress",
+			task:       &model.Task{Platform: seedancePlatform, Status: model.TaskStatusInProgress},
+			taskResult: &relaycommon.TaskInfo{Progress: "53%"},
+			want:       true,
+		},
+		{
+			name:       "legacy terminal behavior remains unchanged",
+			task:       &model.Task{Platform: constant.TaskPlatform("55"), Status: model.TaskStatusSuccess},
+			taskResult: &relaycommon.TaskInfo{Progress: "50%"},
+			want:       true,
+		},
+		{
+			name:       "empty progress is ignored",
+			task:       &model.Task{Platform: seedancePlatform, Status: model.TaskStatusInProgress},
+			taskResult: &relaycommon.TaskInfo{},
+			want:       false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assert.Equal(t, test.want, shouldApplyTaskProgress(test.task, test.taskResult))
+		})
+	}
 }

@@ -46,6 +46,7 @@ func TestVideoResponsePrivacySkipsUnsupportedPlatforms(t *testing.T) {
 		{name: "empty platform fails closed", task: &model.Task{}, want: true},
 		{name: "openai", task: &model.Task{Platform: constant.TaskPlatform(strconv.Itoa(constant.ChannelTypeOpenAI))}, want: true},
 		{name: "sora", task: &model.Task{Platform: constant.TaskPlatform(strconv.Itoa(constant.ChannelTypeSora))}, want: true},
+		{name: "seedance", task: &model.Task{Platform: constant.TaskPlatform(strconv.Itoa(constant.ChannelTypeSeedance))}, want: true},
 		{name: "vertex", task: &model.Task{Platform: constant.TaskPlatform(strconv.Itoa(constant.ChannelTypeVertexAi))}, want: false},
 		{name: "named legacy platform", task: &model.Task{Platform: constant.TaskPlatformSuno}, want: false},
 		{name: "invalid numeric platform", task: &model.Task{Platform: constant.TaskPlatform("not-a-channel")}, want: false},
@@ -74,6 +75,17 @@ func TestVideoResponsePrivacySkipsUnsupportedPlatforms(t *testing.T) {
 	require.Error(t, err)
 	assert.False(t, enabled)
 	assert.Equal(t, "malformed settings must fail closed", supportedChannel.OtherSettings)
+}
+
+func TestSeedanceChannelAlwaysUsesPlatformVideoURL(t *testing.T) {
+	channel := newPrivacyTestChannel(t, constant.ChannelTypeSeedance, false)
+	task := newPrivacyTestTask(model.TaskStatusSuccess)
+	response := []byte(`{"id":"upstream-id","url":"https://upstream.example/video","video_url":"https://upstream.example/video","metadata":{"origin_video_url":"https://upstream.example/video"}}`)
+
+	result, err := ApplyVideoResponsePrivacy(response, task, channel)
+	require.NoError(t, err)
+	assert.NotContains(t, string(result), "upstream.example")
+	assert.Contains(t, string(result), task.TaskID)
 }
 
 func TestApplyVideoResponsePrivacyMalformedResponse(t *testing.T) {

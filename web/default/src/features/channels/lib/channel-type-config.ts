@@ -144,6 +144,17 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       models: 'Models exposed by this channel',
     },
   },
+  59: {
+    id: 59,
+    name: CHANNEL_TYPES[59],
+    icon: 'openai',
+    defaultBaseUrl: 'https://newapi.megabyai.cc',
+    hints: {
+      key: 'Format: sk-...',
+      models: 'videos-fast,videos-mini,videos-standard',
+      baseUrl: 'Default: https://newapi.megabyai.cc',
+    },
+  },
 }
 
 /**
