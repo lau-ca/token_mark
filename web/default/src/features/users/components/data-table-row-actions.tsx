@@ -28,6 +28,7 @@ import {
   ShieldAlert,
   Link2,
   CreditCard,
+  Pin,
 } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -134,6 +135,8 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   const isDisabled = user.status === USER_STATUS.DISABLED
   const isAdmin = user.role >= USER_ROLE.ADMIN
   const isRoot = user.role === USER_ROLE.ROOT
+  const isPinned = Boolean(user.pinned_at)
+  const pinActionLabel = isPinned ? t('Unpin user') : t('Pin user')
 
   if (isUserDeleted(user)) {
     return null
@@ -141,6 +144,23 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
 
   return (
     <div className='-ml-1.5 flex items-center gap-1'>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              variant={isPinned ? 'secondary' : 'ghost'}
+              size='icon-sm'
+              onClick={() => handleManage(isPinned ? 'unpin' : 'pin')}
+              aria-label={pinActionLabel}
+              aria-pressed={isPinned}
+            />
+          }
+        >
+          <Pin fill={isPinned ? 'currentColor' : 'none'} />
+        </TooltipTrigger>
+        <TooltipContent>{pinActionLabel}</TooltipContent>
+      </Tooltip>
+
       <Tooltip>
         <TooltipTrigger
           render={

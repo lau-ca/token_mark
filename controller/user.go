@@ -1057,6 +1057,28 @@ func ManageUser(c *gin.Context) {
 		return
 	}
 	switch req.Action {
+	case "pin", "unpin":
+		if user.DeletedAt.Valid {
+			common.ApiErrorI18n(c, i18n.MsgUserNotExists)
+			return
+		}
+		pinnedAt, err := model.SetUserPinned(user.Id, req.Action == "pin")
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		recordManageAuditFor(c, user.Id, "user."+req.Action, map[string]interface{}{
+			"username": user.Username,
+			"id":       user.Id,
+		})
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"message": "",
+			"data": model.User{
+				PinnedAt: pinnedAt,
+			},
+		})
+		return
 	case "disable":
 		user.Status = common.UserStatusDisabled
 		if user.Role == common.RoleRootUser {
