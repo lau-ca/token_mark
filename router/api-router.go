@@ -154,6 +154,29 @@ func SetApiRouter(router *gin.Engine) {
 			}
 		}
 
+		agentRoute := apiRouter.Group("/agent")
+		{
+			agentSelfRoute := agentRoute.Group("/self")
+			agentSelfRoute.Use(middleware.UserAuth())
+			{
+				agentSelfRoute.GET("/profile", controller.GetAgentProfileSelf)
+				agentSelfRoute.GET("/stats", controller.GetAgentStatsSelf)
+				agentSelfRoute.GET("/settlements", controller.GetAgentSettlementsSelf)
+			}
+
+			agentAdminRoute := agentRoute.Group("/admin")
+			agentAdminRoute.Use(middleware.AdminAuth())
+			{
+				agentAdminRoute.GET("/profiles", controller.GetAgentProfiles)
+				agentAdminRoute.GET("/:id/profile", controller.GetAgentProfileAdmin)
+				agentAdminRoute.PUT("/:id/profile", controller.UpdateAgentProfile)
+				agentAdminRoute.GET("/:id/stats", controller.GetAgentStatsAdmin)
+				agentAdminRoute.GET("/:id/settlements", controller.GetAgentSettlementsAdmin)
+				agentAdminRoute.GET("/:id/settlement/preview", controller.PreviewAgentSettlement)
+				agentAdminRoute.POST("/:id/settlement", controller.ConfirmAgentSettlement)
+			}
+		}
+
 		// Subscription billing (plans, purchase, admin management)
 		subscriptionRoute := apiRouter.Group("/subscription")
 		subscriptionRoute.Use(middleware.UserAuth())

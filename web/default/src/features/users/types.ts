@@ -51,6 +51,7 @@ export const userSchema = z.object({
   aff_quota: z.number().optional(),
   aff_history_quota: z.number().optional(),
   inviter_id: z.number().optional(),
+  agent_enabled: z.boolean().optional(),
   linux_do_id: z.string().optional(),
   status: userStatusSchema,
   role: userRoleSchema,
@@ -139,4 +140,9 @@ export interface ManageUserQuotaPayload {
 // Dialog Types
 // ============================================================================
 
-export type UsersDialogType = 'create' | 'update' | 'delete'
+export type UsersDialogType =
+  | 'create'
+  | 'update'
+  | 'delete'
+  | 'agent-config'
+  | 'agent-disable'

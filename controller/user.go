@@ -153,12 +153,13 @@ func setupLogin(user *model.User, c *gin.Context) {
 		"message": "",
 		"success": true,
 		"data": map[string]any{
-			"id":           user.Id,
-			"username":     user.Username,
-			"display_name": user.DisplayName,
-			"role":         user.Role,
-			"status":       user.Status,
-			"group":        user.Group,
+			"id":            user.Id,
+			"username":      user.Username,
+			"display_name":  user.DisplayName,
+			"role":          user.Role,
+			"status":        user.Status,
+			"group":         user.Group,
+			"agent_enabled": model.IsEnabledAgent(model.DB, user.Id),
 		},
 	})
 }
@@ -364,6 +365,7 @@ func GetUser(c *gin.Context) {
 		return
 	}
 	user.AdminPermissions = authz.Capabilities(user.Id, user.Role)
+	user.AgentEnabled = model.IsEnabledAgent(model.DB, user.Id)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -500,6 +502,7 @@ func GetSelf(c *gin.Context) {
 		"aff_quota":         user.AffQuota,
 		"aff_history_quota": user.AffHistoryQuota,
 		"inviter_id":        user.InviterId,
+		"agent_enabled":     model.IsEnabledAgent(model.DB, user.Id),
 		"linux_do_id":       user.LinuxDOId,
 		"setting":           user.Setting,
 		"stripe_customer":   user.StripeCustomer,
@@ -716,9 +719,15 @@ func UpdateUser(c *gin.Context) {
 	}
 	updatePassword := updatedUser.Password != ""
 	authzTouched := false
+	assignmentEffectiveAt := common.GetTimestamp()
 	err = model.DB.Transaction(func(tx *gorm.DB) error {
 		if err := model.ValidateUserInviter(tx, updatedUser.Id, updatedUser.InviterId); err != nil {
 			return err
+		}
+		if updatedUser.InviterId != originUser.InviterId {
+			if err := model.UpdateAgentAssignmentForInviterTx(tx, updatedUser.Id, updatedUser.InviterId, c.GetInt("id"), assignmentEffectiveAt); err != nil {
+				return err
+			}
 		}
 		if err := updatedUser.EditWithTx(tx, updatePassword); err != nil {
 			return err

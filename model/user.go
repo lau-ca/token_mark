@@ -56,6 +56,7 @@ type User struct {
 	LastLoginAt      int64                      `json:"last_login_at" gorm:"default:0;column:last_login_at"`
 	PinnedAt         int64                      `json:"pinned_at" gorm:"default:0;column:pinned_at"`
 	AdminPermissions map[string]map[string]bool `json:"admin_permissions,omitempty" gorm:"-:all"`
+	AgentEnabled     bool                       `json:"agent_enabled" gorm:"-:all"`
 }
 
 func (user *User) ToBaseUser() *UserBase {
@@ -314,6 +315,10 @@ func GetAllUsers(pageInfo *common.PageInfo) (users []*User, total int64, err err
 		tx.Rollback()
 		return nil, 0, err
 	}
+	if err = AttachAgentEnabled(tx, users); err != nil {
+		tx.Rollback()
+		return nil, 0, err
+	}
 
 	// Commit transaction
 	if err = tx.Commit().Error; err != nil {
@@ -379,6 +384,10 @@ func SearchUsers(keyword string, group string, role *int, status *int, startIdx 
 	// 获取分页数据
 	err = query.Omit("password", "access_token").Order(userListOrder).Limit(num).Offset(startIdx).Find(&users).Error
 	if err != nil {
+		tx.Rollback()
+		return nil, 0, err
+	}
+	if err = AttachAgentEnabled(tx, users); err != nil {
 		tx.Rollback()
 		return nil, 0, err
 	}

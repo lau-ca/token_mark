@@ -26,13 +26,16 @@ import { StatusBadge } from '@/components/status-badge'
 import { TableId } from '@/components/table-id'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Progress } from '@/components/ui/progress'
+import { Switch } from '@/components/ui/switch'
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { formatQuota, formatTimestamp } from '@/lib/format'
+import { ROLE } from '@/lib/roles'
 import { cn } from '@/lib/utils'
+import { useAuthStore } from '@/stores/auth-store'
 
 import {
   USER_STATUS,
@@ -42,6 +45,7 @@ import {
 } from '../constants'
 import type { User } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
+import { useUsers } from './users-provider'
 
 function getQuotaProgressColor(percentage: number): string {
   if (percentage <= 10) return '[&_[data-slot=progress-indicator]]:bg-rose-500'
@@ -51,6 +55,8 @@ function getQuotaProgressColor(percentage: number): string {
 
 export function useUsersColumns(): ColumnDef<User>[] {
   const { t } = useTranslation()
+  const { setOpen, setCurrentRow } = useUsers()
+  const currentUser = useAuthStore((state) => state.auth.user)
   return [
     {
       id: 'select',
@@ -274,6 +280,38 @@ export function useUsersColumns(): ColumnDef<User>[] {
       enableSorting: false,
       size: 120,
       meta: { mobileOrder: 20 },
+    },
+    {
+      accessorKey: 'agent_enabled',
+      header: t('Agent'),
+      cell: ({ row }) => {
+        const user = row.original
+        const canManage = Boolean(
+          currentUser &&
+            (currentUser.role === ROLE.SUPER_ADMIN ||
+              currentUser.role > user.role)
+        )
+        return (
+          <div className='flex items-center gap-2'>
+            <Switch
+              size='sm'
+              checked={user.agent_enabled === true}
+              disabled={!canManage}
+              onCheckedChange={(checked) => {
+                setCurrentRow(user)
+                setOpen(checked ? 'agent-config' : 'agent-disable')
+              }}
+              aria-label={t('Agent')}
+            />
+            <span className='text-muted-foreground text-xs'>
+              {user.agent_enabled ? t('Enabled') : t('Disabled')}
+            </span>
+          </div>
+        )
+      },
+      enableSorting: false,
+      size: 120,
+      meta: { mobileOrder: 25 },
     },
     {
       id: 'invite_info',

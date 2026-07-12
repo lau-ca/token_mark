@@ -17,8 +17,21 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
 import { SectionPageLayout } from '@/components/layout'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { updateAgentProfile } from '@/features/agents/api'
+import { AgentSettingsDrawer } from '@/features/agents/components/agent-settings-drawer'
 
 import { UsersDeleteDialog } from './components/users-delete-dialog'
 import { UsersMutateDrawer } from './components/users-mutate-drawer'
@@ -28,7 +41,7 @@ import { UsersTable } from './components/users-table'
 
 function UsersContent() {
   const { t } = useTranslation()
-  const { open, setOpen, currentRow } = useUsers()
+  const { open, setOpen, currentRow, triggerRefresh } = useUsers()
 
   return (
     <>
@@ -48,6 +61,54 @@ function UsersContent() {
         currentRow={open === 'update' ? currentRow || undefined : undefined}
       />
       <UsersDeleteDialog />
+      <AgentSettingsDrawer
+        open={open === 'agent-config'}
+        onOpenChange={(isOpen) => !isOpen && setOpen(null)}
+        user={currentRow || undefined}
+        onSaved={triggerRefresh}
+      />
+      <AlertDialog
+        open={open === 'agent-disable'}
+        onOpenChange={(isOpen) => !isOpen && setOpen(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('Disable Agent')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t(
+                'New consumption will stop generating agent earnings. Historical statistics and settlements will be preserved.'
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('Cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                if (!currentRow) return
+                try {
+                  const result = await updateAgentProfile(currentRow.id, {
+                    enabled: false,
+                    platform_retention_rate: 0,
+                    remark: '',
+                    group_margins: [],
+                  })
+                  if (!result.success) {
+                    toast.error(result.message || t('Failed to disable agent'))
+                    return
+                  }
+                  toast.success(t('Agent disabled'))
+                  setOpen(null)
+                  triggerRefresh()
+                } catch {
+                  toast.error(t('Failed to disable agent'))
+                }
+              }}
+            >
+              {t('Disable')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   )
 }
