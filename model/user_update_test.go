@@ -92,6 +92,80 @@ func TestUpdateUserSettingOnlyUpdatesSetting(t *testing.T) {
 	assert.Equal(t, "zh", got.GetSetting().Language)
 }
 
+func TestValidateUserInviter(t *testing.T) {
+	setupUserUpdateTestState(t)
+
+	user := User{
+		Id:       10,
+		Username: "invitee",
+		Password: "password",
+		AffCode:  "invitee-code",
+		Status:   common.UserStatusEnabled,
+	}
+	inviter := User{
+		Id:       20,
+		Username: "inviter",
+		Password: "password",
+		AffCode:  "inviter-code",
+		Status:   common.UserStatusEnabled,
+	}
+	deletedInviter := User{
+		Id:       30,
+		Username: "deleted-inviter",
+		Password: "password",
+		AffCode:  "deleted-inviter-code",
+		Status:   common.UserStatusEnabled,
+	}
+	require.NoError(t, DB.Create(&user).Error)
+	require.NoError(t, DB.Create(&inviter).Error)
+	require.NoError(t, DB.Create(&deletedInviter).Error)
+	require.NoError(t, DB.Delete(&deletedInviter).Error)
+
+	require.NoError(t, ValidateUserInviter(DB, user.Id, 0))
+	require.NoError(t, ValidateUserInviter(DB, user.Id, inviter.Id))
+	require.ErrorIs(t, ValidateUserInviter(DB, user.Id, user.Id), ErrUserInviterSelf)
+	require.ErrorIs(t, ValidateUserInviter(DB, user.Id, -1), ErrUserInviterNotFound)
+	require.ErrorIs(t, ValidateUserInviter(DB, user.Id, 999), ErrUserInviterNotFound)
+	require.ErrorIs(t, ValidateUserInviter(DB, user.Id, deletedInviter.Id), ErrUserInviterNotFound)
+}
+
+func TestUserEditPersistsInviterWithoutOverwritingAccounting(t *testing.T) {
+	setupUserUpdateTestState(t)
+
+	user := User{
+		Id:           40,
+		Username:     "editable-invitee",
+		Password:     "password",
+		DisplayName:  "before",
+		AffCode:      "editable-invitee-code",
+		Status:       common.UserStatusEnabled,
+		Quota:        1000,
+		UsedQuota:    20,
+		RequestCount: 3,
+	}
+	require.NoError(t, DB.Create(&user).Error)
+
+	staleUser, err := GetUserById(user.Id, true)
+	require.NoError(t, err)
+	require.NoError(t, DB.Model(&User{}).Where("id = ?", user.Id).Updates(map[string]interface{}{
+		"quota":         gorm.Expr("quota - ?", 400),
+		"used_quota":    gorm.Expr("used_quota + ?", 400),
+		"request_count": gorm.Expr("request_count + ?", 1),
+	}).Error)
+
+	staleUser.DisplayName = "after"
+	staleUser.InviterId = 50
+	require.NoError(t, staleUser.EditWithTx(DB, false))
+
+	var got User
+	require.NoError(t, DB.First(&got, user.Id).Error)
+	assert.Equal(t, "after", got.DisplayName)
+	assert.Equal(t, 50, got.InviterId)
+	assert.Equal(t, 600, got.Quota)
+	assert.Equal(t, 420, got.UsedQuota)
+	assert.Equal(t, 4, got.RequestCount)
+}
+
 func TestEnsureEmailAvailableRejectsExistingEmailCaseInsensitive(t *testing.T) {
 	setupUserUpdateTestState(t)
 

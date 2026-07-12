@@ -651,12 +651,34 @@ func GetUserModels(c *gin.Context) {
 	return
 }
 
+type updateUserRequest struct {
+	Id               int                        `json:"id"`
+	Username         string                     `json:"username"`
+	Password         string                     `json:"password"`
+	DisplayName      string                     `json:"display_name"`
+	Role             int                        `json:"role"`
+	Group            string                     `json:"group"`
+	Remark           string                     `json:"remark"`
+	InviterId        *int                       `json:"inviter_id"`
+	AdminPermissions map[string]map[string]bool `json:"admin_permissions"`
+}
+
 func UpdateUser(c *gin.Context) {
-	var updatedUser model.User
-	err := json.NewDecoder(c.Request.Body).Decode(&updatedUser)
-	if err != nil || updatedUser.Id == 0 {
+	var request updateUserRequest
+	err := common.DecodeJson(c.Request.Body, &request)
+	if err != nil || request.Id == 0 {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
+	}
+	updatedUser := model.User{
+		Id:               request.Id,
+		Username:         request.Username,
+		Password:         request.Password,
+		DisplayName:      request.DisplayName,
+		Role:             request.Role,
+		Group:            request.Group,
+		Remark:           request.Remark,
+		AdminPermissions: request.AdminPermissions,
 	}
 	updatedUser.Username = strings.TrimSpace(updatedUser.Username)
 	if updatedUser.Username == "" {
@@ -675,6 +697,10 @@ func UpdateUser(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	updatedUser.InviterId = originUser.InviterId
+	if request.InviterId != nil {
+		updatedUser.InviterId = *request.InviterId
+	}
 	if updatedUser.Role != common.RoleGuestUser && updatedUser.Role != originUser.Role {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
@@ -690,15 +716,26 @@ func UpdateUser(c *gin.Context) {
 	}
 	updatePassword := updatedUser.Password != ""
 	authzTouched := false
-	if err := model.DB.Transaction(func(tx *gorm.DB) error {
+	err = model.DB.Transaction(func(tx *gorm.DB) error {
+		if err := model.ValidateUserInviter(tx, updatedUser.Id, updatedUser.InviterId); err != nil {
+			return err
+		}
 		if err := updatedUser.EditWithTx(tx, updatePassword); err != nil {
 			return err
 		}
 		touched, err := updateAdminPermissionsForUserInTx(c, tx, updatedUser.Id, originUser.Role, updatedUser.AdminPermissions)
 		authzTouched = touched
 		return err
-	}); err != nil {
-		common.ApiError(c, err)
+	})
+	if err != nil {
+		switch {
+		case errors.Is(err, model.ErrUserInviterSelf):
+			common.ApiErrorI18n(c, i18n.MsgUserInviterSelf)
+		case errors.Is(err, model.ErrUserInviterNotFound):
+			common.ApiErrorI18n(c, i18n.MsgUserInviterNotFound)
+		default:
+			common.ApiError(c, err)
+		}
 		return
 	}
 	if authzTouched {
@@ -711,8 +748,10 @@ func UpdateUser(c *gin.Context) {
 		common.SysLog(fmt.Sprintf("failed to invalidate user cache for user %d: %s", updatedUser.Id, err.Error()))
 	}
 	recordManageAuditFor(c, updatedUser.Id, "user.update", map[string]interface{}{
-		"username": originUser.Username,
-		"id":       updatedUser.Id,
+		"username":       originUser.Username,
+		"id":             updatedUser.Id,
+		"old_inviter_id": originUser.InviterId,
+		"new_inviter_id": updatedUser.InviterId,
 	})
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,

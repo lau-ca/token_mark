@@ -414,6 +414,27 @@ func GetUserIdByAffCode(affCode string) (int, error) {
 	return user.Id, err
 }
 
+func ValidateUserInviter(tx *gorm.DB, userID int, inviterID int) error {
+	if inviterID == 0 {
+		return nil
+	}
+	if inviterID < 0 {
+		return ErrUserInviterNotFound
+	}
+	if inviterID == userID {
+		return ErrUserInviterSelf
+	}
+
+	var inviter User
+	if err := tx.Select("id").First(&inviter, inviterID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrUserInviterNotFound
+		}
+		return err
+	}
+	return nil
+}
+
 func DeleteUserById(id int) (err error) {
 	if id == 0 {
 		return errors.New("id 为空！")
@@ -704,6 +725,7 @@ func (user *User) EditWithTx(tx *gorm.DB, updatePassword bool) error {
 		"display_name": newUser.DisplayName,
 		"group":        newUser.Group,
 		"remark":       newUser.Remark,
+		"inviter_id":   newUser.InviterId,
 	}
 	if updatePassword {
 		updates["password"] = newUser.Password
