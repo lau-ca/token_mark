@@ -12,8 +12,8 @@ Only the default frontend under `web/default` is in scope. The classic frontend 
 - Agent identity is independent from the system `role` field. A user remains a common user or administrator for existing authorization behavior.
 - A customer belongs to an agent when the customer's `inviter_id` points to that enabled agent.
 - Changing a customer's inviter affects only consumption after the change time. Historical consumption remains assigned to the previous agent.
-- Each agent has one platform retention rate that applies to all of that agent's groups.
-- Each agent has independent gross-margin rates per group.
+- Each agent has independent gross-margin and platform-retention rates per user-selectable group.
+- Agent configuration only lists groups from the system's global `UserUsableGroups` setting. Internal, administrator-only, and `auto` groups are excluded.
 - Configuration changes affect only consumption after their effective time.
 - An unconfigured group remains visible, but gross profit and agent earnings are zero and the row is marked as awaiting configuration. Later configuration does not recalculate earlier consumption.
 - Agent earnings are separate from invitation rewards, wallet quota, and affiliate quota. The feature does not read or write `aff_quota`, `aff_history_quota`, or `aff_count`.
@@ -25,7 +25,7 @@ For an agent customer consuming an amount in a configured group:
 
 ```text
 gross profit = consumption amount * group gross-margin rate
-platform retained = gross profit * agent platform retention rate
+platform retained = gross profit * group platform retention rate
 agent earnings = gross profit - platform retained
 pending settlement = cumulative agent earnings - settled amount
 ```
@@ -57,7 +57,7 @@ The query flow is:
 6. Aggregate results to customer and group dimensions.
 7. Subtract confirmed settlement totals to produce the pending amount.
 
-Indexes cover the agent assignment period, configuration effective time, and the existing quota-data dimensions required by the query. No spreadsheet is used at runtime. The supplied pricing workbook only confirms the business terminology and calculation model.
+Indexes cover the agent assignment period and configuration effective time. The write-heavy `quota_data` table keeps its existing indexes unchanged. No spreadsheet is used at runtime. The supplied pricing workbook only confirms the business terminology and calculation model.
 
 ## Data Model
 
@@ -67,19 +67,17 @@ Indexes cover the agent assignment period, configuration effective time, and the
 
 - agent user ID, unique;
 - enabled state;
-- current platform retention rate for display and editing;
 - administrator remark;
 - creator and updater IDs;
 - created and updated timestamps.
 
-Enabling an agent requires a valid retention rate between zero and one. Disabling an agent prevents new customer assignment periods and new earnings after the disable time, while preserving historical reporting and settlement records.
+Enabling an agent requires at least one valid user-selectable group rule. Disabling an agent prevents new customer assignment periods and new earnings after the disable time, while preserving historical reporting and settlement records.
 
 ### Configuration Versions
 
 `agent_margin_versions` stores immutable effective versions:
 
 - agent user ID;
-- platform retention rate;
 - effective-from timestamp;
 - creating administrator and creation timestamp.
 
@@ -88,8 +86,11 @@ Enabling an agent requires a valid retention rate between zero and one. Disablin
 - version ID;
 - group name;
 - gross-margin rate.
+- platform-retention rate.
 
-Saving agent settings creates a new complete version. It never overwrites an earlier version. Rates must be finite and between zero and one. Duplicate groups in one version are rejected.
+Saving agent settings creates a new complete version. It never overwrites an earlier version. Both rates must be finite and between zero and one. Duplicate groups in one version are rejected. New rules may only use group names currently present in the global `UserUsableGroups` setting; the synthetic `auto` group is rejected.
+
+Existing versions created before this correction are migrated by copying their version-level platform-retention rate into every group rule belonging to that version. Historical calculations therefore remain unchanged.
 
 ### Customer Assignment History
 
@@ -159,10 +160,12 @@ The default frontend user table adds an Agent column using the existing switch c
 The drawer contains:
 
 - enabled state;
-- platform retention percentage;
-- a gross-margin percentage for each selected system group;
+- one row for each globally user-selectable group;
+- a gross-margin percentage and platform-retention percentage for each displayed group;
 - administrative remark;
 - current version effective time.
+
+The drawer does not list every pricing group. It uses the same global `UserUsableGroups` source that controls which groups users may select, excludes `auto`, and ignores per-user-group special visibility overrides so the administrator sees one stable configuration set for the agent.
 
 The existing inviter ID field remains the way administrators assign customers. When the selected inviter is not an enabled agent, the relationship remains a normal invitation and produces no agent statistics.
 
@@ -223,7 +226,8 @@ If no positive unsettled earnings exist, settlement confirmation is rejected. Di
 
 ## Error Handling and Boundaries
 
-- A user cannot be enabled as an agent without a valid platform retention rate and at least one configured group.
+- A user cannot be enabled as an agent without at least one group containing both a valid gross-margin rate and a valid platform-retention rate.
+- Internal or otherwise non-user-selectable groups remain visible in consumption statistics when used, but their agent earnings are zero because they cannot be configured in the agent drawer.
 - Root and administrator accounts may be marked as agents only if the existing user-management role hierarchy allows the administrator to manage that target user.
 - A customer cannot be their own agent because inviter self-reference is already rejected.
 - Missing group rules return zero earnings and an explicit unconfigured status.
@@ -237,7 +241,7 @@ If no positive unsettled earnings exist, settlement confirmation is rejected. Di
 
 Backend tests protect:
 
-- per-agent independent rates;
+- per-agent and per-group independent gross-margin and platform-retention rates;
 - effective-time configuration changes;
 - inviter changes affecting only future consumption;
 - unconfigured groups producing zero earnings;
