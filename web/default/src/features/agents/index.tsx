@@ -44,6 +44,8 @@ import {
 } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { StatCard } from '@/features/dashboard/components/ui/stat-card'
+import { CompactDateTimeRangePicker } from '@/features/usage-logs/components/compact-date-time-range-picker'
+import { getDefaultTimeRange } from '@/features/usage-logs/lib/utils'
 import { formatQuota, formatTimestamp } from '@/lib/format'
 import { ROLE } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
@@ -58,12 +60,6 @@ import {
 } from './api'
 import { AgentSettingsDrawer } from './components/agent-settings-drawer'
 
-function defaultStartDate() {
-  const date = new Date()
-  date.setDate(date.getDate() - 30)
-  return date
-}
-
 function latestSettlementCutoff() {
   return new Date(Date.now() - 60_000)
 }
@@ -74,8 +70,7 @@ export function AgentUsers() {
   const authUser = useAuthStore((state) => state.auth.user)
   const isAdmin = Boolean(authUser && authUser.role >= ROLE.ADMIN)
   const [selectedAgentId, setSelectedAgentId] = useState<number>()
-  const [startDate, setStartDate] = useState<Date>(defaultStartDate)
-  const [endDate, setEndDate] = useState<Date>(new Date())
+  const [timeRange, setTimeRange] = useState(getDefaultTimeRange)
   const [keyword, setKeyword] = useState('')
   const [group, setGroup] = useState('')
   const [page, setPage] = useState(1)
@@ -100,14 +95,14 @@ export function AgentUsers() {
 
   const statsParams = useMemo(
     () => ({
-      start_timestamp: Math.floor(startDate.getTime() / 1000),
-      end_timestamp: Math.floor(endDate.getTime() / 1000),
+      start_timestamp: Math.floor(timeRange.start.getTime() / 1000),
+      end_timestamp: Math.floor(timeRange.end.getTime() / 1000),
       p: page,
       page_size: 20,
       keyword,
       group,
     }),
-    [endDate, group, keyword, page, startDate]
+    [group, keyword, page, timeRange.end, timeRange.start]
   )
   const summaryParams = useMemo(
     () => ({
@@ -280,13 +275,16 @@ export function AgentUsers() {
                     </Select>
                   </div>
                 )}
-                <div className='space-y-1.5'>
-                  <Label>{t('Start Time')}</Label>
-                  <DateTimePicker value={startDate} onChange={(date) => date && setStartDate(date)} />
-                </div>
-                <div className='space-y-1.5'>
-                  <Label>{t('End Time')}</Label>
-                  <DateTimePicker value={endDate} onChange={(date) => date && setEndDate(date)} />
+                <div className='min-w-72 flex-1'>
+                  <CompactDateTimeRangePicker
+                    start={timeRange.start}
+                    end={timeRange.end}
+                    onChange={({ start, end }) => {
+                      if (!start || !end) return
+                      setTimeRange({ start, end })
+                      setPage(1)
+                    }}
+                  />
                 </div>
                 <div className='min-w-44 flex-1 space-y-1.5'>
                   <Label htmlFor='agent-customer-search'>{t('Customer')}</Label>
