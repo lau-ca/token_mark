@@ -88,7 +88,6 @@ function UsersContent() {
                 try {
                   const result = await updateAgentProfile(currentRow.id, {
                     enabled: false,
-                    platform_retention_rate: 0,
                     remark: '',
                     group_margins: [],
                   })

@@ -12,7 +12,7 @@ func TestAgentSettlementPreviewAndConfirm(t *testing.T) {
 	setupAgentStatsTest(t)
 	require.NoError(t, model.DB.Create(&model.AgentProfile{UserID: 10, Enabled: true, PlatformRetentionRate: 0.1, CreatedAt: 1000}).Error)
 	require.NoError(t, model.DB.Create(&model.AgentMarginVersion{ID: 1, AgentUserID: 10, PlatformRetentionRate: 0.1, EffectiveFrom: 1000}).Error)
-	require.NoError(t, model.DB.Create(&model.AgentGroupMargin{VersionID: 1, Group: "codex", GrossMarginRate: 0.3}).Error)
+	require.NoError(t, model.DB.Create(&model.AgentGroupMargin{VersionID: 1, Group: "codex", GrossMarginRate: 0.3, PlatformRetentionRate: float64Pointer(0.1)}).Error)
 	require.NoError(t, model.DB.Create(&model.AgentCustomerAssignment{CustomerUserID: 20, AgentUserID: 10, EffectiveFrom: 1000}).Error)
 	require.NoError(t, model.DB.Create(&model.QuotaData{UserID: 20, Username: "customer", UseGroup: "codex", CreatedAt: 1500, Quota: 10000}).Error)
 

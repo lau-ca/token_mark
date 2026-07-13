@@ -3,6 +3,7 @@ package controller
 import (
 	"errors"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -10,6 +11,8 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -50,6 +53,26 @@ func GetAgentProfiles(c *gin.Context) {
 	common.ApiSuccess(c, rows)
 }
 
+func getAgentConfigurableGroups() []string {
+	usableGroups := setting.GetUserUsableGroupsCopy()
+	groupRatios := ratio_setting.GetGroupRatioCopy()
+	groups := make([]string, 0, len(usableGroups))
+	for group := range usableGroups {
+		if group == "auto" {
+			continue
+		}
+		if _, ok := groupRatios[group]; ok {
+			groups = append(groups, group)
+		}
+	}
+	sort.Strings(groups)
+	return groups
+}
+
+func GetAgentConfigurableGroups(c *gin.Context) {
+	common.ApiSuccess(c, getAgentConfigurableGroups())
+}
+
 func GetAgentProfileAdmin(c *gin.Context) {
 	userID, ok := parseAgentUserID(c)
 	if !ok {
@@ -88,7 +111,7 @@ func UpdateAgentProfile(c *gin.Context) {
 		return
 	}
 	var request dto.AgentConfigRequest
-	if err := common.DecodeJson(c.Request.Body, &request); err != nil || request.Enabled == nil || request.PlatformRetentionRate == nil {
+	if err := common.DecodeJson(c.Request.Body, &request); err != nil || request.Enabled == nil {
 		common.ApiErrorMsg(c, "invalid agent configuration")
 		return
 	}
@@ -96,12 +119,28 @@ func UpdateAgentProfile(c *gin.Context) {
 	if request.Remark != nil {
 		remark = *request.Remark
 	}
+	allowedGroups := make(map[string]struct{})
+	for _, group := range getAgentConfigurableGroups() {
+		allowedGroups[group] = struct{}{}
+	}
 	margins := make([]model.AgentGroupMarginInput, 0, len(request.GroupMargins))
 	for _, margin := range request.GroupMargins {
-		margins = append(margins, model.AgentGroupMarginInput{Group: margin.Group, GrossMarginRate: margin.GrossMarginRate})
+		if margin.PlatformRetentionRate == nil {
+			common.ApiErrorMsg(c, "platform retention rate is required for each agent group")
+			return
+		}
+		if _, ok := allowedGroups[strings.TrimSpace(margin.Group)]; !ok {
+			common.ApiErrorMsg(c, "agent group is not user selectable")
+			return
+		}
+		margins = append(margins, model.AgentGroupMarginInput{
+			Group:                 margin.Group,
+			GrossMarginRate:       margin.GrossMarginRate,
+			PlatformRetentionRate: *margin.PlatformRetentionRate,
+		})
 	}
 	err = model.DB.Transaction(func(tx *gorm.DB) error {
-		return model.SaveAgentConfigTx(tx, userID, *request.Enabled, *request.PlatformRetentionRate, remark, margins, c.GetInt("id"), common.GetTimestamp())
+		return model.SaveAgentConfigTx(tx, userID, *request.Enabled, remark, margins, c.GetInt("id"), common.GetTimestamp())
 	})
 	if err != nil {
 		common.ApiError(c, err)

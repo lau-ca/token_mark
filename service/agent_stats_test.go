@@ -25,8 +25,9 @@ func TestAgentStatsUsesAssignmentAndVersionPeriods(t *testing.T) {
 	}
 	require.NoError(t, model.DB.Create(&versions).Error)
 	require.NoError(t, model.DB.Create(&[]model.AgentGroupMargin{
-		{VersionID: 1, Group: "codex", GrossMarginRate: 0.3},
-		{VersionID: 2, Group: "codex", GrossMarginRate: 0.4},
+		{VersionID: 1, Group: "codex", GrossMarginRate: 0.3, PlatformRetentionRate: float64Pointer(0.1)},
+		{VersionID: 2, Group: "codex", GrossMarginRate: 0.4, PlatformRetentionRate: float64Pointer(0.2)},
+		{VersionID: 2, Group: "image", GrossMarginRate: 0.12, PlatformRetentionRate: float64Pointer(0.19)},
 	}).Error)
 	end := int64(2500)
 	require.NoError(t, model.DB.Create(&model.AgentCustomerAssignment{CustomerUserID: 20, AgentUserID: 10, EffectiveFrom: 1000, EffectiveTo: &end}).Error)
@@ -40,9 +41,13 @@ func TestAgentStatsUsesAssignmentAndVersionPeriods(t *testing.T) {
 	result, err := CalculateAgentStats(model.DB, 10, 1000, 3000, "", "", 1, 20)
 	require.NoError(t, err)
 	assert.Equal(t, 25000, result.Summary.ConsumptionQuota)
-	assert.Equal(t, 7000, result.Summary.GrossProfitQuota)
-	assert.Equal(t, 1100, result.Summary.PlatformRetainedQuota)
-	assert.Equal(t, 5900, result.Summary.AgentEarningsQuota)
+	assert.Equal(t, 7600, result.Summary.GrossProfitQuota)
+	assert.Equal(t, 1214, result.Summary.PlatformRetainedQuota)
+	assert.Equal(t, 6386, result.Summary.AgentEarningsQuota)
 	assert.Equal(t, 1, result.Summary.CustomerCount)
 	require.Len(t, result.Details, 2)
+}
+
+func float64Pointer(value float64) *float64 {
+	return &value
 }

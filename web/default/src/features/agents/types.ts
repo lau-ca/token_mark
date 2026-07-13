@@ -5,12 +5,13 @@ export const agentGroupMarginSchema = z.object({
   version_id: z.number().optional(),
   group: z.string(),
   gross_margin_rate: z.number(),
+  platform_retention_rate: z.number(),
 })
 
 export const agentProfileSchema = z.object({
   user_id: z.number(),
   enabled: z.boolean(),
-  platform_retention_rate: z.number(),
+  platform_retention_rate: z.number().optional(),
   remark: z.string().optional(),
   created_at: z.number().optional(),
   updated_at: z.number().optional(),
@@ -19,7 +20,7 @@ export const agentProfileSchema = z.object({
 export const agentMarginVersionSchema = z.object({
   id: z.number(),
   agent_user_id: z.number(),
-  platform_retention_rate: z.number(),
+  platform_retention_rate: z.number().optional(),
   effective_from: z.number(),
   group_margins: z.array(agentGroupMarginSchema).optional().default([]),
 })
@@ -89,9 +90,12 @@ export interface AgentStatsData {
 
 export interface AgentConfigPayload {
   enabled: boolean
-  platform_retention_rate: number
   remark: string
-  group_margins: Array<{ group: string; gross_margin_rate: number }>
+  group_margins: Array<{
+    group: string
+    gross_margin_rate: number
+    platform_retention_rate: number
+  }>
 }
 
 export interface AgentStatsParams {

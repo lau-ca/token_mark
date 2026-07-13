@@ -167,6 +167,7 @@ func SetApiRouter(router *gin.Engine) {
 			agentAdminRoute := agentRoute.Group("/admin")
 			agentAdminRoute.Use(middleware.AdminAuth())
 			{
+				agentAdminRoute.GET("/groups", controller.GetAgentConfigurableGroups)
 				agentAdminRoute.GET("/profiles", controller.GetAgentProfiles)
 				agentAdminRoute.GET("/:id/profile", controller.GetAgentProfileAdmin)
 				agentAdminRoute.PUT("/:id/profile", controller.UpdateAgentProfile)

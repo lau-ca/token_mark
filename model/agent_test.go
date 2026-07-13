@@ -24,9 +24,9 @@ func TestAgentConfigCreatesVersionAndAssignments(t *testing.T) {
 	require.NoError(t, DB.Create(&User{Id: 20, Username: "customer", Password: "password", AffCode: "customer-code", InviterId: 10, Status: common.UserStatusEnabled}).Error)
 
 	err := DB.Transaction(func(tx *gorm.DB) error {
-		return SaveAgentConfigTx(tx, 10, true, 0.09, "sales", []AgentGroupMarginInput{
-			{Group: "codex", GrossMarginRate: 0.3},
-			{Group: "image", GrossMarginRate: 0.12},
+		return SaveAgentConfigTx(tx, 10, true, "sales", []AgentGroupMarginInput{
+			{Group: "codex", GrossMarginRate: 0.3, PlatformRetentionRate: 0.09},
+			{Group: "image", GrossMarginRate: 0.12, PlatformRetentionRate: 0.19},
 		}, 1, 1000)
 	})
 	require.NoError(t, err)
@@ -34,12 +34,13 @@ func TestAgentConfigCreatesVersionAndAssignments(t *testing.T) {
 	profile, err := GetAgentProfile(DB, 10)
 	require.NoError(t, err)
 	assert.True(t, profile.Enabled)
-	assert.InDelta(t, 0.09, profile.PlatformRetentionRate, 0.000001)
 
 	versions, err := GetAgentMarginVersions(DB, 10)
 	require.NoError(t, err)
 	require.Len(t, versions, 1)
 	require.Len(t, versions[0].GroupMargins, 2)
+	assert.InDelta(t, 0.09, *versions[0].GroupMargins[0].PlatformRetentionRate, 0.000001)
+	assert.InDelta(t, 0.19, *versions[0].GroupMargins[1].PlatformRetentionRate, 0.000001)
 
 	var assignment AgentCustomerAssignment
 	require.NoError(t, DB.Where("customer_user_id = ?", 20).First(&assignment).Error)
@@ -49,13 +50,33 @@ func TestAgentConfigCreatesVersionAndAssignments(t *testing.T) {
 
 func TestAgentConfigRejectsInvalidAndDuplicateRates(t *testing.T) {
 	setupAgentTestState(t)
-	err := SaveAgentConfigTx(DB, 10, true, 1.1, "", []AgentGroupMarginInput{{Group: "codex", GrossMarginRate: 0.3}}, 1, 1000)
+	err := SaveAgentConfigTx(DB, 10, true, "", []AgentGroupMarginInput{{Group: "codex", GrossMarginRate: 0.3, PlatformRetentionRate: 1.1}}, 1, 1000)
 	require.ErrorIs(t, err, ErrAgentInvalidRate)
-	err = SaveAgentConfigTx(DB, 10, true, 0.1, "", []AgentGroupMarginInput{
-		{Group: "codex", GrossMarginRate: 0.3},
-		{Group: "codex", GrossMarginRate: 0.2},
+	err = SaveAgentConfigTx(DB, 10, true, "", []AgentGroupMarginInput{
+		{Group: "codex", GrossMarginRate: 0.3, PlatformRetentionRate: 0.1},
+		{Group: "codex", GrossMarginRate: 0.2, PlatformRetentionRate: 0.1},
 	}, 1, 1000)
 	require.ErrorIs(t, err, ErrAgentDuplicateGroup)
+}
+
+func TestAgentGroupRetentionMigrationPreservesExplicitZero(t *testing.T) {
+	setupAgentTestState(t)
+	require.NoError(t, DB.Create(&AgentMarginVersion{ID: 1, AgentUserID: 10, PlatformRetentionRate: 0.09, EffectiveFrom: 1000}).Error)
+	explicitZero := 0.0
+	require.NoError(t, DB.Create(&[]AgentGroupMargin{
+		{VersionID: 1, Group: "legacy", GrossMarginRate: 0.3},
+		{VersionID: 1, Group: "free", GrossMarginRate: 0.2, PlatformRetentionRate: &explicitZero},
+	}).Error)
+
+	require.NoError(t, MigrateAgentGroupRetentionRates(DB))
+
+	var rows []AgentGroupMargin
+	require.NoError(t, DB.Order("group_name asc").Find(&rows).Error)
+	require.Len(t, rows, 2)
+	require.NotNil(t, rows[0].PlatformRetentionRate)
+	require.NotNil(t, rows[1].PlatformRetentionRate)
+	assert.Zero(t, *rows[0].PlatformRetentionRate)
+	assert.InDelta(t, 0.09, *rows[1].PlatformRetentionRate, 0.000001)
 }
 
 func TestAgentAssignmentChangesOnlyFuturePeriod(t *testing.T) {

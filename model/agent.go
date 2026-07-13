@@ -39,10 +39,11 @@ type AgentMarginVersion struct {
 }
 
 type AgentGroupMargin struct {
-	ID              int     `json:"id" gorm:"primaryKey;column:id"`
-	VersionID       int     `json:"version_id" gorm:"uniqueIndex:idx_agent_version_group,priority:1;column:version_id"`
-	Group           string  `json:"group" gorm:"type:varchar(64);uniqueIndex:idx_agent_version_group,priority:2;column:group_name"`
-	GrossMarginRate float64 `json:"gross_margin_rate" gorm:"column:gross_margin_rate"`
+	ID                    int      `json:"id" gorm:"primaryKey;column:id"`
+	VersionID             int      `json:"version_id" gorm:"uniqueIndex:idx_agent_version_group,priority:1;column:version_id"`
+	Group                 string   `json:"group" gorm:"type:varchar(64);uniqueIndex:idx_agent_version_group,priority:2;column:group_name"`
+	GrossMarginRate       float64  `json:"gross_margin_rate" gorm:"column:gross_margin_rate"`
+	PlatformRetentionRate *float64 `json:"platform_retention_rate" gorm:"column:platform_retention_rate"`
 }
 
 type AgentCustomerAssignment struct {
@@ -70,8 +71,9 @@ type AgentSettlement struct {
 }
 
 type AgentGroupMarginInput struct {
-	Group           string  `json:"group"`
-	GrossMarginRate float64 `json:"gross_margin_rate"`
+	Group                 string  `json:"group"`
+	GrossMarginRate       float64 `json:"gross_margin_rate"`
+	PlatformRetentionRate float64 `json:"platform_retention_rate"`
 }
 
 type AgentProfileView struct {
@@ -105,8 +107,15 @@ func normalizeAgentGroupMargins(inputs []AgentGroupMarginInput) ([]AgentGroupMar
 		if err := validateAgentRate(input.GrossMarginRate); err != nil {
 			return nil, err
 		}
+		if err := validateAgentRate(input.PlatformRetentionRate); err != nil {
+			return nil, err
+		}
 		seen[group] = struct{}{}
-		result = append(result, AgentGroupMarginInput{Group: group, GrossMarginRate: input.GrossMarginRate})
+		result = append(result, AgentGroupMarginInput{
+			Group:                 group,
+			GrossMarginRate:       input.GrossMarginRate,
+			PlatformRetentionRate: input.PlatformRetentionRate,
+		})
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].Group < result[j].Group })
 	return result, nil
@@ -142,10 +151,7 @@ func IsEnabledAgent(tx *gorm.DB, userID int) bool {
 	return tx.Model(&AgentProfile{}).Where("user_id = ? AND enabled = ?", userID, true).Count(&count).Error == nil && count == 1
 }
 
-func SaveAgentConfigTx(tx *gorm.DB, userID int, enabled bool, retentionRate float64, remark string, margins []AgentGroupMarginInput, actorID int, effectiveAt int64) error {
-	if err := validateAgentRate(retentionRate); err != nil {
-		return err
-	}
+func SaveAgentConfigTx(tx *gorm.DB, userID int, enabled bool, remark string, margins []AgentGroupMarginInput, actorID int, effectiveAt int64) error {
 	var normalized []AgentGroupMarginInput
 	var err error
 	if enabled {
@@ -163,26 +169,32 @@ func SaveAgentConfigTx(tx *gorm.DB, userID int, enabled bool, retentionRate floa
 
 	var existing AgentProfile
 	exists := tx.Where("user_id = ?", userID).First(&existing).Error == nil
-	profile := AgentProfile{UserID: userID, Enabled: enabled, PlatformRetentionRate: retentionRate, Remark: strings.TrimSpace(remark), CreatedBy: actorID, UpdatedBy: actorID}
+	profile := AgentProfile{UserID: userID, Enabled: enabled, Remark: strings.TrimSpace(remark), CreatedBy: actorID, UpdatedBy: actorID}
 	if exists {
 		profile.CreatedBy = existing.CreatedBy
 		profile.CreatedAt = existing.CreatedAt
 	}
 	if err := tx.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "user_id"}},
-		DoUpdates: clause.AssignmentColumns([]string{"enabled", "platform_retention_rate", "remark", "updated_by", "updated_at"}),
+		DoUpdates: clause.AssignmentColumns([]string{"enabled", "remark", "updated_by", "updated_at"}),
 	}).Create(&profile).Error; err != nil {
 		return err
 	}
 
 	if enabled {
-		version := AgentMarginVersion{AgentUserID: userID, PlatformRetentionRate: retentionRate, EffectiveFrom: effectiveAt, CreatedBy: actorID}
+		version := AgentMarginVersion{AgentUserID: userID, EffectiveFrom: effectiveAt, CreatedBy: actorID}
 		if err := tx.Create(&version).Error; err != nil {
 			return err
 		}
 		rows := make([]AgentGroupMargin, 0, len(normalized))
 		for _, margin := range normalized {
-			rows = append(rows, AgentGroupMargin{VersionID: version.ID, Group: margin.Group, GrossMarginRate: margin.GrossMarginRate})
+			retentionRate := margin.PlatformRetentionRate
+			rows = append(rows, AgentGroupMargin{
+				VersionID:             version.ID,
+				Group:                 margin.Group,
+				GrossMarginRate:       margin.GrossMarginRate,
+				PlatformRetentionRate: &retentionRate,
+			})
 		}
 		if err := tx.Create(&rows).Error; err != nil {
 			return err
@@ -235,6 +247,21 @@ func GetAgentMarginVersions(tx *gorm.DB, agentUserID int) ([]AgentMarginVersion,
 	var versions []AgentMarginVersion
 	err := tx.Preload("GroupMargins").Where("agent_user_id = ?", agentUserID).Order("effective_from asc, id asc").Find(&versions).Error
 	return versions, err
+}
+
+func MigrateAgentGroupRetentionRates(tx *gorm.DB) error {
+	var versions []AgentMarginVersion
+	if err := tx.Select("id, platform_retention_rate").Find(&versions).Error; err != nil {
+		return err
+	}
+	for _, version := range versions {
+		if err := tx.Model(&AgentGroupMargin{}).
+			Where("version_id = ? AND platform_retention_rate IS NULL", version.ID).
+			Update("platform_retention_rate", version.PlatformRetentionRate).Error; err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func ListAgentProfiles(tx *gorm.DB, keyword string, includeDisabled bool) ([]AgentProfileView, error) {

@@ -25,6 +25,13 @@ export async function getAgentProfiles(
   return response.data
 }
 
+export async function getAgentConfigurableGroups(): Promise<
+  ApiResponse<string[]>
+> {
+  const response = await api.get('/api/agent/admin/groups')
+  return response.data
+}
+
 export async function getAgentProfile(
   userId?: number
 ): Promise<ApiResponse<AgentProfileData>> {

@@ -101,11 +101,11 @@ func CalculateAgentStats(tx *gorm.DB, agentUserID int, startTime int64, endTime 
 	for _, assignment := range assignments {
 		assignmentByCustomer[assignment.CustomerUserID] = append(assignmentByCustomer[assignment.CustomerUserID], assignment)
 	}
-	versionMargins := make(map[int]map[string]float64, len(versions))
+	versionMargins := make(map[int]map[string]model.AgentGroupMargin, len(versions))
 	for _, version := range versions {
-		margins := make(map[string]float64, len(version.GroupMargins))
+		margins := make(map[string]model.AgentGroupMargin, len(version.GroupMargins))
 		for _, margin := range version.GroupMargins {
-			margins[margin.Group] = margin.GrossMarginRate
+			margins[margin.Group] = margin
 		}
 		versionMargins[version.ID] = margins
 	}
@@ -121,10 +121,10 @@ func CalculateAgentStats(tx *gorm.DB, agentUserID int, startTime int64, endTime 
 		platformRetained := 0
 		agentEarnings := 0
 		if version != nil {
-			if marginRate, ok := versionMargins[version.ID][row.UseGroup]; ok {
+			if margin, ok := versionMargins[version.ID][row.UseGroup]; ok && margin.PlatformRetentionRate != nil {
 				configured = true
-				grossProfit, _ = common.QuotaFromFloatChecked(float64(row.Quota) * marginRate)
-				platformRetained, _ = common.QuotaFromFloatChecked(float64(grossProfit) * version.PlatformRetentionRate)
+				grossProfit, _ = common.QuotaFromFloatChecked(float64(row.Quota) * margin.GrossMarginRate)
+				platformRetained, _ = common.QuotaFromFloatChecked(float64(grossProfit) * *margin.PlatformRetentionRate)
 				agentEarnings = grossProfit - platformRetained
 				if agentEarnings < 0 {
 					agentEarnings = 0
