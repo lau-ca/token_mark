@@ -14,6 +14,8 @@ var (
 	ErrAgentNoUnsettledEarning = errors.New("agent has no unsettled earnings")
 )
 
+const AgentSettlementSafetyDelaySeconds int64 = 60
+
 type AgentSettlementPreview struct {
 	PeriodStart           int64 `json:"period_start"`
 	PeriodEnd             int64 `json:"period_end"`
@@ -39,7 +41,7 @@ func PreviewAgentSettlement(tx *gorm.DB, agentUserID int, cutoff int64) (*AgentS
 	if latest != nil {
 		start = latest.PeriodEnd + 1
 	}
-	if cutoff < start || cutoff > common.GetTimestamp()+60 {
+	if cutoff < start || cutoff > common.GetTimestamp()-AgentSettlementSafetyDelaySeconds {
 		return nil, ErrAgentSettlementCutoff
 	}
 	stats, err := CalculateAgentStats(tx, agentUserID, start, cutoff, "", "", 1, 0)

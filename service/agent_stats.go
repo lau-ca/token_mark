@@ -39,17 +39,17 @@ type AgentStatsResult struct {
 	Total   int                `json:"total"`
 }
 
-type agentQuotaRow struct {
-	UserID    int    `gorm:"column:user_id"`
-	Username  string `gorm:"column:username"`
-	UseGroup  string `gorm:"column:use_group"`
-	CreatedAt int64  `gorm:"column:created_at"`
-	Quota     int    `gorm:"column:quota"`
-}
-
 type agentDetailAccumulator struct {
 	AgentStatsDetail
 	allConfigured bool
+}
+
+type agentRuleAccumulator struct {
+	CustomerUserID int
+	Username       string
+	Group          string
+	Quota          int
+	Margin         *model.AgentGroupMargin
 }
 
 func CalculateAgentStats(tx *gorm.DB, agentUserID int, startTime int64, endTime int64, keyword string, group string, page int, pageSize int) (*AgentStatsResult, error) {
@@ -86,14 +86,12 @@ func CalculateAgentStats(tx *gorm.DB, agentUserID int, startTime int64, endTime 
 		customerIDs = append(customerIDs, assignment.CustomerUserID)
 	}
 
-	rows := make([]agentQuotaRow, 0)
-	query := tx.Table("quota_data").
-		Select("user_id, username, use_group, created_at, sum(quota) as quota").
-		Where("user_id IN ?", customerIDs).
-		Where("use_group <> ''").
-		Where("created_at >= ? AND created_at <= ?", startTime, endTime).
-		Group("user_id, username, use_group, created_at")
-	if err := query.Find(&rows).Error; err != nil {
+	logTx := model.LOG_DB
+	if model.LOG_DB == model.DB {
+		logTx = tx
+	}
+	rows, err := model.GetAgentConsumeLogRows(logTx, customerIDs, startTime, endTime)
+	if err != nil {
 		return nil, err
 	}
 
@@ -110,44 +108,66 @@ func CalculateAgentStats(tx *gorm.DB, agentUserID int, startTime int64, endTime 
 		versionMargins[version.ID] = margins
 	}
 
-	accumulators := make(map[string]*agentDetailAccumulator)
+	ruleAccumulators := make(map[string]*agentRuleAccumulator)
 	for _, row := range rows {
 		if !agentAssignmentCovers(assignmentByCustomer[row.UserID], row.CreatedAt) {
 			continue
 		}
 		version := effectiveAgentMarginVersion(versions, row.CreatedAt)
-		configured := false
+		versionID := 0
+		var margin *model.AgentGroupMargin
+		if version != nil {
+			versionID = version.ID
+			if configuredMargin, ok := versionMargins[version.ID][row.UseGroup]; ok && configuredMargin.PlatformRetentionRate != nil {
+				marginCopy := configuredMargin
+				margin = &marginCopy
+			}
+		}
+		key := fmt.Sprintf("%d\x00%s\x00%d", row.UserID, row.UseGroup, versionID)
+		segment := ruleAccumulators[key]
+		if segment == nil {
+			segment = &agentRuleAccumulator{
+				CustomerUserID: row.UserID,
+				Username:       row.Username,
+				Group:          row.UseGroup,
+				Margin:         margin,
+			}
+			ruleAccumulators[key] = segment
+		}
+		segment.Quota += row.Quota
+	}
+
+	accumulators := make(map[string]*agentDetailAccumulator)
+	for _, segment := range ruleAccumulators {
+		configured := segment.Margin != nil
 		grossProfit := 0
 		platformRetained := 0
 		agentEarnings := 0
-		if version != nil {
-			if margin, ok := versionMargins[version.ID][row.UseGroup]; ok && margin.PlatformRetentionRate != nil {
-				configured = true
-				grossProfit, _ = common.QuotaFromFloatChecked(float64(row.Quota) * margin.GrossMarginRate)
-				platformRetained, _ = common.QuotaFromFloatChecked(float64(grossProfit) * *margin.PlatformRetentionRate)
-				agentEarnings = grossProfit - platformRetained
-				if agentEarnings < 0 {
-					agentEarnings = 0
-				}
+		if configured {
+			grossProfit, _ = common.QuotaFromFloatChecked(float64(segment.Quota) * segment.Margin.GrossMarginRate)
+			platformRetained, _ = common.QuotaFromFloatChecked(float64(grossProfit) * *segment.Margin.PlatformRetentionRate)
+			agentEarnings = grossProfit - platformRetained
+			if agentEarnings < 0 {
+				agentEarnings = 0
 			}
 		}
 
-		key := fmt.Sprintf("%d\x00%s", row.UserID, row.UseGroup)
+		key := fmt.Sprintf("%d\x00%s", segment.CustomerUserID, segment.Group)
 		accumulator := accumulators[key]
 		if accumulator == nil {
 			accumulator = &agentDetailAccumulator{
-				AgentStatsDetail: AgentStatsDetail{CustomerUserID: row.UserID, Username: row.Username, Group: row.UseGroup},
+				AgentStatsDetail: AgentStatsDetail{CustomerUserID: segment.CustomerUserID, Username: segment.Username, Group: segment.Group},
 				allConfigured:    true,
 			}
 			accumulators[key] = accumulator
 		}
-		accumulator.ConsumptionQuota += row.Quota
+		accumulator.ConsumptionQuota += segment.Quota
 		accumulator.GrossProfitQuota += grossProfit
 		accumulator.PlatformRetainedQuota += platformRetained
 		accumulator.AgentEarningsQuota += agentEarnings
 		if !configured {
 			accumulator.allConfigured = false
-			accumulator.UnconfiguredQuota += row.Quota
+			accumulator.UnconfiguredQuota += segment.Quota
 		}
 	}
 

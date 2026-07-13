@@ -80,6 +80,40 @@ type Log struct {
 	Other             string `json:"other"`
 }
 
+type AgentConsumeLogRow struct {
+	UserID    int    `gorm:"column:user_id"`
+	Username  string `gorm:"column:username"`
+	UseGroup  string `gorm:"column:use_group"`
+	CreatedAt int64  `gorm:"column:created_at"`
+	Quota     int    `gorm:"column:quota"`
+}
+
+func GetAgentConsumeLogRows(tx *gorm.DB, userIDs []int, startTimestamp int64, endTimestamp int64) ([]AgentConsumeLogRow, error) {
+	rows := make([]AgentConsumeLogRow, 0)
+	if len(userIDs) == 0 {
+		return rows, nil
+	}
+	groupColumn := logGroupCol
+	if groupColumn == "" {
+		if common.UsingLogDatabase(common.DatabaseTypePostgreSQL) {
+			groupColumn = `"group"`
+		} else {
+			groupColumn = "`group`"
+		}
+	}
+	selectColumns := fmt.Sprintf("user_id, username, %s AS use_group, created_at, SUM(quota) AS quota", groupColumn)
+	groupColumns := fmt.Sprintf("user_id, username, %s, created_at", groupColumn)
+	err := tx.Model(&Log{}).
+		Select(selectColumns).
+		Where("type = ?", LogTypeConsume).
+		Where("user_id IN ?", userIDs).
+		Where(groupColumn+" <> ''").
+		Where("created_at >= ? AND created_at <= ?", startTimestamp, endTimestamp).
+		Group(groupColumns).
+		Find(&rows).Error
+	return rows, err
+}
+
 // don't use iota, avoid change log type value
 const (
 	LogTypeUnknown = 0

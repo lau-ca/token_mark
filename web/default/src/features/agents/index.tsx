@@ -64,6 +64,10 @@ function defaultStartDate() {
   return date
 }
 
+function latestSettlementCutoff() {
+  return new Date(Date.now() - 60_000)
+}
+
 export function AgentUsers() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
@@ -78,7 +82,7 @@ export function AgentUsers() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settlementOpen, setSettlementOpen] = useState(false)
   const [paymentReference, setPaymentReference] = useState('')
-  const [cutoff, setCutoff] = useState<Date>(new Date())
+  const [cutoff, setCutoff] = useState<Date>(latestSettlementCutoff)
 
   const { data: profilesResponse } = useQuery({
     queryKey: ['agent-profiles'],
@@ -108,7 +112,6 @@ export function AgentUsers() {
   const summaryParams = useMemo(
     () => ({
       start_timestamp: 1,
-      end_timestamp: Math.floor(Date.now() / 1000) + 60,
       p: 1,
       page_size: 1,
       keyword: '',
@@ -125,10 +128,19 @@ export function AgentUsers() {
   const stats = statsResponse?.data
   const { data: summaryResponse } = useQuery({
     queryKey: ['agent-summary', activeAgentId ?? 'self'],
-    queryFn: () => getAgentStats(summaryParams, activeAgentId),
+    queryFn: () =>
+      getAgentStats(
+        {
+          ...summaryParams,
+          end_timestamp: Math.floor(latestSettlementCutoff().getTime() / 1000),
+        },
+        activeAgentId
+      ),
     enabled: !isAdmin || Boolean(activeAgentId),
+    refetchInterval: 60_000,
   })
   const summary = summaryResponse?.data?.summary
+  const periodSummary = stats?.summary
 
   const { data: settlementsResponse } = useQuery({
     queryKey: ['agent-settlements', activeAgentId ?? 'self'],
@@ -170,14 +182,14 @@ export function AgentUsers() {
   const summaryCards = [
     {
       title: t('Customers'),
-      value: summary?.customer_count ?? 0,
+      value: periodSummary?.customer_count ?? 0,
       description: t('Customers assigned to this agent'),
       icon: Users,
       tone: 'accent-1' as const,
     },
     {
       title: t('Consumption Amount'),
-      value: formatQuota(summary?.consumption_quota ?? 0),
+      value: formatQuota(periodSummary?.consumption_quota ?? 0),
       description: t('Consumption in the selected period'),
       icon: WalletCards,
       tone: 'accent-2' as const,
