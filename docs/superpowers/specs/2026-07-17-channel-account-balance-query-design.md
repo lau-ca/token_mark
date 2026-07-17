@@ -159,7 +159,7 @@ Backend tests cover observable contracts:
 Frontend tests cover:
 
 - Platform-dependent fields appear correctly.
-- New API required-field validation.
+- Balance configuration fields round-trip through create and edit payloads.
 - Sub2API does not request duplicate credentials.
 - Editing with an empty account access-token field preserves the existing secret.
 
