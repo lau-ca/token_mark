@@ -90,9 +90,10 @@ Health cell:
 ```text
 Status    Healthy
 Error     0.8%
+Calls     375
 ```
 
-The tooltip includes success count, error count, total attempts, Beijing reporting date, and last update time. Unknown and pending-refresh states display compact neutral text.
+The visible call count is the current Beijing-day total attempts for that channel: successful attempts plus failed attempts. Retries count against each channel that was actually attempted. The tooltip includes success count, error count, Beijing reporting date, and last update time. Unknown and pending-refresh states display compact neutral text.
 
 The mobile channel card uses the same labels, order, colors, and left-aligned spacing.
 
@@ -128,6 +129,7 @@ Frontend tests cover:
 - Current-day health state selection.
 - Previous-day snapshots becoming pending refresh.
 - Status label, percentage, and color mapping.
+- Visible call count equal to success count plus error count.
 - Stable usage/balance and health cell formatting.
 
 Verification includes targeted and full backend tests, frontend unit tests, type checking, linting of changed files, production build, and i18n synchronization. Browser end-to-end testing is excluded unless explicitly requested.
