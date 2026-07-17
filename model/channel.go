@@ -40,6 +40,13 @@ type Channel struct {
 	BalanceBaseURL     string  `json:"balance_base_url" gorm:"type:varchar(512);default:''"`
 	BalanceUserID      int     `json:"balance_user_id" gorm:"default:0"`
 	BalanceAuthKey     string  `json:"balance_auth_key,omitempty" gorm:"type:text"`
+	HealthStatus       string  `json:"health_status" gorm:"type:varchar(32);default:''"`
+	HealthErrorRate    float64 `json:"health_error_rate" gorm:"default:0"`
+	HealthSuccessCount int64   `json:"health_success_count" gorm:"bigint;default:0"`
+	HealthErrorCount   int64   `json:"health_error_count" gorm:"bigint;default:0"`
+	HealthTotalCount   int64   `json:"health_total_count" gorm:"bigint;default:0"`
+	HealthDate         string  `json:"health_date" gorm:"type:varchar(10);default:''"`
+	HealthUpdatedTime  int64   `json:"health_updated_time" gorm:"bigint;default:0"`
 	Models             string  `json:"models"`
 	Group              string  `json:"group" gorm:"type:varchar(64);default:'default'"`
 	UsedQuota          int64   `json:"used_quota" gorm:"bigint;default:0"`

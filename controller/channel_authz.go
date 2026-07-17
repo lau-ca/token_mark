@@ -105,6 +105,13 @@ var channelReadOnlyFields = map[string]struct{}{
 	"balance_updated_time":        {},
 	"used_quota":                  {},
 	"balance_auth_key_configured": {},
+	"health_status":               {},
+	"health_error_rate":           {},
+	"health_success_count":        {},
+	"health_error_count":          {},
+	"health_total_count":          {},
+	"health_date":                 {},
+	"health_updated_time":         {},
 }
 
 func clearChannelReadOnlyFields(channel *PatchChannel, requestData map[string]any) {
@@ -128,6 +135,27 @@ func clearChannelReadOnlyFields(channel *PatchChannel, requestData map[string]an
 	}
 	if _, ok := requestData["balance_auth_key_configured"]; ok {
 		channel.BalanceAuthKeyConfigured = false
+	}
+	if _, ok := requestData["health_status"]; ok {
+		channel.HealthStatus = ""
+	}
+	if _, ok := requestData["health_error_rate"]; ok {
+		channel.HealthErrorRate = 0
+	}
+	if _, ok := requestData["health_success_count"]; ok {
+		channel.HealthSuccessCount = 0
+	}
+	if _, ok := requestData["health_error_count"]; ok {
+		channel.HealthErrorCount = 0
+	}
+	if _, ok := requestData["health_total_count"]; ok {
+		channel.HealthTotalCount = 0
+	}
+	if _, ok := requestData["health_date"]; ok {
+		channel.HealthDate = ""
+	}
+	if _, ok := requestData["health_updated_time"]; ok {
+		channel.HealthUpdatedTime = 0
 	}
 }
 

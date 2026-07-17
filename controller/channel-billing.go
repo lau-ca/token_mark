@@ -22,6 +22,11 @@ const (
 	balancePlatformNewAPI       = "new_api"
 	balancePlatformSub2API      = "sub2api"
 	maxBalanceResponseBodyBytes = 1 << 20
+	channelHealthUnknown        = "unknown"
+	channelHealthHealthy        = "healthy"
+	channelHealthWarning        = "warning"
+	channelHealthCritical       = "critical"
+	channelHealthMinSamples     = int64(20)
 )
 
 type newAPIStatusResponse struct {
@@ -270,6 +275,63 @@ func updateChannelBalance(channel *model.Channel) (float64, error) {
 	return balance, nil
 }
 
+func classifyChannelHealth(totalCount int64, errorRate float64) string {
+	if totalCount < channelHealthMinSamples {
+		return channelHealthUnknown
+	}
+	if errorRate < 2 {
+		return channelHealthHealthy
+	}
+	if errorRate < 10 {
+		return channelHealthWarning
+	}
+	return channelHealthCritical
+}
+
+func refreshChannelHealthSnapshots(channels []*model.Channel) error {
+	if len(channels) == 0 {
+		return nil
+	}
+	healthDate, startTimestamp, endTimestamp := model.BeijingDayRange(time.Now())
+	if !common.LogConsumeEnabled {
+		for _, channel := range channels {
+			model.NewUnknownChannelHealthSnapshot(channel, healthDate)
+			if err := channel.UpdateHealthSnapshot(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	channelIDs := make([]int, 0, len(channels))
+	for _, channel := range channels {
+		channelIDs = append(channelIDs, channel.Id)
+	}
+	countsByChannel, err := model.GetChannelHealthCounts(channelIDs, startTimestamp, endTimestamp)
+	if err != nil {
+		return err
+	}
+	for _, channel := range channels {
+		counts := countsByChannel[channel.Id]
+		totalCount := counts.SuccessCount + counts.ErrorCount
+		errorRate := float64(0)
+		if totalCount > 0 {
+			errorRate = float64(counts.ErrorCount) / float64(totalCount) * 100
+		}
+		channel.HealthStatus = classifyChannelHealth(totalCount, errorRate)
+		channel.HealthErrorRate = errorRate
+		channel.HealthSuccessCount = counts.SuccessCount
+		channel.HealthErrorCount = counts.ErrorCount
+		channel.HealthTotalCount = totalCount
+		channel.HealthDate = healthDate
+		channel.HealthUpdatedTime = common.GetTimestamp()
+		if err := channel.UpdateHealthSnapshot(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func UpdateChannelBalance(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -288,9 +350,10 @@ func UpdateChannelBalance(c *gin.Context) {
 		})
 		return
 	}
-	balance, err := updateChannelBalance(channel)
-	if err != nil {
-		common.ApiError(c, err)
+	balance, balanceErr := updateChannelBalance(channel)
+	healthErr := refreshChannelHealthSnapshots([]*model.Channel{channel})
+	if balanceErr != nil || healthErr != nil {
+		common.ApiError(c, errors.Join(balanceErr, healthErr))
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
@@ -304,6 +367,9 @@ func updateAllChannelsBalance() error {
 	channels, err := model.GetAllChannels(0, 0, true, false)
 	if err != nil {
 		return err
+	}
+	if err := refreshChannelHealthSnapshots(channels); err != nil {
+		common.SysError("failed to update channel health snapshots: " + err.Error())
 	}
 	for _, channel := range channels {
 		if channel.Status != common.ChannelStatusEnabled || channel.ChannelInfo.IsMultiKey {
