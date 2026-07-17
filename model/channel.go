@@ -581,7 +581,19 @@ func (channel *Channel) Update() error {
 		}
 	}
 	var err error
-	err = DB.Model(channel).Updates(channel).Error
+	err = DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(channel).Updates(channel).Error; err != nil {
+			return err
+		}
+		return tx.Model(channel).
+			Select("balance_platform", "balance_base_url", "balance_user_id", "balance_auth_key").
+			Updates(Channel{
+				BalancePlatform: channel.BalancePlatform,
+				BalanceBaseURL:  channel.BalanceBaseURL,
+				BalanceUserID:   channel.BalanceUserID,
+				BalanceAuthKey:  channel.BalanceAuthKey,
+			}).Error
+	})
 	if err != nil {
 		return err
 	}
