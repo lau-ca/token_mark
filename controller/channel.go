@@ -65,6 +65,8 @@ func parseStatusFilter(statusParam string) int {
 }
 
 func clearChannelInfo(channel *model.Channel) {
+	channel.BalanceAuthKeyConfigured = strings.TrimSpace(channel.BalanceAuthKey) != ""
+	channel.BalanceAuthKey = ""
 	if channel.ChannelInfo.IsMultiKey {
 		channel.ChannelInfo.MultiKeyDisabledReason = nil
 		channel.ChannelInfo.MultiKeyDisabledTime = nil
@@ -974,6 +976,9 @@ func UpdateChannel(c *gin.Context) {
 
 	// Always copy the original ChannelInfo so that fields like IsMultiKey and MultiKeySize are retained.
 	channel.ChannelInfo = originChannel.ChannelInfo
+	if strings.TrimSpace(channel.BalanceAuthKey) == "" {
+		channel.BalanceAuthKey = originChannel.BalanceAuthKey
+	}
 
 	if channelHasSensitiveChanges(&channel, originChannel, requestData) &&
 		!authz.Can(c.GetInt("id"), c.GetInt("role"), authz.ChannelSensitiveWrite) {
@@ -1104,6 +1109,18 @@ func UpdateChannel(c *gin.Context) {
 	}
 	if channel.Key != "" && channel.Key != originChannel.Key {
 		changedFields = append(changedFields, "key")
+	}
+	if channel.BalancePlatform != originChannel.BalancePlatform {
+		changedFields = append(changedFields, "balance_platform")
+	}
+	if channel.BalanceBaseURL != originChannel.BalanceBaseURL {
+		changedFields = append(changedFields, "balance_base_url")
+	}
+	if channel.BalanceUserID != originChannel.BalanceUserID {
+		changedFields = append(changedFields, "balance_user_id")
+	}
+	if channel.BalanceAuthKey != originChannel.BalanceAuthKey {
+		changedFields = append(changedFields, "balance_auth_key")
 	}
 	recordManageAudit(c, "channel.update", map[string]interface{}{
 		"id":             channel.Id,

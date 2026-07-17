@@ -30,6 +30,18 @@ func channelHasSensitiveChanges(channel *PatchChannel, origin *model.Channel, re
 	if _, ok := requestData["settings"]; ok && channel.OtherSettings != origin.OtherSettings {
 		return true
 	}
+	if _, ok := requestData["balance_platform"]; ok && channel.BalancePlatform != origin.BalancePlatform {
+		return true
+	}
+	if _, ok := requestData["balance_base_url"]; ok && channel.BalanceBaseURL != origin.BalanceBaseURL {
+		return true
+	}
+	if _, ok := requestData["balance_user_id"]; ok && channel.BalanceUserID != origin.BalanceUserID {
+		return true
+	}
+	if _, ok := requestData["balance_auth_key"]; ok && channel.BalanceAuthKey != "" && channel.BalanceAuthKey != origin.BalanceAuthKey {
+		return true
+	}
 	if _, ok := requestData["key_mode"]; ok && channel.KeyMode != nil {
 		return true
 	}
@@ -71,6 +83,10 @@ var channelSensitiveFields = map[string]struct{}{
 	"other":               {},
 	"settings":            {},
 	"key_mode":            {},
+	"balance_platform":    {},
+	"balance_base_url":    {},
+	"balance_user_id":     {},
+	"balance_auth_key":    {},
 }
 
 // channelOperationalFields lists fields managed by operation endpoints instead
@@ -82,12 +98,13 @@ var channelOperationalFields = map[string]struct{}{
 // channelReadOnlyFields lists server-managed/accounting fields that the general
 // channel edit endpoint must ignore even if a client sends them.
 var channelReadOnlyFields = map[string]struct{}{
-	"created_time":         {},
-	"test_time":            {},
-	"response_time":        {},
-	"balance":              {},
-	"balance_updated_time": {},
-	"used_quota":           {},
+	"created_time":                {},
+	"test_time":                   {},
+	"response_time":               {},
+	"balance":                     {},
+	"balance_updated_time":        {},
+	"used_quota":                  {},
+	"balance_auth_key_configured": {},
 }
 
 func clearChannelReadOnlyFields(channel *PatchChannel, requestData map[string]any) {
@@ -108,6 +125,9 @@ func clearChannelReadOnlyFields(channel *PatchChannel, requestData map[string]an
 	}
 	if _, ok := requestData["used_quota"]; ok {
 		channel.UsedQuota = 0
+	}
+	if _, ok := requestData["balance_auth_key_configured"]; ok {
+		channel.BalanceAuthKeyConfigured = false
 	}
 }
 

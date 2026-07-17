@@ -36,6 +36,10 @@ type Channel struct {
 	Other              string  `json:"other"`
 	Balance            float64 `json:"balance"` // in USD
 	BalanceUpdatedTime int64   `json:"balance_updated_time" gorm:"bigint"`
+	BalancePlatform    string  `json:"balance_platform" gorm:"type:varchar(32);default:''"`
+	BalanceBaseURL     string  `json:"balance_base_url" gorm:"type:varchar(512);default:''"`
+	BalanceUserID      int     `json:"balance_user_id" gorm:"default:0"`
+	BalanceAuthKey     string  `json:"balance_auth_key,omitempty" gorm:"type:text"`
 	Models             string  `json:"models"`
 	Group              string  `json:"group" gorm:"type:varchar(64);default:'default'"`
 	UsedQuota          int64   `json:"used_quota" gorm:"bigint;default:0"`
@@ -58,6 +62,8 @@ type Channel struct {
 	// cache info
 	Keys    []string            `json:"-" gorm:"-"`
 	Pricing *ChannelPricingView `json:"pricing,omitempty" gorm:"-"`
+
+	BalanceAuthKeyConfigured bool `json:"balance_auth_key_configured" gorm:"-"`
 }
 
 type ChannelInfo struct {

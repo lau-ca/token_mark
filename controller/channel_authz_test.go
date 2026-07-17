@@ -19,12 +19,16 @@ func TestChannelHasSensitiveChanges(t *testing.T) {
 	baseURL := "https://api.example.com"
 	headerOverride := `{"Authorization":"Bearer {api_key}"}`
 	origin := &model.Channel{
-		Type:           1,
-		Key:            "old-key",
-		BaseURL:        &baseURL,
-		HeaderOverride: &headerOverride,
-		Models:         "gpt-4o",
-		Group:          "default",
+		Type:            1,
+		Key:             "old-key",
+		BaseURL:         &baseURL,
+		HeaderOverride:  &headerOverride,
+		Models:          "gpt-4o",
+		Group:           "default",
+		BalancePlatform: "new_api",
+		BalanceBaseURL:  "https://billing.example.com",
+		BalanceUserID:   1787,
+		BalanceAuthKey:  "old-account-key",
 	}
 
 	t.Run("non-sensitive routing fields", func(t *testing.T) {
@@ -59,6 +63,24 @@ func TestChannelHasSensitiveChanges(t *testing.T) {
 		updated.HeaderOverride = &newHeaderOverride
 
 		assert.True(t, channelHasSensitiveChanges(&updated, origin, map[string]any{"header_override": newHeaderOverride}))
+	})
+
+	t.Run("balance configuration change", func(t *testing.T) {
+		updated := PatchChannel{Channel: *origin}
+		updated.BalanceBaseURL = "https://new-billing.example.com"
+
+		assert.True(t, channelHasSensitiveChanges(&updated, origin, map[string]any{
+			"balance_base_url": updated.BalanceBaseURL,
+		}))
+	})
+
+	t.Run("balance account key change", func(t *testing.T) {
+		updated := PatchChannel{Channel: *origin}
+		updated.BalanceAuthKey = "new-account-key"
+
+		assert.True(t, channelHasSensitiveChanges(&updated, origin, map[string]any{
+			"balance_auth_key": updated.BalanceAuthKey,
+		}))
 	})
 
 	t.Run("omitted sensitive fields do not use zero values", func(t *testing.T) {
@@ -98,25 +120,27 @@ func TestChannelHasSensitiveChanges(t *testing.T) {
 
 func TestClearChannelReadOnlyFields(t *testing.T) {
 	channel := PatchChannel{Channel: model.Channel{
-		CreatedTime:        11,
-		TestTime:           22,
-		ResponseTime:       33,
-		Balance:            44.5,
-		BalanceUpdatedTime: 55,
-		UsedQuota:          66,
-		Models:             "gpt-4o",
-		Group:              "default",
+		CreatedTime:              11,
+		TestTime:                 22,
+		ResponseTime:             33,
+		Balance:                  44.5,
+		BalanceUpdatedTime:       55,
+		UsedQuota:                66,
+		BalanceAuthKeyConfigured: true,
+		Models:                   "gpt-4o",
+		Group:                    "default",
 	}}
 
 	clearChannelReadOnlyFields(&channel, map[string]any{
-		"created_time":         channel.CreatedTime,
-		"test_time":            channel.TestTime,
-		"response_time":        channel.ResponseTime,
-		"balance":              channel.Balance,
-		"balance_updated_time": channel.BalanceUpdatedTime,
-		"used_quota":           channel.UsedQuota,
-		"models":               channel.Models,
-		"group":                channel.Group,
+		"created_time":                channel.CreatedTime,
+		"test_time":                   channel.TestTime,
+		"response_time":               channel.ResponseTime,
+		"balance":                     channel.Balance,
+		"balance_updated_time":        channel.BalanceUpdatedTime,
+		"used_quota":                  channel.UsedQuota,
+		"balance_auth_key_configured": channel.BalanceAuthKeyConfigured,
+		"models":                      channel.Models,
+		"group":                       channel.Group,
 	})
 
 	assert.Zero(t, channel.CreatedTime)
@@ -125,8 +149,18 @@ func TestClearChannelReadOnlyFields(t *testing.T) {
 	assert.Zero(t, channel.Balance)
 	assert.Zero(t, channel.BalanceUpdatedTime)
 	assert.Zero(t, channel.UsedQuota)
+	assert.False(t, channel.BalanceAuthKeyConfigured)
 	assert.Equal(t, "gpt-4o", channel.Models)
 	assert.Equal(t, "default", channel.Group)
+}
+
+func TestClearChannelInfoRedactsBalanceAccountKey(t *testing.T) {
+	channel := &model.Channel{BalanceAuthKey: "account-secret"}
+
+	clearChannelInfo(channel)
+
+	assert.Empty(t, channel.BalanceAuthKey)
+	assert.True(t, channel.BalanceAuthKeyConfigured)
 }
 
 func TestUpdateChannelRejectsStatusField(t *testing.T) {
