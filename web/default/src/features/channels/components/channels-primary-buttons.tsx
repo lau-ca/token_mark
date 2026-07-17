@@ -29,6 +29,7 @@ import {
   SortAsc,
   RefreshCw,
   ArrowUpFromLine,
+  Activity,
 } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -63,6 +64,7 @@ import {
   handleFixAbilities,
   handleTestAllChannels,
   handleUpdateAllBalances,
+  handleUpdateAllStatuses,
 } from '../lib'
 import { useChannels } from './channels-provider'
 
@@ -226,6 +228,17 @@ export function ChannelsPrimaryButtons() {
               {t('Update All Balances')}
               <DropdownMenuShortcut>
                 <DollarSign className='h-4 w-4' />
+              </DropdownMenuShortcut>
+            </DropdownMenuItem>
+
+            <DropdownMenuItem
+              onClick={() => {
+                handleUpdateAllStatuses(queryClient)
+              }}
+            >
+              {t('Update All Statuses')}
+              <DropdownMenuShortcut>
+                <Activity className='h-4 w-4' />
               </DropdownMenuShortcut>
             </DropdownMenuItem>
 

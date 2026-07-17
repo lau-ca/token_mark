@@ -27,6 +27,9 @@ const (
 	channelHealthWarning        = "warning"
 	channelHealthCritical       = "critical"
 	channelHealthMinSamples     = int64(20)
+	channelLastCallNone         = "none"
+	channelLastCallSuccess      = "success"
+	channelLastCallError        = "error"
 )
 
 type newAPIStatusResponse struct {
@@ -288,6 +291,26 @@ func classifyChannelHealth(totalCount int64, errorRate float64) string {
 	return channelHealthCritical
 }
 
+func setChannelLastCallSnapshot(channel *model.Channel, counts model.ChannelHealthCounts) {
+	switch {
+	case counts.LastSuccessID == 0 && counts.LastErrorID == 0:
+		channel.HealthLastCallStatus = channelLastCallNone
+		channel.HealthLastCallTime = 0
+	case counts.LastSuccessTime > counts.LastErrorTime:
+		channel.HealthLastCallStatus = channelLastCallSuccess
+		channel.HealthLastCallTime = counts.LastSuccessTime
+	case counts.LastErrorTime > counts.LastSuccessTime:
+		channel.HealthLastCallStatus = channelLastCallError
+		channel.HealthLastCallTime = counts.LastErrorTime
+	case counts.LastSuccessID > counts.LastErrorID:
+		channel.HealthLastCallStatus = channelLastCallSuccess
+		channel.HealthLastCallTime = counts.LastSuccessTime
+	default:
+		channel.HealthLastCallStatus = channelLastCallError
+		channel.HealthLastCallTime = counts.LastErrorTime
+	}
+}
+
 func refreshChannelHealthSnapshots(channels []*model.Channel) error {
 	if len(channels) == 0 {
 		return nil
@@ -325,6 +348,7 @@ func refreshChannelHealthSnapshots(channels []*model.Channel) error {
 		channel.HealthTotalCount = totalCount
 		channel.HealthDate = healthDate
 		channel.HealthUpdatedTime = common.GetTimestamp()
+		setChannelLastCallSnapshot(channel, counts)
 		if err := channel.UpdateHealthSnapshot(); err != nil {
 			return err
 		}
@@ -350,10 +374,9 @@ func UpdateChannelBalance(c *gin.Context) {
 		})
 		return
 	}
-	balance, balanceErr := updateChannelBalance(channel)
-	healthErr := refreshChannelHealthSnapshots([]*model.Channel{channel})
-	if balanceErr != nil || healthErr != nil {
-		common.ApiError(c, errors.Join(balanceErr, healthErr))
+	balance, err := updateChannelBalance(channel)
+	if err != nil {
+		common.ApiError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
@@ -363,13 +386,31 @@ func UpdateChannelBalance(c *gin.Context) {
 	})
 }
 
+func UpdateChannelHealth(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	channel, err := model.CacheGetChannel(id)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if err := refreshChannelHealthSnapshots([]*model.Channel{channel}); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+	})
+}
+
 func updateAllChannelsBalance() error {
 	channels, err := model.GetAllChannels(0, 0, true, false)
 	if err != nil {
 		return err
-	}
-	if err := refreshChannelHealthSnapshots(channels); err != nil {
-		common.SysError("failed to update channel health snapshots: " + err.Error())
 	}
 	for _, channel := range channels {
 		if channel.Status != common.ChannelStatusEnabled || channel.ChannelInfo.IsMultiKey {
@@ -388,8 +429,27 @@ func updateAllChannelsBalance() error {
 	return nil
 }
 
+func updateAllChannelsHealth() error {
+	channels, err := model.GetAllChannels(0, 0, true, false)
+	if err != nil {
+		return err
+	}
+	return refreshChannelHealthSnapshots(channels)
+}
+
 func UpdateAllChannelsBalance(c *gin.Context) {
 	if err := updateAllChannelsBalance(); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+	})
+}
+
+func UpdateAllChannelsHealth(c *gin.Context) {
+	if err := updateAllChannelsHealth(); err != nil {
 		common.ApiError(c, err)
 		return
 	}
@@ -402,8 +462,19 @@ func UpdateAllChannelsBalance(c *gin.Context) {
 func AutomaticallyUpdateChannels(frequency int) {
 	for {
 		time.Sleep(time.Duration(frequency) * time.Minute)
-		common.SysLog("updating all channels")
+		common.SysLog("updating all channel balances")
 		_ = updateAllChannelsBalance()
-		common.SysLog("channels update done")
+		common.SysLog("channel balance update done")
+	}
+}
+
+func AutomaticallyUpdateChannelHealth(frequency int) {
+	for {
+		time.Sleep(time.Duration(frequency) * time.Minute)
+		common.SysLog("updating all channel health snapshots")
+		if err := updateAllChannelsHealth(); err != nil {
+			common.SysError("failed to update channel health snapshots: " + err.Error())
+		}
+		common.SysLog("channel health update done")
 	}
 }

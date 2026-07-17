@@ -38,7 +38,9 @@ import {
   editTagChannels,
   testAllChannels,
   updateAllChannelsBalance,
+  updateAllChannelsHealth,
   updateChannelBalance,
+  updateChannelHealth,
 } from '../api'
 import { CHANNEL_STATUS, ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
 import type { ChannelTestResponse, CopyChannelParams } from '../types'
@@ -398,6 +400,31 @@ export async function handleUpdateChannelBalance(
   }
 }
 
+/**
+ * Update a channel's current Beijing-day health snapshot
+ */
+export async function handleUpdateChannelHealth(
+  id: number,
+  queryClient?: QueryClient
+): Promise<void> {
+  try {
+    const response = await updateChannelHealth(id)
+    if (response.success) {
+      toast.success(i18next.t('Channel status updated'))
+    } else {
+      toast.error(response.message || i18next.t('Failed to update status'))
+    }
+  } catch (_error: unknown) {
+    toast.error(
+      _error instanceof Error
+        ? _error.message
+        : i18next.t('Failed to update status')
+    )
+  } finally {
+    queryClient?.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+  }
+}
+
 // ============================================================================
 // Batch Actions
 // ============================================================================
@@ -711,5 +738,32 @@ export async function handleUpdateAllBalances(
     }
   } catch {
     toast.error(i18next.t('Failed to update all balances'))
+  }
+}
+
+/**
+ * Update health snapshots for all channels
+ */
+export async function handleUpdateAllStatuses(
+  queryClient?: QueryClient,
+  onSuccess?: () => void
+): Promise<void> {
+  try {
+    const response = await updateAllChannelsHealth()
+    if (response.success) {
+      toast.success(
+        i18next.t(
+          'Updating all channel statuses. Please refresh to see results.'
+        )
+      )
+      queryClient?.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+      onSuccess?.()
+    } else {
+      toast.error(
+        response.message || i18next.t('Failed to update all statuses')
+      )
+    }
+  } catch {
+    toast.error(i18next.t('Failed to update all statuses'))
   }
 }

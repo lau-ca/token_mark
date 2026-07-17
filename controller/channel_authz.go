@@ -112,6 +112,8 @@ var channelReadOnlyFields = map[string]struct{}{
 	"health_total_count":          {},
 	"health_date":                 {},
 	"health_updated_time":         {},
+	"health_last_call_status":     {},
+	"health_last_call_time":       {},
 }
 
 func clearChannelReadOnlyFields(channel *PatchChannel, requestData map[string]any) {
@@ -156,6 +158,12 @@ func clearChannelReadOnlyFields(channel *PatchChannel, requestData map[string]an
 	}
 	if _, ok := requestData["health_updated_time"]; ok {
 		channel.HealthUpdatedTime = 0
+	}
+	if _, ok := requestData["health_last_call_status"]; ok {
+		channel.HealthLastCallStatus = ""
+	}
+	if _, ok := requestData["health_last_call_time"]; ok {
+		channel.HealthLastCallTime = 0
 	}
 }
 

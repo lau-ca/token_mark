@@ -25,6 +25,7 @@ import type {
   BatchSetTagParams,
   Channel,
   ChannelBalanceResponse,
+  ChannelHealthResponse,
   ChannelOpsResponse,
   ChannelTestResponse,
   CopyChannelParams,
@@ -229,6 +230,19 @@ export async function updateChannelBalance(
 ): Promise<ChannelBalanceResponse> {
   const res = await api.get(
     `/api/channel/update_balance/${id}`,
+    channelActionConfig()
+  )
+  return res.data
+}
+
+/**
+ * Update the current Beijing-day health snapshot for one channel
+ */
+export async function updateChannelHealth(
+  id: number
+): Promise<ChannelHealthResponse> {
+  const res = await api.get(
+    `/api/channel/update_health/${id}`,
     channelActionConfig()
   )
   return res.data
@@ -574,6 +588,14 @@ export async function updateAllChannelsBalance(): Promise<{
     '/api/channel/update_balance',
     channelActionConfig()
   )
+  return res.data
+}
+
+/**
+ * Update health snapshots for all channels
+ */
+export async function updateAllChannelsHealth(): Promise<ChannelHealthResponse> {
+  const res = await api.get('/api/channel/update_health', channelActionConfig())
   return res.data
 }
 

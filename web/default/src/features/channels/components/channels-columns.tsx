@@ -65,9 +65,11 @@ import {
   formatChannelHealthErrorRate,
   getBalanceVariant,
   getChannelHealthConfig,
+  getChannelLastCallConfig,
   getChannelTypeIcon,
   getChannelTypeLabel,
   getCurrentChannelHealthStatus,
+  getCurrentChannelLastCallStatus,
   getResponseTimeConfig,
   isMultiKeyChannel,
   parseModelsList,
@@ -76,6 +78,7 @@ import {
   handleUpdateChannelField,
   handleUpdateTagField,
   handleUpdateChannelBalance,
+  handleUpdateChannelHealth,
   isTagAggregateRow,
   type TagRow,
 } from '../lib'
@@ -514,8 +517,10 @@ function BalanceCell({ channel }: { channel: Channel }) {
 
 function ChannelHealthCell({ channel }: { channel: Channel }) {
   const { t, i18n } = useTranslation()
+  const queryClient = useQueryClient()
   const { sensitiveVisible } = useChannels()
   const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
+  const [isUpdating, setIsUpdating] = useState(false)
 
   if (isTagAggregateRow(channel)) {
     return <span className='text-muted-foreground text-xs'>-</span>
@@ -526,6 +531,11 @@ function ChannelHealthCell({ channel }: { channel: Channel }) {
     channel.health_status
   )
   const config = getChannelHealthConfig(displayStatus)
+  const lastCallStatus = getCurrentChannelLastCallStatus(
+    channel.health_date,
+    channel.health_last_call_status
+  )
+  const lastCallConfig = getChannelLastCallConfig(lastCallStatus)
   const isPending = displayStatus === 'pending'
   const errorRate = isPending
     ? '-'
@@ -535,6 +545,14 @@ function ChannelHealthCell({ channel }: { channel: Channel }) {
     : formatChannelHealthCount(channel.health_total_count, locale)
   const displayErrorRate = sensitiveVisible ? errorRate : SENSITIVE_MASK
   const displayTotalCount = sensitiveVisible ? totalCount : SENSITIVE_MASK
+  const handleClickUpdate = async () => {
+    if (isUpdating) {
+      return
+    }
+    setIsUpdating(true)
+    await handleUpdateChannelHealth(channel.id, queryClient)
+    setIsUpdating(false)
+  }
 
   return (
     <TooltipProvider delay={100}>
@@ -547,12 +565,13 @@ function ChannelHealthCell({ channel }: { channel: Channel }) {
           <div className='grid grid-cols-[4rem_1fr] items-center gap-2'>
             <span className='text-muted-foreground'>{t('Status')}</span>
             <StatusBadge
-              label={t(config.labelKey)}
+              label={isUpdating ? t('Updating...') : t(config.labelKey)}
               variant={config.variant}
               type='text'
               size='sm'
               copyable={false}
-              className='cursor-help'
+              className='cursor-pointer'
+              onClick={handleClickUpdate}
             />
           </div>
           <div className='grid grid-cols-[4rem_1fr] items-center gap-2'>
@@ -564,6 +583,16 @@ function ChannelHealthCell({ channel }: { channel: Channel }) {
             <span className='font-medium tabular-nums'>
               {displayTotalCount}
             </span>
+          </div>
+          <div className='grid grid-cols-[4rem_1fr] items-center gap-2'>
+            <span className='text-muted-foreground'>{t('Last call')}</span>
+            <StatusBadge
+              label={t(lastCallConfig.labelKey)}
+              variant={lastCallConfig.variant}
+              type='text'
+              size='sm'
+              copyable={false}
+            />
           </div>
         </TooltipTrigger>
         <TooltipContent side='top'>
@@ -587,6 +616,15 @@ function ChannelHealthCell({ channel }: { channel: Channel }) {
             <span className='text-muted-foreground'>{t('Updated')}</span>
             <span className='text-right tabular-nums'>
               {formatBeijingTimestamp(channel.health_updated_time, locale)}
+            </span>
+            <span className='text-muted-foreground'>{t('Last call time')}</span>
+            <span className='text-right tabular-nums'>
+              {lastCallStatus === 'pending'
+                ? '-'
+                : formatBeijingTimestamp(channel.health_last_call_time, locale)}
+            </span>
+            <span className='text-muted-foreground col-span-2 mt-1'>
+              {t('Click status to update')}
             </span>
           </div>
         </TooltipContent>

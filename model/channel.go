@@ -21,36 +21,38 @@ import (
 )
 
 type Channel struct {
-	Id                 int     `json:"id"`
-	Type               int     `json:"type" gorm:"default:0"`
-	Key                string  `json:"key" gorm:"not null"`
-	OpenAIOrganization *string `json:"openai_organization"`
-	TestModel          *string `json:"test_model"`
-	Status             int     `json:"status" gorm:"default:1"`
-	Name               string  `json:"name" gorm:"index"`
-	Weight             *uint   `json:"weight" gorm:"default:0"`
-	CreatedTime        int64   `json:"created_time" gorm:"bigint"`
-	TestTime           int64   `json:"test_time" gorm:"bigint"`
-	ResponseTime       int     `json:"response_time"` // in milliseconds
-	BaseURL            *string `json:"base_url" gorm:"column:base_url;default:''"`
-	Other              string  `json:"other"`
-	Balance            float64 `json:"balance"` // in USD
-	BalanceUpdatedTime int64   `json:"balance_updated_time" gorm:"bigint"`
-	BalancePlatform    string  `json:"balance_platform" gorm:"type:varchar(32);default:''"`
-	BalanceBaseURL     string  `json:"balance_base_url" gorm:"type:varchar(512);default:''"`
-	BalanceUserID      int     `json:"balance_user_id" gorm:"default:0"`
-	BalanceAuthKey     string  `json:"balance_auth_key,omitempty" gorm:"type:text"`
-	HealthStatus       string  `json:"health_status" gorm:"type:varchar(32);default:''"`
-	HealthErrorRate    float64 `json:"health_error_rate" gorm:"default:0"`
-	HealthSuccessCount int64   `json:"health_success_count" gorm:"bigint;default:0"`
-	HealthErrorCount   int64   `json:"health_error_count" gorm:"bigint;default:0"`
-	HealthTotalCount   int64   `json:"health_total_count" gorm:"bigint;default:0"`
-	HealthDate         string  `json:"health_date" gorm:"type:varchar(10);default:''"`
-	HealthUpdatedTime  int64   `json:"health_updated_time" gorm:"bigint;default:0"`
-	Models             string  `json:"models"`
-	Group              string  `json:"group" gorm:"type:varchar(64);default:'default'"`
-	UsedQuota          int64   `json:"used_quota" gorm:"bigint;default:0"`
-	ModelMapping       *string `json:"model_mapping" gorm:"type:text"`
+	Id                   int     `json:"id"`
+	Type                 int     `json:"type" gorm:"default:0"`
+	Key                  string  `json:"key" gorm:"not null"`
+	OpenAIOrganization   *string `json:"openai_organization"`
+	TestModel            *string `json:"test_model"`
+	Status               int     `json:"status" gorm:"default:1"`
+	Name                 string  `json:"name" gorm:"index"`
+	Weight               *uint   `json:"weight" gorm:"default:0"`
+	CreatedTime          int64   `json:"created_time" gorm:"bigint"`
+	TestTime             int64   `json:"test_time" gorm:"bigint"`
+	ResponseTime         int     `json:"response_time"` // in milliseconds
+	BaseURL              *string `json:"base_url" gorm:"column:base_url;default:''"`
+	Other                string  `json:"other"`
+	Balance              float64 `json:"balance"` // in USD
+	BalanceUpdatedTime   int64   `json:"balance_updated_time" gorm:"bigint"`
+	BalancePlatform      string  `json:"balance_platform" gorm:"type:varchar(32);default:''"`
+	BalanceBaseURL       string  `json:"balance_base_url" gorm:"type:varchar(512);default:''"`
+	BalanceUserID        int     `json:"balance_user_id" gorm:"default:0"`
+	BalanceAuthKey       string  `json:"balance_auth_key,omitempty" gorm:"type:text"`
+	HealthStatus         string  `json:"health_status" gorm:"type:varchar(32);default:''"`
+	HealthErrorRate      float64 `json:"health_error_rate" gorm:"default:0"`
+	HealthSuccessCount   int64   `json:"health_success_count" gorm:"bigint;default:0"`
+	HealthErrorCount     int64   `json:"health_error_count" gorm:"bigint;default:0"`
+	HealthTotalCount     int64   `json:"health_total_count" gorm:"bigint;default:0"`
+	HealthDate           string  `json:"health_date" gorm:"type:varchar(10);default:''"`
+	HealthUpdatedTime    int64   `json:"health_updated_time" gorm:"bigint;default:0"`
+	HealthLastCallStatus string  `json:"health_last_call_status" gorm:"type:varchar(16);default:''"`
+	HealthLastCallTime   int64   `json:"health_last_call_time" gorm:"bigint;default:0"`
+	Models               string  `json:"models"`
+	Group                string  `json:"group" gorm:"type:varchar(64);default:'default'"`
+	UsedQuota            int64   `json:"used_quota" gorm:"bigint;default:0"`
+	ModelMapping         *string `json:"model_mapping" gorm:"type:text"`
 	//MaxInputTokens     *int    `json:"max_input_tokens" gorm:"default:0"`
 	StatusCodeMapping *string `json:"status_code_mapping" gorm:"type:varchar(1024);default:''"`
 	Priority          *int64  `json:"priority" gorm:"bigint;default:0"`

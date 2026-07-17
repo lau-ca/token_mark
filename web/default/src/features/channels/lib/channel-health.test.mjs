@@ -6,7 +6,9 @@ import {
   getBeijingDate,
   getBalanceVariant,
   getChannelHealthConfig,
+  getChannelLastCallConfig,
   getCurrentChannelHealthStatus,
+  getCurrentChannelLastCallStatus,
 } from './channel-utils.ts'
 
 describe('channel health display', () => {
@@ -36,6 +38,30 @@ describe('channel health display', () => {
       'Insufficient samples'
     )
     expect(getChannelHealthConfig('pending').labelKey).toBe('Pending refresh')
+  })
+
+  test('shows the latest call result only for the current Beijing day', () => {
+    const now = new Date('2026-07-17T03:00:00Z')
+    expect(getCurrentChannelLastCallStatus('2026-07-16', 'error', now)).toBe(
+      'pending'
+    )
+    expect(getCurrentChannelLastCallStatus('2026-07-17', 'success', now)).toBe(
+      'success'
+    )
+    expect(getCurrentChannelLastCallStatus('2026-07-17', 'error', now)).toBe(
+      'error'
+    )
+    expect(getCurrentChannelLastCallStatus('2026-07-17', 'none', now)).toBe(
+      'none'
+    )
+    expect(getChannelLastCallConfig('success')).toEqual({
+      labelKey: 'Normal',
+      variant: 'success',
+    })
+    expect(getChannelLastCallConfig('error')).toEqual({
+      labelKey: 'Abnormal',
+      variant: 'danger',
+    })
   })
 
   test('formats rates and call counts with tabular display values', () => {

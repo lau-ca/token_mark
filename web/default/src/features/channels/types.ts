@@ -64,6 +64,8 @@ export const channelSchema = z.object({
   health_total_count: z.number().default(0),
   health_date: z.string().default(''),
   health_updated_time: z.number().default(0),
+  health_last_call_status: z.enum(['', 'none', 'success', 'error']).default(''),
+  health_last_call_time: z.number().default(0),
   models: z.string().default(''),
   group: z.string().default('default'),
   used_quota: z.number().default(0),
@@ -211,6 +213,11 @@ export interface ChannelBalanceResponse {
   message?: string
   balance?: number
   currency?: string
+}
+
+export interface ChannelHealthResponse {
+  success: boolean
+  message?: string
 }
 
 export interface FetchModelsResponse {

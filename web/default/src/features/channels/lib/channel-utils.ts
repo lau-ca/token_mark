@@ -366,6 +366,12 @@ export type ChannelHealthDisplayStatus =
   | 'unknown'
   | 'pending'
 
+export type ChannelLastCallDisplayStatus =
+  | 'success'
+  | 'error'
+  | 'none'
+  | 'pending'
+
 export function getBeijingDate(date: Date = new Date()): string {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Shanghai',
@@ -410,6 +416,38 @@ export function getChannelHealthConfig(status: ChannelHealthDisplayStatus): {
       return { labelKey: 'Critical', variant: 'danger' }
     case 'unknown':
       return { labelKey: 'Insufficient samples', variant: 'neutral' }
+    case 'pending':
+      return { labelKey: 'Pending refresh', variant: 'neutral' }
+  }
+}
+
+export function getCurrentChannelLastCallStatus(
+  healthDate: string,
+  lastCallStatus: Channel['health_last_call_status'],
+  now: Date = new Date()
+): ChannelLastCallDisplayStatus {
+  if (!healthDate || healthDate !== getBeijingDate(now)) {
+    return 'pending'
+  }
+  if (lastCallStatus === 'success' || lastCallStatus === 'error') {
+    return lastCallStatus
+  }
+  return 'none'
+}
+
+export function getChannelLastCallConfig(
+  status: ChannelLastCallDisplayStatus
+): {
+  labelKey: string
+  variant: 'success' | 'danger' | 'neutral'
+} {
+  switch (status) {
+    case 'success':
+      return { labelKey: 'Normal', variant: 'success' }
+    case 'error':
+      return { labelKey: 'Abnormal', variant: 'danger' }
+    case 'none':
+      return { labelKey: 'No calls', variant: 'neutral' }
     case 'pending':
       return { labelKey: 'Pending refresh', variant: 'neutral' }
   }
