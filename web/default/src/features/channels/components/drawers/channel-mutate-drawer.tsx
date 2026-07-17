@@ -268,6 +268,11 @@ const SENSITIVE_FORM_FIELDS = [
   'type',
   'base_url',
   'key',
+  'balance_platform',
+  'balance_base_url',
+  'balance_user_id',
+  'balance_auth_key',
+  'balance_auth_key_configured',
   'openai_organization',
   'other',
   'key_mode',
@@ -721,6 +726,10 @@ export function ChannelMutateDrawer({
   const currentStatus = form.watch('status')
   const currentBaseUrl = form.watch('base_url')
   const currentKey = form.watch('key')
+  const currentBalancePlatform = form.watch('balance_platform')
+  const currentBalanceAuthKeyConfigured = form.watch(
+    'balance_auth_key_configured'
+  )
   const currentOther = form.watch('other')
   const currentModels = form.watch('models')
   const currentName = form.watch('name')
@@ -3063,6 +3072,168 @@ export function ChannelMutateDrawer({
                                   )
                                 }}
                               />
+
+                              <div className='border-border/60 flex flex-col gap-4 border-y py-4'>
+                                <FormField
+                                  control={form.control}
+                                  name='balance_platform'
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>
+                                        {t('Balance platform')}
+                                      </FormLabel>
+                                      <Select
+                                        items={[
+                                          {
+                                            value: 'none',
+                                            label: t('Not configured'),
+                                          },
+                                          {
+                                            value: 'new_api',
+                                            label: t('New API'),
+                                          },
+                                          {
+                                            value: 'sub2api',
+                                            label: 'Sub2API',
+                                          },
+                                        ]}
+                                        value={field.value || 'none'}
+                                        onValueChange={(value) => {
+                                          field.onChange(
+                                            value === 'none' ? '' : value
+                                          )
+                                        }}
+                                      >
+                                        <FormControl>
+                                          <SelectTrigger>
+                                            <SelectValue />
+                                          </SelectTrigger>
+                                        </FormControl>
+                                        <SelectContent
+                                          alignItemWithTrigger={false}
+                                        >
+                                          <SelectGroup>
+                                            <SelectItem value='none'>
+                                              {t('Not configured')}
+                                            </SelectItem>
+                                            <SelectItem value='new_api'>
+                                              {t('New API')}
+                                            </SelectItem>
+                                            <SelectItem value='sub2api'>
+                                              Sub2API
+                                            </SelectItem>
+                                          </SelectGroup>
+                                        </SelectContent>
+                                      </Select>
+                                      <FormDescription>
+                                        {t(
+                                          'Select the upstream platform used to query the account balance.'
+                                        )}
+                                      </FormDescription>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+
+                                {currentBalancePlatform && (
+                                  <FormField
+                                    control={form.control}
+                                    name='balance_base_url'
+                                    render={({ field }) => (
+                                      <FormItem>
+                                        <FormLabel>
+                                          {t('Balance query URL')}
+                                        </FormLabel>
+                                        <FormControl>
+                                          <Input
+                                            placeholder='https://example.com'
+                                            {...field}
+                                          />
+                                        </FormControl>
+                                        <FormDescription>
+                                          {t(
+                                            'The platform base URL used for account balance queries.'
+                                          )}
+                                        </FormDescription>
+                                        <FormMessage />
+                                      </FormItem>
+                                    )}
+                                  />
+                                )}
+
+                                {currentBalancePlatform === 'new_api' && (
+                                  <>
+                                    <FormField
+                                      control={form.control}
+                                      name='balance_user_id'
+                                      render={({ field }) => (
+                                        <FormItem>
+                                          <FormLabel>
+                                            {t('New API user ID')}
+                                          </FormLabel>
+                                          <FormControl>
+                                            <Input
+                                              type='number'
+                                              min={0}
+                                              placeholder='1787'
+                                              {...field}
+                                              onChange={(event) =>
+                                                field.onChange(
+                                                  Number(event.target.value)
+                                                )
+                                              }
+                                            />
+                                          </FormControl>
+                                          <FormMessage />
+                                        </FormItem>
+                                      )}
+                                    />
+
+                                    <FormField
+                                      control={form.control}
+                                      name='balance_auth_key'
+                                      render={({ field }) => (
+                                        <FormItem>
+                                          <FormLabel>
+                                            {t('New API account access token')}
+                                          </FormLabel>
+                                          <FormControl>
+                                            <Input
+                                              type='password'
+                                              autoComplete='new-password'
+                                              placeholder={
+                                                isEditing
+                                                  ? t(
+                                                      'Leave empty to keep existing key'
+                                                    )
+                                                  : ''
+                                              }
+                                              {...field}
+                                            />
+                                          </FormControl>
+                                          {isEditing &&
+                                            currentBalanceAuthKeyConfigured && (
+                                              <FormDescription>
+                                                {t(
+                                                  'Account access token is configured. Leave empty to keep it.'
+                                                )}
+                                              </FormDescription>
+                                            )}
+                                          <FormMessage />
+                                        </FormItem>
+                                      )}
+                                    />
+                                  </>
+                                )}
+
+                                {currentBalancePlatform === 'sub2api' && (
+                                  <p className='text-muted-foreground text-xs'>
+                                    {t(
+                                      'Sub2API reuses the channel API key for balance queries.'
+                                    )}
+                                  </p>
+                                )}
+                              </div>
 
                               {currentType === 57 && (
                                 <div className='border-border/60 flex flex-col gap-3 border-y py-4'>

@@ -134,6 +134,11 @@ export const channelFormSchema = z
     type: z.number().min(0, ERROR_MESSAGES.REQUIRED_TYPE),
     base_url: z.string().optional(),
     key: z.string(),
+    balance_platform: z.enum(['', 'new_api', 'sub2api']),
+    balance_base_url: z.string().optional(),
+    balance_user_id: z.number(),
+    balance_auth_key: z.string().optional(),
+    balance_auth_key_configured: z.boolean(),
     openai_organization: z.string().optional(),
     models: z.string().min(1, ERROR_MESSAGES.REQUIRED_MODELS),
     group: z.array(z.string()).min(1, ERROR_MESSAGES.REQUIRED_GROUP),
@@ -305,6 +310,11 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   type: 1,
   base_url: '',
   key: '',
+  balance_platform: '',
+  balance_base_url: '',
+  balance_user_id: 0,
+  balance_auth_key: '',
+  balance_auth_key_configured: false,
   openai_organization: '',
   models: '',
   group: ['default'],
@@ -452,6 +462,11 @@ export function transformChannelToFormDefaults(
     type: channel.type,
     base_url: channel.base_url || '',
     key: '', // Never populate key from backend for security
+    balance_platform: channel.balance_platform || '',
+    balance_base_url: channel.balance_base_url || '',
+    balance_user_id: channel.balance_user_id || 0,
+    balance_auth_key: '',
+    balance_auth_key_configured: channel.balance_auth_key_configured === true,
     openai_organization: channel.openai_organization || '',
     models: channel.models || '',
     group: parseGroups(channel.group || 'default'),
@@ -674,6 +689,10 @@ export function transformFormDataToCreatePayload(formData: ChannelFormValues): {
     type: formData.type,
     base_url: normalizeBaseUrl(formData.base_url) || null,
     key: formData.key,
+    balance_platform: formData.balance_platform,
+    balance_base_url: normalizeBaseUrl(formData.balance_base_url),
+    balance_user_id:
+      formData.balance_platform === 'new_api' ? formData.balance_user_id : 0,
     openai_organization: formData.openai_organization || null,
     models: formData.models,
     group: formatGroups(formData.group),
@@ -691,6 +710,13 @@ export function transformFormDataToCreatePayload(formData: ChannelFormValues): {
     header_override: formData.header_override || null,
     settings: buildSettingsJSON(formData),
     other: formData.other || '',
+  }
+
+  if (
+    formData.balance_platform === 'new_api' &&
+    formData.balance_auth_key?.trim()
+  ) {
+    channel.balance_auth_key = formData.balance_auth_key.trim()
   }
 
   // Clean up empty strings to null for optional fields
@@ -722,6 +748,10 @@ export function transformFormDataToUpdatePayload(
     name: formData.name,
     type: formData.type,
     base_url: normalizeBaseUrl(formData.base_url) || null,
+    balance_platform: formData.balance_platform,
+    balance_base_url: normalizeBaseUrl(formData.balance_base_url),
+    balance_user_id:
+      formData.balance_platform === 'new_api' ? formData.balance_user_id : 0,
     openai_organization: formData.openai_organization || null,
     models: formData.models,
     group: formatGroups(formData.group),
@@ -744,6 +774,12 @@ export function transformFormDataToUpdatePayload(
   if (formData.key && formData.key.trim()) {
     payload.key = formData.key
   }
+  if (
+    formData.balance_platform === 'new_api' &&
+    formData.balance_auth_key?.trim()
+  ) {
+    payload.balance_auth_key = formData.balance_auth_key.trim()
+  }
 
   // Clean up empty strings to null for optional fields
   Object.keys(payload).forEach((key) => {
@@ -754,6 +790,7 @@ export function transformFormDataToUpdatePayload(
 
   // Send explicit empty strings for nullable fields so GORM updates can clear them.
   payload.base_url = normalizeBaseUrl(formData.base_url) || ''
+  payload.balance_base_url = normalizeBaseUrl(formData.balance_base_url)
   payload.openai_organization = formData.openai_organization || ''
   payload.test_model = formData.test_model || ''
   payload.tag = formData.tag || ''

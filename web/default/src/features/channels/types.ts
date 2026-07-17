@@ -50,6 +50,11 @@ export const channelSchema = z.object({
   other: z.string().default(''),
   balance: z.number().default(0), // in USD
   balance_updated_time: z.number(),
+  balance_platform: z.enum(['', 'new_api', 'sub2api']).default(''),
+  balance_base_url: z.string().default(''),
+  balance_user_id: z.number().default(0),
+  balance_auth_key: z.string().optional(),
+  balance_auth_key_configured: z.boolean().default(false),
   models: z.string().default(''),
   group: z.string().default('default'),
   used_quota: z.number().default(0),
