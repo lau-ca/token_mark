@@ -55,6 +55,15 @@ export const channelSchema = z.object({
   balance_user_id: z.number().default(0),
   balance_auth_key: z.string().optional(),
   balance_auth_key_configured: z.boolean().default(false),
+  health_status: z
+    .enum(['', 'unknown', 'healthy', 'warning', 'critical'])
+    .default(''),
+  health_error_rate: z.number().default(0),
+  health_success_count: z.number().default(0),
+  health_error_count: z.number().default(0),
+  health_total_count: z.number().default(0),
+  health_date: z.string().default(''),
+  health_updated_time: z.number().default(0),
   models: z.string().default(''),
   group: z.string().default('default'),
   used_quota: z.number().default(0),

@@ -340,18 +340,118 @@ export function formatBalance(balance: number | null | undefined): string {
  * Get balance status color
  */
 export function getBalanceVariant(
-  balance: number
+  balance: number,
+  updatedTime: number = 0
 ): 'success' | 'warning' | 'danger' | 'neutral' {
-  if (balance === 0) {
+  if (!updatedTime) {
     return 'neutral'
   }
-  if (balance < 1) {
+  if (balance < 20) {
     return 'danger'
   }
-  if (balance < 10) {
+  if (balance < 50) {
     return 'warning'
   }
   return 'success'
+}
+
+// ============================================================================
+// Channel Health Utilities
+// ============================================================================
+
+export type ChannelHealthDisplayStatus =
+  | 'healthy'
+  | 'warning'
+  | 'critical'
+  | 'unknown'
+  | 'pending'
+
+export function getBeijingDate(date: Date = new Date()): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date)
+  const values = Object.fromEntries(
+    parts.map((part) => [part.type, part.value])
+  )
+  return `${values.year}-${values.month}-${values.day}`
+}
+
+export function getCurrentChannelHealthStatus(
+  healthDate: string,
+  healthStatus: Channel['health_status'],
+  now: Date = new Date()
+): ChannelHealthDisplayStatus {
+  if (!healthDate || healthDate !== getBeijingDate(now)) {
+    return 'pending'
+  }
+  if (
+    healthStatus === 'healthy' ||
+    healthStatus === 'warning' ||
+    healthStatus === 'critical'
+  ) {
+    return healthStatus
+  }
+  return 'unknown'
+}
+
+export function getChannelHealthConfig(status: ChannelHealthDisplayStatus): {
+  labelKey: string
+  variant: 'success' | 'warning' | 'danger' | 'neutral'
+} {
+  switch (status) {
+    case 'healthy':
+      return { labelKey: 'Healthy', variant: 'success' }
+    case 'warning':
+      return { labelKey: 'Warning', variant: 'warning' }
+    case 'critical':
+      return { labelKey: 'Critical', variant: 'danger' }
+    case 'unknown':
+      return { labelKey: 'Insufficient samples', variant: 'neutral' }
+    case 'pending':
+      return { labelKey: 'Pending refresh', variant: 'neutral' }
+  }
+}
+
+export function formatChannelHealthErrorRate(
+  errorRate: number,
+  locale?: Intl.LocalesArgument
+): string {
+  const formatted = new Intl.NumberFormat(locale, {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 2,
+  }).format(errorRate)
+  return `${formatted}%`
+}
+
+export function formatChannelHealthCount(
+  count: number,
+  locale?: Intl.LocalesArgument
+): string {
+  return new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(
+    count
+  )
+}
+
+export function formatBeijingTimestamp(
+  timestamp: number,
+  locale?: Intl.LocalesArgument
+): string {
+  if (!timestamp) {
+    return '-'
+  }
+  return new Intl.DateTimeFormat(locale, {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  }).format(timestamp * 1000)
 }
 
 // ============================================================================

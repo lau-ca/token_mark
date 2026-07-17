@@ -46,12 +46,12 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { toIntlLocale } from '@/i18n/languages'
 import {
   formatCurrencyFromUSD,
   formatQuotaWithCurrency,
   getCurrencyLabel,
 } from '@/lib/currency'
-import { toIntlLocale } from '@/i18n/languages'
 import { formatTimestampToDate } from '@/lib/format'
 import { truncateText } from '@/lib/utils'
 
@@ -60,9 +60,14 @@ import { CHANNEL_STATUS_CONFIG, MODEL_FETCHABLE_TYPES } from '../constants'
 import {
   formatRelativeTime,
   formatResponseTime,
+  formatBeijingTimestamp,
+  formatChannelHealthCount,
+  formatChannelHealthErrorRate,
   getBalanceVariant,
+  getChannelHealthConfig,
   getChannelTypeIcon,
   getChannelTypeLabel,
+  getCurrentChannelHealthStatus,
   getResponseTimeConfig,
   isMultiKeyChannel,
   parseModelsList,
@@ -360,22 +365,14 @@ function BalanceCell({ channel }: { channel: Channel }) {
     return (
       <TooltipProvider>
         <Tooltip>
-          <TooltipTrigger
-            render={
-              <StatusBadge
-                label={
-                  sensitiveVisible
-                    ? `${t('Used:')} ${usedDisplay}`
-                    : maskedUsedLabel
-                }
-                variant='neutral'
-                size='sm'
-                copyable={false}
-                showDot={false}
-                className='-ml-1.5 cursor-help'
-              />
-            }
-          />
+          <TooltipTrigger render={<div className='min-w-[10rem]' />}>
+            <div className='grid grid-cols-[4rem_1fr] items-center gap-2 text-left text-sm'>
+              <span className='text-muted-foreground'>{t('Used')}</span>
+              <span className='cursor-help font-medium tabular-nums'>
+                {sensitiveVisible ? usedDisplay : SENSITIVE_MASK}
+              </span>
+            </div>
+          </TooltipTrigger>
           <TooltipContent>
             <p>{sensitiveVisible ? usedLabel : maskedUsedLabel}</p>
           </TooltipContent>
@@ -385,7 +382,7 @@ function BalanceCell({ channel }: { channel: Channel }) {
   }
 
   // Regular channel row: show used and remaining with click to update
-  const variant = getBalanceVariant(balance)
+  const variant = getBalanceVariant(balance, channel.balance_updated_time)
 
   const handleClickUpdate = async () => {
     if (isUpdating) {
@@ -435,20 +432,23 @@ function BalanceCell({ channel }: { channel: Channel }) {
 
   return (
     <TooltipProvider>
-      <div className='-ml-1.5 flex items-center gap-1'>
+      <div className='grid min-w-[10rem] gap-1.5 text-left text-sm'>
         <Tooltip>
           <TooltipTrigger
             render={
-              <StatusBadge
-                label={sensitiveVisible ? usedDisplay : SENSITIVE_MASK}
-                variant='neutral'
-                size='sm'
-                copyable={false}
-                showDot={false}
-                className='cursor-help'
-              />
+              <div className='grid grid-cols-[4rem_1fr] items-center gap-2' />
             }
-          />
+          >
+            <span className='text-muted-foreground'>{t('Used')}</span>
+            <StatusBadge
+              label={sensitiveVisible ? usedDisplay : SENSITIVE_MASK}
+              variant='neutral'
+              type='text'
+              size='sm'
+              copyable={false}
+              className='cursor-help tabular-nums'
+            />
+          </TooltipTrigger>
           <TooltipContent>
             <p>{sensitiveVisible ? usedLabel : maskedUsedLabel}</p>
           </TooltipContent>
@@ -456,17 +456,20 @@ function BalanceCell({ channel }: { channel: Channel }) {
         <Tooltip>
           <TooltipTrigger
             render={
-              <StatusBadge
-                label={remainingBadgeLabel}
-                variant={remainingBadgeVariant}
-                size='sm'
-                copyable={false}
-                showDot={false}
-                className='cursor-pointer'
-                onClick={handleClickUpdate}
-              />
+              <div className='grid grid-cols-[4rem_1fr] items-center gap-2' />
             }
-          />
+          >
+            <span className='text-muted-foreground'>{t('Balance')}</span>
+            <StatusBadge
+              label={remainingBadgeLabel}
+              variant={remainingBadgeVariant}
+              type='text'
+              size='sm'
+              copyable={false}
+              className='cursor-pointer tabular-nums'
+              onClick={handleClickUpdate}
+            />
+          </TooltipTrigger>
           <TooltipContent>
             <p>{remainingTooltipLabel}</p>
             {channel.type !== 57 && <p>{t('Click to update balance')}</p>}
@@ -505,6 +508,89 @@ function BalanceCell({ channel }: { channel: Channel }) {
         }}
         isRefreshing={isUpdating}
       />
+    </TooltipProvider>
+  )
+}
+
+function ChannelHealthCell({ channel }: { channel: Channel }) {
+  const { t, i18n } = useTranslation()
+  const { sensitiveVisible } = useChannels()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
+
+  if (isTagAggregateRow(channel)) {
+    return <span className='text-muted-foreground text-xs'>-</span>
+  }
+
+  const displayStatus = getCurrentChannelHealthStatus(
+    channel.health_date,
+    channel.health_status
+  )
+  const config = getChannelHealthConfig(displayStatus)
+  const isPending = displayStatus === 'pending'
+  const errorRate = isPending
+    ? '-'
+    : formatChannelHealthErrorRate(channel.health_error_rate, locale)
+  const totalCount = isPending
+    ? '-'
+    : formatChannelHealthCount(channel.health_total_count, locale)
+  const displayErrorRate = sensitiveVisible ? errorRate : SENSITIVE_MASK
+  const displayTotalCount = sensitiveVisible ? totalCount : SENSITIVE_MASK
+
+  return (
+    <TooltipProvider delay={100}>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <div className='grid min-w-[10.5rem] gap-1.5 text-left text-sm' />
+          }
+        >
+          <div className='grid grid-cols-[4rem_1fr] items-center gap-2'>
+            <span className='text-muted-foreground'>{t('Status')}</span>
+            <StatusBadge
+              label={t(config.labelKey)}
+              variant={config.variant}
+              type='text'
+              size='sm'
+              copyable={false}
+              className='cursor-help'
+            />
+          </div>
+          <div className='grid grid-cols-[4rem_1fr] items-center gap-2'>
+            <span className='text-muted-foreground'>{t('Error rate')}</span>
+            <span className='font-medium tabular-nums'>{displayErrorRate}</span>
+          </div>
+          <div className='grid grid-cols-[4rem_1fr] items-center gap-2'>
+            <span className='text-muted-foreground'>{t('Calls')}</span>
+            <span className='font-medium tabular-nums'>
+              {displayTotalCount}
+            </span>
+          </div>
+        </TooltipTrigger>
+        <TooltipContent side='top'>
+          <div className='grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs'>
+            <span className='text-muted-foreground'>{t('Successes')}</span>
+            <span className='text-right tabular-nums'>
+              {sensitiveVisible
+                ? formatChannelHealthCount(channel.health_success_count, locale)
+                : SENSITIVE_MASK}
+            </span>
+            <span className='text-muted-foreground'>{t('Errors')}</span>
+            <span className='text-right tabular-nums'>
+              {sensitiveVisible
+                ? formatChannelHealthCount(channel.health_error_count, locale)
+                : SENSITIVE_MASK}
+            </span>
+            <span className='text-muted-foreground'>{t('Reporting date')}</span>
+            <span className='text-right tabular-nums'>
+              {channel.health_date || '-'}
+            </span>
+            <span className='text-muted-foreground'>{t('Updated')}</span>
+            <span className='text-right tabular-nums'>
+              {formatBeijingTimestamp(channel.health_updated_time, locale)}
+            </span>
+          </div>
+        </TooltipContent>
+      </Tooltip>
     </TooltipProvider>
   )
 }
@@ -1057,12 +1143,21 @@ export function useChannelsColumns(
         enableSorting: false,
       },
 
-      // Balance column (Used/Remaining)
+      // Usage and account balance column
       {
         accessorKey: 'balance',
-        header: t('Used / Remaining'),
+        header: t('Usage / Balance'),
         cell: ({ row }) => <BalanceCell channel={row.original} />,
-        size: 180,
+        size: 190,
+      },
+
+      // Current Beijing-day health column
+      {
+        accessorKey: 'health_status',
+        header: t('Status (error rate)'),
+        cell: ({ row }) => <ChannelHealthCell channel={row.original} />,
+        size: 200,
+        enableSorting: false,
       },
 
       // Response Time column

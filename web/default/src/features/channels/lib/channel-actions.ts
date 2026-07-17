@@ -383,7 +383,6 @@ export async function handleUpdateChannelBalance(
           }),
         })
       )
-      queryClient?.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
       onSuccess?.(balance)
     } else {
       toast.error(response.message || i18next.t('Failed to update balance'))
@@ -394,6 +393,8 @@ export async function handleUpdateChannelBalance(
         ? _error.message
         : i18next.t('Failed to update balance')
     )
+  } finally {
+    queryClient?.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
   }
 }
 
