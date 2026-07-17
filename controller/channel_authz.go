@@ -1,6 +1,25 @@
 package controller
 
-import "github.com/QuantumNous/new-api/model"
+import (
+	"strings"
+
+	"github.com/QuantumNous/new-api/model"
+)
+
+func preserveOmittedBalanceSettings(channel *PatchChannel, origin *model.Channel, requestData map[string]any) {
+	if _, ok := requestData["balance_platform"]; !ok {
+		channel.BalancePlatform = origin.BalancePlatform
+	}
+	if _, ok := requestData["balance_base_url"]; !ok {
+		channel.BalanceBaseURL = origin.BalanceBaseURL
+	}
+	if _, ok := requestData["balance_user_id"]; !ok {
+		channel.BalanceUserID = origin.BalanceUserID
+	}
+	if strings.TrimSpace(channel.BalanceAuthKey) == "" {
+		channel.BalanceAuthKey = origin.BalanceAuthKey
+	}
+}
 
 func channelHasSensitiveChanges(channel *PatchChannel, origin *model.Channel, requestData map[string]any) bool {
 	if _, ok := requestData["type"]; ok && channel.Type != origin.Type {

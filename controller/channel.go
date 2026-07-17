@@ -976,9 +976,7 @@ func UpdateChannel(c *gin.Context) {
 
 	// Always copy the original ChannelInfo so that fields like IsMultiKey and MultiKeySize are retained.
 	channel.ChannelInfo = originChannel.ChannelInfo
-	if strings.TrimSpace(channel.BalanceAuthKey) == "" {
-		channel.BalanceAuthKey = originChannel.BalanceAuthKey
-	}
+	preserveOmittedBalanceSettings(&channel, originChannel, requestData)
 
 	if channelHasSensitiveChanges(&channel, originChannel, requestData) &&
 		!authz.Can(c.GetInt("id"), c.GetInt("role"), authz.ChannelSensitiveWrite) {

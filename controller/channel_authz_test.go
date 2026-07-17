@@ -118,6 +118,42 @@ func TestChannelHasSensitiveChanges(t *testing.T) {
 	})
 }
 
+func TestPreserveOmittedBalanceSettings(t *testing.T) {
+	origin := &model.Channel{
+		BalancePlatform: "new_api",
+		BalanceBaseURL:  "https://billing.example.com",
+		BalanceUserID:   1787,
+		BalanceAuthKey:  "account-token",
+	}
+
+	t.Run("partial update keeps omitted balance settings", func(t *testing.T) {
+		updated := &PatchChannel{}
+		preserveOmittedBalanceSettings(updated, origin, map[string]any{
+			"id":       1,
+			"priority": 10,
+		})
+
+		assert.Equal(t, origin.BalancePlatform, updated.BalancePlatform)
+		assert.Equal(t, origin.BalanceBaseURL, updated.BalanceBaseURL)
+		assert.Equal(t, origin.BalanceUserID, updated.BalanceUserID)
+		assert.Equal(t, origin.BalanceAuthKey, updated.BalanceAuthKey)
+	})
+
+	t.Run("explicit empty values remain clearable", func(t *testing.T) {
+		updated := &PatchChannel{}
+		preserveOmittedBalanceSettings(updated, origin, map[string]any{
+			"balance_platform": "",
+			"balance_base_url": "",
+			"balance_user_id":  0,
+		})
+
+		assert.Empty(t, updated.BalancePlatform)
+		assert.Empty(t, updated.BalanceBaseURL)
+		assert.Zero(t, updated.BalanceUserID)
+		assert.Equal(t, origin.BalanceAuthKey, updated.BalanceAuthKey)
+	})
+}
+
 func TestClearChannelReadOnlyFields(t *testing.T) {
 	channel := PatchChannel{Channel: model.Channel{
 		CreatedTime:              11,
