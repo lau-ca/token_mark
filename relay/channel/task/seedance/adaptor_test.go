@@ -12,7 +12,6 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
-	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -130,40 +129,20 @@ func TestSeedanceDoResponseHidesUpstreamIdentityAndURLs(t *testing.T) {
 	assert.Empty(t, publicResponse.Metadata)
 }
 
-func TestSeedanceConvertCompletedTaskUsesOnlyPlatformURL(t *testing.T) {
-	previousBaseURL := system_setting.PublicApiBaseUrl
-	system_setting.PublicApiBaseUrl = "https://api.example.com"
-	t.Cleanup(func() { system_setting.PublicApiBaseUrl = previousBaseURL })
-
-	task := &model.Task{
-		TaskID:      "task_public",
-		Status:      model.TaskStatusSuccess,
-		Progress:    "100%",
-		SubmitTime:  100,
-		FinishTime:  200,
-		Properties:  model.Properties{OriginModelName: relaycommon.SeedanceVideoModelStandard},
-		PrivateData: model.TaskPrivateData{BillingContext: &model.TaskBillingContext{Duration: 4}},
-		Data:        []byte(`{"url":"https://upstream.example/video","metadata":{"url":"https://upstream.example/video"}}`),
-	}
+func TestSeedanceConvertTaskReturnsStoredUpstreamResponse(t *testing.T) {
+	raw := []byte(`{
+		"id":"vid_upstream",
+		"task_id":"vid_upstream",
+		"status":"completed",
+		"progress":100,
+		"url":"https://megavideos.oss-cn-hangzhou.aliyuncs.com/video.mp4?Signature=secret",
+		"video_url":"https://megavideos.oss-cn-hangzhou.aliyuncs.com/video.mp4?Signature=secret",
+		"metadata":{"final_video_url":"https://megavideos.oss-cn-hangzhou.aliyuncs.com/video.mp4?Signature=secret"}
+	}`)
+	task := &model.Task{Data: raw}
 
 	body, err := (&TaskAdaptor{}).ConvertToOpenAIVideo(task)
+
 	require.NoError(t, err)
-	assert.NotContains(t, string(body), "upstream.example")
-	assert.Contains(t, string(body), "https://api.example.com/v1/videos/task_public/content")
-}
-
-func TestSeedanceSanitizeTaskDataRemovesEveryUpstreamURL(t *testing.T) {
-	body := (&TaskAdaptor{}).SanitizeTaskData([]byte(`{
-		"model":"videos-standard",
-		"status":"failed",
-		"progress":8,
-		"url":"https://upstream.example/content",
-		"video_url":"https://upstream.example/content",
-		"metadata":{"origin_video_url":"https://upstream.example/content"},
-		"error":{"message":"download failed at https://upstream.example/content","code":"download_failed"}
-	}`))
-
-	assert.NotContains(t, string(body), "upstream.example")
-	assert.NotContains(t, string(body), "origin_video_url")
-	assert.Contains(t, string(body), "[upstream URL hidden]")
+	assert.Equal(t, raw, body)
 }

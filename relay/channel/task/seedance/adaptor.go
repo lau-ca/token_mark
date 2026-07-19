@@ -185,56 +185,12 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 	return result, nil
 }
 
-func (a *TaskAdaptor) SanitizeTaskData(respBody []byte) []byte {
-	upstream := responseTask{}
-	if err := common.Unmarshal(respBody, &upstream); err != nil {
-		return []byte(`{}`)
-	}
-	public := dto.NewOpenAIVideo()
-	public.Model = upstream.Model
-	public.Status = normalizeVideoStatus(upstream.Status)
-	public.Progress = normalizeProgress(upstream.Status, upstream.Progress)
-	public.CreatedAt = upstream.CreatedAt
-	public.CompletedAt = upstream.CompletedAt
-	public.Seconds = upstream.Seconds
-	if upstream.Error != nil {
-		public.Error = &dto.OpenAIVideoError{
-			Message: sanitizeUserText(upstream.Error.Message),
-			Code:    sanitizeUserText(upstream.Error.Code),
-		}
-	}
-	sanitized, err := common.Marshal(public)
-	if err != nil {
-		return []byte(`{}`)
-	}
-	return sanitized
-}
-
 func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
-	video := dto.NewOpenAIVideo()
-	video.ID = task.TaskID
-	video.TaskID = task.TaskID
-	video.Model = task.Properties.OriginModelName
-	video.Status = task.Status.ToVideoStatus()
-	video.SetProgressStr(task.Progress)
-	video.CreatedAt = task.SubmitTime
-	video.CompletedAt = task.FinishTime
-	if billingContext := task.PrivateData.BillingContext; billingContext != nil && billingContext.Duration > 0 {
-		video.Seconds = strconv.Itoa(billingContext.Duration)
+	var response map[string]any
+	if err := common.Unmarshal(task.Data, &response); err != nil {
+		return nil, errors.Wrap(err, "unmarshal stored Seedance task response")
 	}
-	if task.Status == model.TaskStatusSuccess {
-		proxyURL := taskcommon.BuildProxyURL(task.TaskID)
-		video.URL = proxyURL
-		video.VideoURL = proxyURL
-		video.Metadata = map[string]any{
-			"content_url": proxyURL,
-			"local_url":   proxyURL,
-		}
-	}
-	if task.Status == model.TaskStatusFailure {
-		video.Error = &dto.OpenAIVideoError{Message: sanitizeUserText(task.FailReason), Code: "task_failed"}
-	}
-	return common.Marshal(video)
+	return append([]byte(nil), task.Data...), nil
 }
 
 func normalizeVideoStatus(status string) string {
