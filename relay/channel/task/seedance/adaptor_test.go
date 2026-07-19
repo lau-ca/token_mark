@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -96,6 +97,28 @@ func TestSeedanceParseTaskResult(t *testing.T) {
 	}
 }
 
+func TestSeedanceParseTaskResultExtractsVideoURL(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+		want string
+	}{
+		{name: "final metadata", body: `{"status":"completed","metadata":{"final_video_url":"https://oss.example/final.mp4"}}`, want: "https://oss.example/final.mp4"},
+		{name: "root video", body: `{"status":"completed","video_url":"https://oss.example/video.mp4"}`, want: "https://oss.example/video.mp4"},
+		{name: "root URL", body: `{"status":"completed","url":"https://oss.example/root.mp4"}`, want: "https://oss.example/root.mp4"},
+		{name: "origin metadata", body: `{"status":"completed","metadata":{"origin_video_url":"https://oss.example/origin.mp4"}}`, want: "https://oss.example/origin.mp4"},
+		{name: "metadata URL", body: `{"status":"completed","metadata":{"url":"https://oss.example/meta.mp4"}}`, want: "https://oss.example/meta.mp4"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result, err := (&TaskAdaptor{}).ParseTaskResult([]byte(test.body))
+			require.NoError(t, err)
+			assert.Equal(t, test.want, result.Url)
+		})
+	}
+}
+
 func TestSeedanceDoResponseHidesUpstreamIdentityAndURLs(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	context, recorder, info := newSeedanceContext(t, `{}`)
@@ -129,20 +152,44 @@ func TestSeedanceDoResponseHidesUpstreamIdentityAndURLs(t *testing.T) {
 	assert.Empty(t, publicResponse.Metadata)
 }
 
-func TestSeedanceConvertTaskReturnsStoredUpstreamResponse(t *testing.T) {
+func TestSeedanceConvertTaskUsesPlatformContentURL(t *testing.T) {
+	previousBaseURL := system_setting.PublicApiBaseUrl
+	system_setting.PublicApiBaseUrl = "https://api.frimodel.com"
+	t.Cleanup(func() { system_setting.PublicApiBaseUrl = previousBaseURL })
+
 	raw := []byte(`{
 		"id":"vid_upstream",
 		"task_id":"vid_upstream",
+		"object":"video",
+		"model":"videos-mini",
 		"status":"completed",
 		"progress":100,
 		"url":"https://megavideos.oss-cn-hangzhou.aliyuncs.com/video.mp4?Signature=secret",
 		"video_url":"https://megavideos.oss-cn-hangzhou.aliyuncs.com/video.mp4?Signature=secret",
-		"metadata":{"final_video_url":"https://megavideos.oss-cn-hangzhou.aliyuncs.com/video.mp4?Signature=secret"}
+		"metadata":{"final_video_url":"https://megavideos.oss-cn-hangzhou.aliyuncs.com/video.mp4?Signature=secret","cost_credits":70}
 	}`)
-	task := &model.Task{Data: raw}
+	task := &model.Task{
+		TaskID:     "task_public",
+		Status:     model.TaskStatusSuccess,
+		Progress:   "100%",
+		Properties: model.Properties{OriginModelName: relaycommon.SeedanceVideoModelMini},
+		Data:       raw,
+	}
 
 	body, err := (&TaskAdaptor{}).ConvertToOpenAIVideo(task)
 
 	require.NoError(t, err)
-	assert.Equal(t, raw, body)
+	assert.NotContains(t, string(body), "megavideos.oss-cn-hangzhou.aliyuncs.com")
+	assert.NotContains(t, string(body), "Signature=secret")
+	var response map[string]any
+	require.NoError(t, common.Unmarshal(body, &response))
+	proxyURL := "https://api.frimodel.com/v1/videos/task_public/content"
+	assert.Equal(t, "task_public", response["id"])
+	assert.Equal(t, "task_public", response["task_id"])
+	assert.Equal(t, proxyURL, response["url"])
+	assert.Equal(t, proxyURL, response["video_url"])
+	metadata, ok := response["metadata"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, proxyURL, metadata["final_video_url"])
+	assert.Equal(t, float64(70), metadata["cost_credits"])
 }

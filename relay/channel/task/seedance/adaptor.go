@@ -31,6 +31,9 @@ type responseTask struct {
 	CreatedAt   int64                 `json:"created_at"`
 	CompletedAt int64                 `json:"completed_at,omitempty"`
 	Seconds     string                `json:"seconds,omitempty"`
+	URL         string                `json:"url,omitempty"`
+	VideoURL    string                `json:"video_url,omitempty"`
+	Metadata    map[string]any        `json:"metadata,omitempty"`
 	Error       *dto.OpenAIVideoError `json:"error,omitempty"`
 }
 
@@ -171,6 +174,7 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 	case "completed":
 		result.Status = model.TaskStatusSuccess
 		result.Progress = taskcommon.ProgressComplete
+		result.Url = extractVideoURL(upstream)
 	case "failed", "cancelled":
 		result.Status = model.TaskStatusFailure
 		result.Progress = taskcommon.ProgressComplete
@@ -190,7 +194,79 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
 	if err := common.Unmarshal(task.Data, &response); err != nil {
 		return nil, errors.Wrap(err, "unmarshal stored Seedance task response")
 	}
-	return append([]byte(nil), task.Data...), nil
+
+	response["id"] = task.TaskID
+	response["task_id"] = task.TaskID
+	response["object"] = "video"
+	response["model"] = task.Properties.OriginModelName
+	response["status"] = task.Status.ToVideoStatus()
+	progress := 0
+	_, _ = fmt.Sscanf(strings.TrimSuffix(task.Progress, "%"), "%d", &progress)
+	response["progress"] = progress
+	if task.SubmitTime > 0 {
+		response["created_at"] = task.SubmitTime
+	}
+	if task.FinishTime > 0 {
+		response["completed_at"] = task.FinishTime
+	}
+
+	if task.Status != model.TaskStatusSuccess {
+		delete(response, "url")
+		delete(response, "video_url")
+		return common.Marshal(response)
+	}
+
+	proxyURL := taskcommon.BuildProxyURL(task.TaskID)
+	response["url"] = proxyURL
+	response["video_url"] = proxyURL
+	if metadata, ok := response["metadata"]; ok {
+		response["metadata"] = replaceMetadataURLs(metadata, proxyURL)
+	}
+	return common.Marshal(response)
+}
+
+func ExtractVideoURL(body []byte) (string, error) {
+	response := responseTask{}
+	if err := common.Unmarshal(body, &response); err != nil {
+		return "", errors.Wrap(err, "unmarshal Seedance task result")
+	}
+	return extractVideoURL(response), nil
+}
+
+func extractVideoURL(response responseTask) string {
+	if value, _ := response.Metadata["final_video_url"].(string); strings.TrimSpace(value) != "" {
+		return strings.TrimSpace(value)
+	}
+	if strings.TrimSpace(response.VideoURL) != "" {
+		return strings.TrimSpace(response.VideoURL)
+	}
+	if strings.TrimSpace(response.URL) != "" {
+		return strings.TrimSpace(response.URL)
+	}
+	if value, _ := response.Metadata["origin_video_url"].(string); strings.TrimSpace(value) != "" {
+		return strings.TrimSpace(value)
+	}
+	value, _ := response.Metadata["url"].(string)
+	return strings.TrimSpace(value)
+}
+
+func replaceMetadataURLs(value any, proxyURL string) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		for key, child := range typed {
+			typed[key] = replaceMetadataURLs(child, proxyURL)
+		}
+	case []any:
+		for index, child := range typed {
+			typed[index] = replaceMetadataURLs(child, proxyURL)
+		}
+	case string:
+		trimmed := strings.TrimSpace(typed)
+		if strings.HasPrefix(trimmed, "http://") || strings.HasPrefix(trimmed, "https://") {
+			return proxyURL
+		}
+	}
+	return value
 }
 
 func normalizeVideoStatus(status string) string {
