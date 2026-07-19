@@ -44,7 +44,11 @@ func (a *rawSeedancePollingAdaptor) FetchTask(string, string, map[string]any, st
 }
 
 func (a *rawSeedancePollingAdaptor) ParseTaskResult([]byte) (*relaycommon.TaskInfo, error) {
-	return &relaycommon.TaskInfo{Status: model.TaskStatusSuccess, Progress: "100%"}, nil
+	return &relaycommon.TaskInfo{
+		Status:   model.TaskStatusSuccess,
+		Progress: "100%",
+		Url:      "https://megavideos.oss-cn-hangzhou.aliyuncs.com/video.mp4?Expires=1999999999&Signature=secret",
+	}, nil
 }
 
 func (a *rawSeedancePollingAdaptor) AdjustBillingOnComplete(*model.Task, *relaycommon.TaskInfo) int {
@@ -375,6 +379,7 @@ func TestUpdateVideoSingleTaskPreservesRawSeedanceResponse(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, string(raw), string(task.Data))
+	assert.Equal(t, "https://megavideos.oss-cn-hangzhou.aliyuncs.com/video.mp4?Expires=1999999999&Signature=secret", task.PrivateData.ResultURL)
 }
 
 func TestShouldApplyTaskProgressKeepsSeedanceTerminalAtComplete(t *testing.T) {
