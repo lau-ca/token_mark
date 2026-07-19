@@ -30,6 +30,27 @@ type taskPollingFetchAdaptor struct {
 	blockOnce    sync.Once
 }
 
+type rawSeedancePollingAdaptor struct {
+	body []byte
+}
+
+func (a *rawSeedancePollingAdaptor) Init(*relaycommon.RelayInfo) {}
+
+func (a *rawSeedancePollingAdaptor) FetchTask(string, string, map[string]any, string) (*http.Response, error) {
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(bytes.NewReader(a.body)),
+	}, nil
+}
+
+func (a *rawSeedancePollingAdaptor) ParseTaskResult([]byte) (*relaycommon.TaskInfo, error) {
+	return &relaycommon.TaskInfo{Status: model.TaskStatusSuccess, Progress: "100%"}, nil
+}
+
+func (a *rawSeedancePollingAdaptor) AdjustBillingOnComplete(*model.Task, *relaycommon.TaskInfo) int {
+	return 0
+}
+
 func (a *taskPollingFetchAdaptor) Init(_ *relaycommon.RelayInfo) {}
 
 func (a *taskPollingFetchAdaptor) FetchTask(_ string, _ string, body map[string]any, _ string) (*http.Response, error) {
@@ -331,6 +352,29 @@ func TestUpdateVideoTasksMixedChannelSleepSettings(t *testing.T) {
 
 	require.ErrorIs(t, err, context.DeadlineExceeded)
 	assert.ElementsMatch(t, []string{"upstream_sleepy_1", "upstream_fast_1", "upstream_fast_2"}, adaptor.fetchedTaskIDs())
+}
+
+func TestUpdateVideoSingleTaskPreservesRawSeedanceResponse(t *testing.T) {
+	truncate(t)
+	raw := []byte(`{ "id": "vid_upstream", "status": "completed", "url": "https://megavideos.oss-cn-hangzhou.aliyuncs.com/video.mp4?Signature=secret", "metadata": {"final_video_url": "https://megavideos.oss-cn-hangzhou.aliyuncs.com/video.mp4?Signature=secret"} }`)
+	task := &model.Task{
+		TaskID:    "task_public",
+		Platform:  constant.TaskPlatform(fmt.Sprintf("%d", constant.ChannelTypeSeedance)),
+		UserId:    1,
+		ChannelId: 59,
+		Status:    model.TaskStatusInProgress,
+		Progress:  "10%",
+		PrivateData: model.TaskPrivateData{
+			UpstreamTaskID: "vid_upstream",
+		},
+	}
+	require.NoError(t, model.DB.Create(task).Error)
+	channel := &model.Channel{Id: 59, Type: constant.ChannelTypeSeedance, Key: "sk-test"}
+
+	err := updateVideoSingleTask(context.Background(), &rawSeedancePollingAdaptor{body: raw}, channel, "vid_upstream", map[string]*model.Task{"vid_upstream": task})
+
+	require.NoError(t, err)
+	assert.Equal(t, string(raw), string(task.Data))
 }
 
 func TestShouldApplyTaskProgressKeepsSeedanceTerminalAtComplete(t *testing.T) {

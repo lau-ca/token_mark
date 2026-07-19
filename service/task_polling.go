@@ -33,10 +33,6 @@ type TaskPollingAdaptor interface {
 	AdjustBillingOnComplete(task *model.Task, taskResult *relaycommon.TaskInfo) int
 }
 
-type taskDataSanitizer interface {
-	SanitizeTaskData(body []byte) []byte
-}
-
 // GetTaskAdaptorFunc 由 main 包注入，用于获取指定平台的任务适配器。
 // 打破 service -> relay -> relay/channel -> service 的循环依赖。
 var GetTaskAdaptorFunc func(platform constant.TaskPlatform) TaskPollingAdaptor
@@ -486,9 +482,9 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		return fmt.Errorf("parseTaskResult failed for task %s: %w", taskId, err)
 	}
 
-	task.Data = redactVideoResponseBody(responseBody)
-	if sanitizer, ok := adaptor.(taskDataSanitizer); ok {
-		task.Data = sanitizer.SanitizeTaskData(responseBody)
+	task.Data = responseBody
+	if task.Platform != constant.TaskPlatform(fmt.Sprintf("%d", constant.ChannelTypeSeedance)) {
+		task.Data = redactVideoResponseBody(responseBody)
 	}
 
 	logger.LogDebug(ctx, "updateVideoSingleTask taskResult: %+v", taskResult)
