@@ -137,6 +137,56 @@ func performVideoProxyRequest(t *testing.T, userID int, headers map[string]strin
 	return recorder
 }
 
+func enableVideoProxyTestSSRFProtection() {
+	fetchSetting := system_setting.GetFetchSetting()
+	fetchSetting.EnableSSRFProtection = true
+	fetchSetting.AllowPrivateIp = false
+	fetchSetting.AllowedPorts = []string{"80", "443"}
+	fetchSetting.ApplyIPFilterForDomain = true
+	service.InitHttpClient()
+}
+
+func TestVideoProxyTrustedChannelContentBypassesSSRF(t *testing.T) {
+	db := setupVideoProxyTestDB(t)
+	enableVideoProxyTestSSRFProtection()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "video/mp4")
+		_, _ = w.Write([]byte("trusted channel video"))
+	}))
+	defer server.Close()
+
+	seedVideoProxyTest(t, db, videoProxyTestOptions{
+		channelType: constant.ChannelTypeOpenAI,
+		baseURL:     server.URL,
+	})
+	recorder := performVideoProxyRequest(t, videoProxyTestUserID, nil)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	assert.Equal(t, "trusted channel video", recorder.Body.String())
+}
+
+func TestVideoProxyUntrustedResultURLRemainsSSRFProtected(t *testing.T) {
+	db := setupVideoProxyTestDB(t)
+	enableVideoProxyTestSSRFProtection()
+
+	upstreamCalled := false
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		upstreamCalled = true
+		_, _ = w.Write([]byte("untrusted video"))
+	}))
+	defer server.Close()
+
+	seedVideoProxyTest(t, db, videoProxyTestOptions{
+		channelType: constant.ChannelTypeXai,
+		resultURL:   server.URL,
+	})
+	recorder := performVideoProxyRequest(t, videoProxyTestUserID, nil)
+
+	require.Equal(t, http.StatusForbidden, recorder.Code)
+	assert.False(t, upstreamCalled)
+}
+
 func TestVideoProxyPrivacyForwardsRangesAndFiltersResponseHeaders(t *testing.T) {
 	for _, channelType := range []int{constant.ChannelTypeOpenAI, constant.ChannelTypeSora} {
 		t.Run(fmt.Sprintf("channel_type_%d", channelType), func(t *testing.T) {
@@ -206,7 +256,7 @@ func TestVideoProxyPrivacyForwardsRangesAndFiltersResponseHeaders(t *testing.T) 
 	}
 }
 
-func TestSeedanceVideoProxyFollowsRedirectWithoutLeakingCredentials(t *testing.T) {
+func TestSeedanceVideoProxyStreamsStoredURLWithoutLeakingCredentials(t *testing.T) {
 	db := setupVideoProxyTestDB(t)
 	var contentHeaders http.Header
 	contentServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -228,14 +278,14 @@ func TestSeedanceVideoProxyFollowsRedirectWithoutLeakingCredentials(t *testing.T
 
 	seedVideoProxyTest(t, db, videoProxyTestOptions{
 		channelType: constant.ChannelTypeSeedance,
-		baseURL:     upstreamServer.URL,
+		resultURL:   upstreamServer.URL + "?Expires=1999999999",
 	})
 	recorder := performVideoProxyRequest(t, videoProxyTestUserID, map[string]string{
 		"Range":    "bytes=0-3",
 		"If-Range": `"video-v1"`,
 	})
 
-	assert.Equal(t, "Bearer upstream-secret-key", upstreamAuthorization)
+	assert.Empty(t, upstreamAuthorization)
 	require.NotNil(t, contentHeaders)
 	assert.Empty(t, contentHeaders.Get("Authorization"))
 	assert.Equal(t, "bytes=0-3", contentHeaders.Get("Range"))
@@ -257,12 +307,87 @@ func TestSeedanceVideoProxyRejectsNonVideoContent(t *testing.T) {
 
 	seedVideoProxyTest(t, db, videoProxyTestOptions{
 		channelType: constant.ChannelTypeSeedance,
-		baseURL:     server.URL,
+		resultURL:   server.URL + "?Expires=1999999999",
 	})
 	recorder := performVideoProxyRequest(t, videoProxyTestUserID, nil)
 
 	assert.Equal(t, http.StatusBadGateway, recorder.Code)
 	assert.NotContains(t, recorder.Body.String(), server.URL)
+}
+
+func TestSeedanceVideoProxyRefreshesHistoricalTaskURL(t *testing.T) {
+	db := setupVideoProxyTestDB(t)
+	contentServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Empty(t, r.Header.Get("Authorization"))
+		w.Header().Set("Content-Type", "video/mp4")
+		w.Header().Set("Content-Range", "bytes 0-3/10")
+		w.Header().Set("Accept-Ranges", "bytes")
+		w.WriteHeader(http.StatusPartialContent)
+		_, _ = w.Write([]byte("video"))
+	}))
+	defer contentServer.Close()
+
+	var queryAuthorization string
+	upstreamServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		queryAuthorization = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprintf(w, `{"id":"%s","status":"completed","progress":100,"video_url":"%s?Expires=1999999999"}`, videoProxyTestUpstreamTaskID, contentServer.URL)
+	}))
+	defer upstreamServer.Close()
+
+	seedVideoProxyTest(t, db, videoProxyTestOptions{
+		channelType: constant.ChannelTypeSeedance,
+		baseURL:     upstreamServer.URL,
+		resultURL:   "https://api.frimodel.com/v1/videos/" + videoProxyTestTaskID + "/content",
+	})
+	recorder := performVideoProxyRequest(t, videoProxyTestUserID, map[string]string{"Range": "bytes=0-3"})
+
+	assert.Equal(t, "Bearer upstream-secret-key", queryAuthorization)
+	require.Equal(t, http.StatusPartialContent, recorder.Code)
+	assert.Equal(t, "video", recorder.Body.String())
+	var task model.Task
+	require.NoError(t, db.Where("task_id = ?", videoProxyTestTaskID).First(&task).Error)
+	assert.Contains(t, task.PrivateData.ResultURL, contentServer.URL)
+}
+
+func TestSeedanceVideoProxyRefreshesAfterExpiredOSSResponse(t *testing.T) {
+	db := setupVideoProxyTestDB(t)
+	oldRequests := 0
+	oldServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		oldRequests++
+		w.WriteHeader(http.StatusForbidden)
+	}))
+	defer oldServer.Close()
+
+	freshRequests := 0
+	freshServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		freshRequests++
+		assert.Empty(t, r.Header.Get("Authorization"))
+		w.Header().Set("Content-Type", "video/mp4")
+		_, _ = w.Write([]byte("fresh-video"))
+	}))
+	defer freshServer.Close()
+
+	queryRequests := 0
+	upstreamServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		queryRequests++
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprintf(w, `{"id":"%s","status":"completed","progress":100,"video_url":"%s?Expires=1999999999"}`, videoProxyTestUpstreamTaskID, freshServer.URL)
+	}))
+	defer upstreamServer.Close()
+
+	seedVideoProxyTest(t, db, videoProxyTestOptions{
+		channelType: constant.ChannelTypeSeedance,
+		baseURL:     upstreamServer.URL,
+		resultURL:   oldServer.URL + "?Expires=1999999999",
+	})
+	recorder := performVideoProxyRequest(t, videoProxyTestUserID, nil)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	assert.Equal(t, "fresh-video", recorder.Body.String())
+	assert.Equal(t, 1, oldRequests)
+	assert.Equal(t, 1, queryRequests)
+	assert.Equal(t, 1, freshRequests)
 }
 
 func TestVideoProxyPrivacyPropagatesRangeNotSatisfiable(t *testing.T) {

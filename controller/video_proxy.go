@@ -64,8 +64,11 @@ func VideoProxy(c *gin.Context) {
 		videoProxyError(c, http.StatusInternalServerError, "server_error", "Failed to retrieve channel information")
 		return
 	}
+	if channel.Type == constant.ChannelTypeSeedance {
+		proxySeedanceVideo(c, task, channel)
+		return
+	}
 	replaceVideoURLsWithProxy := false
-	isSeedance := channel.Type == constant.ChannelTypeSeedance
 	if dto.SupportsVideoURLProxyReplacement(channel.Type) {
 		channelOtherSettings, settingsErr := channel.ParseOtherSettings()
 		if settingsErr != nil {
@@ -75,18 +78,24 @@ func VideoProxy(c *gin.Context) {
 		}
 		replaceVideoURLsWithProxy = channelOtherSettings.ShouldReplaceVideoURLs(channel.Type)
 	}
-	if replaceVideoURLsWithProxy || isSeedance {
+	if replaceVideoURLsWithProxy {
 		c.Writer.Header().Set("Cache-Control", "private, no-store")
 	}
 	baseURL := channel.GetBaseURL()
 	if baseURL == "" {
 		baseURL = "https://api.openai.com"
 	}
+	usesChannelContentURL := (channel.Type == constant.ChannelTypeOpenAI ||
+		channel.Type == constant.ChannelTypeSora) &&
+		!(replaceVideoURLsWithProxy && strings.HasPrefix(strings.TrimSpace(task.GetResultURL()), "data:"))
 
 	var videoURL string
 	skipFetchURLValidation := false
 	proxy := channel.GetSetting().Proxy
 	client := service.GetSSRFProtectedHTTPClient()
+	if usesChannelContentURL {
+		client = service.GetHttpClient()
+	}
 	if proxy != "" {
 		// 渠道代理路径的连接由代理侧建立，无法做拨号时逐 IP 校验，
 		// 因此后面对 videoURL 保留请求前的一次性 SSRF 校验。
@@ -104,35 +113,6 @@ func VideoProxy(c *gin.Context) {
 		}
 		client = &privateClient
 	}
-	if isSeedance {
-		seedanceClient := *client
-		seedanceClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
-			if len(via) >= 3 {
-				return fmt.Errorf("too many Seedance content redirects")
-			}
-			if req.URL.Scheme != "http" && req.URL.Scheme != "https" {
-				return fmt.Errorf("unsupported redirect scheme %q", req.URL.Scheme)
-			}
-			var redirectErr error
-			if proxy == "" {
-				redirectErr = service.ValidateSSRFProtectedFetchURL(req.URL.String())
-			} else {
-				fetchSetting := system_setting.GetFetchSetting()
-				redirectErr = common.ValidateURLWithFetchSetting(req.URL.String(), fetchSetting.EnableSSRFProtection, fetchSetting.AllowPrivateIp, fetchSetting.DomainFilterMode, fetchSetting.IpFilterMode, fetchSetting.DomainList, fetchSetting.IpList, fetchSetting.AllowedPorts, fetchSetting.ApplyIPFilterForDomain)
-			}
-			if redirectErr != nil {
-				return redirectErr
-			}
-			if len(via) > 0 && !strings.EqualFold(via[len(via)-1].URL.Host, req.URL.Host) {
-				for _, header := range []string{"Authorization", "Proxy-Authorization", "X-Api-Key", "Api-Key", "X-Goog-Api-Key", "Cookie"} {
-					req.Header.Del(header)
-				}
-			}
-			return nil
-		}
-		client = &seedanceClient
-	}
-
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 60*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "", nil)
@@ -141,7 +121,7 @@ func VideoProxy(c *gin.Context) {
 		videoProxyError(c, http.StatusInternalServerError, "server_error", "Failed to create proxy request")
 		return
 	}
-	if replaceVideoURLsWithProxy || isSeedance {
+	if replaceVideoURLsWithProxy {
 		req.Header.Set("Accept-Encoding", "identity")
 		if value := c.GetHeader("Range"); value != "" {
 			req.Header.Set("Range", value)
@@ -173,8 +153,8 @@ func VideoProxy(c *gin.Context) {
 			videoProxyError(c, http.StatusBadGateway, "server_error", "Failed to resolve Vertex video URL")
 			return
 		}
-	case constant.ChannelTypeOpenAI, constant.ChannelTypeSora, constant.ChannelTypeSeedance:
-		if replaceVideoURLsWithProxy && strings.HasPrefix(strings.TrimSpace(task.GetResultURL()), "data:") {
+	case constant.ChannelTypeOpenAI, constant.ChannelTypeSora:
+		if !usesChannelContentURL {
 			videoURL = task.GetResultURL()
 		} else {
 			videoURL = fmt.Sprintf("%s/v1/videos/%s/content", baseURL, task.GetUpstreamTaskID())
@@ -235,7 +215,7 @@ func VideoProxy(c *gin.Context) {
 		return
 	}
 	defer resp.Body.Close()
-	if replaceVideoURLsWithProxy || isSeedance {
+	if replaceVideoURLsWithProxy {
 		switch resp.StatusCode {
 		case http.StatusOK, http.StatusPartialContent:
 		case http.StatusRequestedRangeNotSatisfiable:
@@ -251,12 +231,6 @@ func VideoProxy(c *gin.Context) {
 				fmt.Sprintf("Upstream service returned status %d", resp.StatusCode))
 			return
 		}
-		if isSeedance && (resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusPartialContent) && !strings.HasPrefix(strings.ToLower(resp.Header.Get("Content-Type")), "video/") {
-			logger.LogError(c.Request.Context(), fmt.Sprintf("Seedance upstream returned non-video content type %q", resp.Header.Get("Content-Type")))
-			videoProxyError(c, http.StatusBadGateway, "server_error", "Upstream service returned non-video content")
-			return
-		}
-
 		for _, key := range []string{
 			"Content-Type",
 			"Content-Length",
