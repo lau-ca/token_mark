@@ -426,6 +426,11 @@ func (t *Task) UpdateQuota() error {
 	return DB.Model(t).Update("quota", t.Quota).Error
 }
 
+func (t *Task) UpdateResultURL(resultURL string) error {
+	t.PrivateData.ResultURL = resultURL
+	return DB.Model(t).Select("private_data").Updates(t).Error
+}
+
 // UpdateWithStatus performs a conditional UPDATE guarded by fromStatus (CAS).
 // Returns (true, nil) if this caller won the update, (false, nil) if
 // another process already moved the task out of fromStatus.

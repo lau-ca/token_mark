@@ -151,6 +151,36 @@ func TestSnapshot_Roundtrip(t *testing.T) {
 	assert.JSONEq(t, string(task.Data), string(snap.Data))
 }
 
+func TestTaskUpdateResultURLPreservesTaskState(t *testing.T) {
+	truncateTables(t)
+	task := &Task{
+		TaskID:   "task_result_url",
+		Status:   TaskStatusSuccess,
+		Progress: "100%",
+		Quota:    1234,
+		PrivateData: TaskPrivateData{
+			UpstreamTaskID: "vid_upstream",
+			ResultURL:      "https://old.example/video.mp4",
+			BillingContext: &TaskBillingContext{Duration: 4, ModelPrice: 1.5},
+		},
+		Data: json.RawMessage(`{"status":"completed"}`),
+	}
+	insertTask(t, task)
+
+	require.NoError(t, task.UpdateResultURL("https://oss.example/video.mp4?Signature=new"))
+
+	var reloaded Task
+	require.NoError(t, DB.First(&reloaded, task.ID).Error)
+	assert.Equal(t, "https://oss.example/video.mp4?Signature=new", reloaded.PrivateData.ResultURL)
+	assert.Equal(t, "vid_upstream", reloaded.PrivateData.UpstreamTaskID)
+	require.NotNil(t, reloaded.PrivateData.BillingContext)
+	assert.Equal(t, 4, reloaded.PrivateData.BillingContext.Duration)
+	assert.Equal(t, 1.5, reloaded.PrivateData.BillingContext.ModelPrice)
+	assert.EqualValues(t, TaskStatusSuccess, reloaded.Status)
+	assert.Equal(t, 1234, reloaded.Quota)
+	assert.JSONEq(t, `{"status":"completed"}`, string(reloaded.Data))
+}
+
 // ---------------------------------------------------------------------------
 // UpdateWithStatus CAS — DB integration tests
 // ---------------------------------------------------------------------------
