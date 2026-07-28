@@ -186,6 +186,15 @@ The selector clearly labels composite groups so users understand that the group 
 
 If API-token model limits are enabled, the token permits the composite group's public request model. Internal models do not need to be exposed to the user or added to that token's model limit.
 
+The group-list API returns an additive union of currently usable physical groups and enabled user-selectable composite groups. Composite groups are not inserted into `GroupRatio` merely to make them visible.
+
+During token authentication, the token group is resolved in this order:
+
+1. if it is an enabled composite group, validate composite-group availability and preserve it as the token group;
+2. otherwise, execute the existing physical-group authorization and `GroupRatio` checks unchanged.
+
+This ordering is required because the current physical-group authentication path rejects group names that are absent from `GroupRatio`. Composite groups use the selected physical target's ratio at call time and therefore do not need their own synthetic ratio.
+
 ## Configuration Validation
 
 A composite group can be enabled only when:
@@ -208,6 +217,18 @@ Configuration updates are validated completely and published atomically. Readers
 ## Runtime Dispatch
 
 Composite dispatch occurs before ordinary physical-group channel selection.
+
+The current distributor selects a channel before the relay controller calculates pricing. The implementation therefore adds one gated distributor branch:
+
+```text
+composite token group
+-> validate public model and image endpoint
+-> preserve the composite policy in request context
+-> skip ordinary initial channel selection
+-> continue to the composite image coordinator
+```
+
+The ordinary distributor branch remains unchanged. A physical channel context is installed only after the composite coordinator selects a route target.
 
 ### Ordinary token group
 
@@ -232,6 +253,8 @@ For a matching composite group:
 
 The composite flow does not use global `AutoGroups` or global cross-group retry. Its order and retry counts are local to one composite group and one image operation.
 
+The relay controller dispatches to the composite image coordinator only when the distributor stored a validated composite policy. Otherwise it executes the existing relay controller body unchanged.
+
 ## Attempt and Retry Semantics
 
 Retry count means additional attempts after the initial call:
@@ -255,16 +278,17 @@ Each retry reselects an eligible channel inside the same physical group and inte
 
 ## Success Definition
 
-An image attempt succeeds only when all applicable conditions are true:
+The selected channel adapter and the existing image relay remain authoritative for protocol success. The composite coordinator does not reinterpret successful responses from ordinary channels.
+
+An image attempt succeeds when all applicable conditions are true:
 
 - the upstream transport completes without error;
 - the upstream returns a successful protocol status;
-- the selected channel adapter parses the response successfully;
-- the normalized response contains at least one valid image result in the requested URL or base64 form;
-- no normalized upstream error object replaces the image result;
+- the selected channel adapter parses and writes the response successfully;
+- the existing image relay returns no `NewAPIError`;
 - the response can still be returned consistently to the client.
 
-HTTP 2xx alone is not sufficient. A 2xx response with malformed JSON, an upstream error payload, or no valid image data is an upstream-response failure.
+HTTP 2xx alone is not sufficient. If the selected adapter reports malformed content, an upstream error payload, or missing required image output as an error, the composite coordinator treats it as a failed attempt. The composite feature does not change adapter success semantics for ordinary model calls.
 
 For streaming image responses, retry or target switching is permitted only before response headers or image events are committed to the client. Once any irreversible response data has been sent, the request cannot retry or switch targets.
 
@@ -313,6 +337,10 @@ Moving from `gpt-image-2-w` fixed-price billing to `gpt-image-2` token billing r
 Only the successful target's internal-model pricing snapshot is used for settlement. If every target fails, the existing refund and violation-fee behavior applies.
 
 Subscription and API-token permission checks use the public request model. Quota calculation and administrative billing evidence use the successful internal model and physical group.
+
+The composite coordinator creates one billing session for the request. Before every new route target it replaces the target pricing snapshot and calls `BillingSession.Reserve` when the new reservation is higher. A lower target reservation is reconciled by final settlement rather than by reducing the live reservation before the attempt.
+
+The existing image relay settles only after a successful adapter response through `PostTextConsumeQuota`. Failed attempts return an error before settlement, allowing the coordinator to retry or advance without recording a successful consume log.
 
 ## Pricing and Model Discovery
 
