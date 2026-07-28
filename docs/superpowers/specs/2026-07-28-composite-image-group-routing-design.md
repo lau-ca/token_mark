@@ -143,6 +143,65 @@ Generation and editing may share the same ordered targets initially, but they ar
 
 The first version does not add weights between route targets, nested composite groups, conditional expressions, per-route timeout overrides, or provider-specific request transformations.
 
+## Persistence Schema
+
+Use two additive main-database tables.
+
+### `composite_groups`
+
+- `id`;
+- `name`, the unique token-group identifier;
+- `public_model`, the administrator-defined request model;
+- `display_name`;
+- `description`;
+- `status`;
+- `user_selectable`;
+- `pricing_visible`;
+- `generation_enabled`;
+- `edit_enabled`;
+- `created_time`;
+- `updated_time`;
+- soft-delete timestamp.
+
+### `composite_group_routes`
+
+- `id`;
+- `composite_group_id`;
+- `operation`;
+- `route_order`;
+- `physical_group`;
+- `internal_model`;
+- `retry_count`;
+- `retry_status_codes`;
+- `status`;
+- `created_time`;
+- `updated_time`;
+- soft-delete timestamp.
+
+The `(composite_group_id, operation, route_order)` tuple is unique among active routes. The public model is not globally unique because different composite groups may intentionally expose the same request model with different routing policies.
+
+Create and update operations write the group and complete route set in one database transaction. Route updates replace the active ordered set only after the replacement validates successfully. Business defaults are applied in request normalization instead of cross-database-sensitive GORM boolean default tags.
+
+Deleting a composite group is rejected while any non-deleted API token references its group identifier. Administrators disable the group first and migrate or delete those tokens before deletion.
+
+## Administration API
+
+Add an `AdminAuth`-protected API group:
+
+```text
+GET    /api/composite-groups
+GET    /api/composite-groups/:id
+POST   /api/composite-groups
+PUT    /api/composite-groups/:id
+PATCH  /api/composite-groups/:id/status
+POST   /api/composite-groups/:id/validate
+DELETE /api/composite-groups/:id
+```
+
+Create and update payloads contain the full composite group and both operation route lists. The server does not accept partial route-list mutation because complete replacement is easier to validate and publish atomically.
+
+The validation endpoint performs the same checks as enablement without changing persistent state. Status enablement always validates again inside the write transaction so a stale UI validation result cannot enable an invalid definition.
+
 ## Administration UI
 
 Add an administrator-only section at:
@@ -173,6 +232,8 @@ The page provides:
 - read-only display of each internal model's current billing mode;
 - validation results before enablement;
 - enable, disable, and delete actions.
+
+The section is registered in the existing `/system-settings/models/$section` registry. Its component uses dedicated React Query APIs rather than storing composite definitions in the general system-options JSON payload.
 
 The channel page continues to show only physical groups and physical models. It may show a read-only reference indicating which composite groups use a channel's group and model, but composite public models are never inserted into a channel's `Models` field or ability cache.
 
@@ -394,6 +455,8 @@ No composite-routing code change should be required.
 Enabled composite-group definitions are cached as immutable snapshots. A successful update atomically replaces the entire snapshot.
 
 Requests in progress keep the version loaded at request start. New requests use the latest published version. Refresh failure retains the last valid snapshot instead of publishing empty or partial configuration.
+
+The instance processing an administration write refreshes immediately after the transaction commits. Every other relay-serving instance refreshes periodically from the main database using the existing cache-sync cadence. This follows the current channel-cache deployment model and avoids introducing a second distributed invalidation mechanism only for this feature.
 
 ## Failure Containment and Kill Switch
 
