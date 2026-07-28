@@ -101,6 +101,10 @@ func main() {
 
 		go model.SyncChannelCache(common.SyncFrequency)
 	}
+	if err := service.InitCompositeGroupCache(); err != nil {
+		common.FatalLog("failed to initialize composite group cache: " + err.Error())
+	}
+	go service.SyncCompositeGroupCache(common.SyncFrequency)
 
 	// Warm pricing after channel cache initialization so Advanced Custom
 	// endpoint inference can read cached route settings on first request.

@@ -271,6 +271,8 @@ func migrateDB() error {
 	err := DB.AutoMigrate(
 		&Channel{},
 		&ChannelPricing{},
+		&CompositeGroup{},
+		&CompositeGroupRoute{},
 		&Token{},
 		&User{},
 		&PasskeyCredential{},
@@ -334,6 +336,8 @@ func migrateDBFast() error {
 	}{
 		{&Channel{}, "Channel"},
 		{&ChannelPricing{}, "ChannelPricing"},
+		{&CompositeGroup{}, "CompositeGroup"},
+		{&CompositeGroupRoute{}, "CompositeGroupRoute"},
 		{&Token{}, "Token"},
 		{&User{}, "User"},
 		{&PasskeyCredential{}, "PasskeyCredential"},
