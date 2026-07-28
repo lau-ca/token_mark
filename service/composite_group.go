@@ -9,10 +9,13 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
+	"github.com/gin-gonic/gin"
 )
 
 const MaxCompositeRouteRetryCount = 10
@@ -106,8 +109,44 @@ func ResolveCompositeGroup(group string) (*CompositeGroupPolicy, bool) {
 	return compositePolicySnapshot.Load().Resolve(group)
 }
 
+func SetCompositePolicyContext(c *gin.Context, policy *CompositeGroupPolicy, operation string) {
+	common.SetContextKey(c, constant.ContextKeyCompositeGroupPolicy, policy)
+	common.SetContextKey(c, constant.ContextKeyCompositeOperation, operation)
+}
+
+func GetCompositePolicyContext(c *gin.Context) (*CompositeGroupPolicy, string, bool) {
+	policy, ok := common.GetContextKeyType[*CompositeGroupPolicy](c, constant.ContextKeyCompositeGroupPolicy)
+	if !ok || policy == nil {
+		return nil, "", false
+	}
+	operation := common.GetContextKeyString(c, constant.ContextKeyCompositeOperation)
+	if operation == "" {
+		return nil, "", false
+	}
+	return policy, operation, true
+}
+
+func HasCompositePolicyContext(c *gin.Context) bool {
+	_, _, ok := GetCompositePolicyContext(c)
+	return ok
+}
+
+func CompositeOperationFromPath(path string) (string, bool) {
+	switch path {
+	case "/v1/images/generations":
+		return model.CompositeOperationGeneration, true
+	case "/v1/edits", "/v1/images/edits":
+		return model.CompositeOperationEdit, true
+	default:
+		return "", false
+	}
+}
+
 func ListSelectableCompositeGroups(_ string) map[string]CompositeSelectableGroup {
 	result := make(map[string]CompositeSelectableGroup)
+	if !setting.CompositeGroupRoutingEnabled {
+		return result
+	}
 	snapshot := compositePolicySnapshot.Load()
 	if snapshot == nil {
 		return result
@@ -148,6 +187,9 @@ func ValidateCompositeGroup(group model.CompositeGroup, routes []model.Composite
 			requestPath = "/v1/images/edits"
 		}
 		channel, err := model.GetRandomSatisfiedChannel(route.PhysicalGroup, route.InternalModel, 0, requestPath)
+		if err == nil && channel == nil && route.Operation == model.CompositeOperationEdit {
+			channel, err = model.GetRandomSatisfiedChannel(route.PhysicalGroup, route.InternalModel, 0, "/v1/edits")
+		}
 		if err != nil {
 			return fmt.Errorf("validate route %s/%s: %w", route.PhysicalGroup, route.InternalModel, err)
 		}
@@ -177,11 +219,12 @@ func ShouldRetryCompositeStatus(expression string, status int) bool {
 func buildCompositePolicySnapshot(groups []model.CompositeGroup) (*CompositePolicySnapshot, error) {
 	snapshot := &CompositePolicySnapshot{byGroup: make(map[string]*CompositeGroupPolicy)}
 	for _, group := range groups {
-		if group.Status != 1 {
+		if group.Status == 1 {
+			if err := validateCompositeGroupStructure(group, group.Routes); err != nil {
+				return nil, fmt.Errorf("invalid composite group %s: %w", group.Name, err)
+			}
+		} else if strings.TrimSpace(group.Name) == "" {
 			continue
-		}
-		if err := validateCompositeGroupStructure(group, group.Routes); err != nil {
-			return nil, fmt.Errorf("invalid composite group %s: %w", group.Name, err)
 		}
 		policy := &CompositeGroupPolicy{
 			Id:                group.Id,
@@ -189,7 +232,7 @@ func buildCompositePolicySnapshot(groups []model.CompositeGroup) (*CompositePoli
 			PublicModel:       group.PublicModel,
 			DisplayName:       group.DisplayName,
 			Description:       group.Description,
-			Enabled:           true,
+			Enabled:           group.Status == 1,
 			UserSelectable:    group.UserSelectable,
 			PricingVisible:    group.PricingVisible,
 			GenerationEnabled: group.GenerationEnabled,

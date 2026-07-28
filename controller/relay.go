@@ -67,6 +67,10 @@ func geminiRelayHandler(c *gin.Context, info *relaycommon.RelayInfo) *types.NewA
 }
 
 func Relay(c *gin.Context, relayFormat types.RelayFormat) {
+	if relayFormat == types.RelayFormatOpenAIImage && service.HasCompositePolicyContext(c) {
+		relayCompositeImage(c, relayFormat)
+		return
+	}
 
 	requestId := c.GetString(common.RequestIdKey)
 	//group := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
@@ -393,6 +397,14 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 		other["channel_type"] = c.GetInt("channel_type")
 		adminInfo := make(map[string]interface{})
 		adminInfo["use_channel"] = c.GetStringSlice("use_channel")
+		if policy, operation, ok := service.GetCompositePolicyContext(c); ok {
+			modelName = policy.PublicModel
+			adminInfo["composite_group"] = policy.Name
+			adminInfo["composite_operation"] = operation
+			adminInfo["composite_route_order"] = common.GetContextKeyInt(c, constant.ContextKeyCompositeRouteOrder)
+			adminInfo["billing_model"] = common.GetContextKeyString(c, constant.ContextKeyCompositeBillingModel)
+			adminInfo["physical_group"] = common.GetContextKeyString(c, constant.ContextKeyCompositePhysicalGroup)
+		}
 		isMultiKey := common.GetContextKeyBool(c, constant.ContextKeyChannelIsMultiKey)
 		if isMultiKey {
 			adminInfo["is_multi_key"] = true

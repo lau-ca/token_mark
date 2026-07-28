@@ -17,6 +17,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
 
@@ -36,6 +37,11 @@ func Distribute() func(c *gin.Context) {
 		modelRequest, shouldSelectChannel, err := getModelRequest(c)
 		if err != nil {
 			abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": err.Error()}))
+			return
+		}
+		usingGroup := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
+		if _, isComposite := service.ResolveCompositeGroup(usingGroup); isComposite && ok {
+			abortWithOpenAiMessage(c, http.StatusBadRequest, "组合分组不支持指定渠道")
 			return
 		}
 		if ok {
@@ -82,7 +88,7 @@ func Distribute() func(c *gin.Context) {
 					return
 				}
 				var selectGroup string
-				usingGroup := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
+				usingGroup = common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
 				// check path is /pg/chat/completions
 				if strings.HasPrefix(c.Request.URL.Path, "/pg/chat/completions") {
 					playgroundRequest := &dto.PlayGroundRequest{}
@@ -99,6 +105,30 @@ func Distribute() func(c *gin.Context) {
 						usingGroup = playgroundRequest.Group
 						common.SetContextKey(c, constant.ContextKeyUsingGroup, usingGroup)
 					}
+				}
+				if policy, isComposite := service.ResolveCompositeGroup(usingGroup); isComposite {
+					if !setting.CompositeGroupRoutingEnabled || !policy.Enabled || !policy.UserSelectable {
+						abortWithOpenAiMessage(c, http.StatusForbidden, fmt.Sprintf("组合分组 %s 不可用", usingGroup))
+						return
+					}
+					if modelRequest.Model != policy.PublicModel {
+						abortWithOpenAiMessage(c, http.StatusBadRequest, fmt.Sprintf("组合分组 %s 仅支持模型 %s", usingGroup, policy.PublicModel), types.ErrorCodeModelNotFound)
+						return
+					}
+					operation, supported := service.CompositeOperationFromPath(c.Request.URL.Path)
+					if !supported || operation == model.CompositeOperationGeneration && !policy.GenerationEnabled || operation == model.CompositeOperationEdit && !policy.EditEnabled {
+						abortWithOpenAiMessage(c, http.StatusBadRequest, "组合分组仅支持已配置的图片生成或图片编辑接口")
+						return
+					}
+					if len(policy.RoutesFor(operation)) == 0 {
+						abortWithOpenAiMessage(c, http.StatusServiceUnavailable, "组合分组没有可用路由", types.ErrorCodeModelNotFound)
+						return
+					}
+					service.SetCompositePolicyContext(c, policy, operation)
+					common.SetContextKey(c, constant.ContextKeyOriginalModel, modelRequest.Model)
+					common.SetContextKey(c, constant.ContextKeyRequestStartTime, time.Now())
+					c.Next()
+					return
 				}
 
 				if preferredChannelID, found := service.GetPreferredChannelByAffinity(c, modelRequest.Model, usingGroup); found {

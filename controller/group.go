@@ -44,6 +44,18 @@ func GetUserGroups(c *gin.Context) {
 			"desc":  setting.GetUsableGroupDescription("auto"),
 		}
 	}
+	for groupName, group := range service.ListSelectableCompositeGroups(userGroup) {
+		description := group.Description
+		if description == "" {
+			description = group.DisplayName
+		}
+		usableGroups[groupName] = map[string]interface{}{
+			"ratio":        nil,
+			"desc":         description,
+			"composite":    true,
+			"public_model": group.PublicModel,
+		}
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",

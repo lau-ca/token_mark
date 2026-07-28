@@ -7,8 +7,13 @@ const (
 	ContextKeyPromptTokens    ContextKey = "prompt_tokens"
 	ContextKeyEstimatedTokens ContextKey = "estimated_tokens"
 
-	ContextKeyOriginalModel    ContextKey = "original_model"
-	ContextKeyRequestStartTime ContextKey = "request_start_time"
+	ContextKeyOriginalModel          ContextKey = "original_model"
+	ContextKeyRequestStartTime       ContextKey = "request_start_time"
+	ContextKeyCompositeGroupPolicy   ContextKey = "composite_group_policy"
+	ContextKeyCompositeOperation     ContextKey = "composite_operation"
+	ContextKeyCompositePhysicalGroup ContextKey = "composite_physical_group"
+	ContextKeyCompositeBillingModel  ContextKey = "composite_billing_model"
+	ContextKeyCompositeRouteOrder    ContextKey = "composite_route_order"
 
 	/* token related keys */
 	ContextKeyTokenUnlimited         ContextKey = "token_unlimited_quota"

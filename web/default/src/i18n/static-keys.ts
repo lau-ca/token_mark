@@ -546,6 +546,16 @@ export const STATIC_I18N_KEYS = [
   'The model that was requested',
   'The upstream channel that served the requests',
 
+  // Composite group labels passed to t at runtime
+  'Per request',
+  'Per token',
+  'Tiered pricing',
+  'Allow this composite group to route requests.',
+  'Selectable when creating tokens',
+  'Users can choose this group on the profile token form.',
+  'Show on pricing surfaces',
+  'Reserved for pricing-page presentation without changing physical pricing.',
+
   // Misc
   'Cancel',
   'Status',

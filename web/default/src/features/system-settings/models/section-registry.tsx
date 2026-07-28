@@ -21,6 +21,7 @@ import { IoNetDeploymentSettingsSection } from '../integrations/ionet-deployment
 import type { ModelSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
 import { ClaudeSettingsCard } from './claude-settings-card'
+import { CompositeGroupsSection } from './composite-groups/composite-groups-section'
 import { GeminiSettingsCard } from './gemini-settings-card'
 import { GlobalSettingsCard } from './global-settings-card'
 import { GrokSettingsCard } from './grok-settings-card'
@@ -87,6 +88,13 @@ const MODELS_SECTIONS = [
             settings['monitor_setting.channel_test_mode'],
         }}
       />
+    ),
+  },
+  {
+    id: 'composite-groups',
+    titleKey: 'Composite Groups',
+    build: (settings: ModelSettings) => (
+      <CompositeGroupsSection enabled={settings.CompositeGroupRoutingEnabled} />
     ),
   },
   {

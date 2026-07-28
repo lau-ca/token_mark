@@ -59,6 +59,35 @@ func TestModelPriceHelperTieredUsesPreloadedRequestInput(t *testing.T) {
 	require.Equal(t, common.QuotaPerUnit, info.TieredBillingSnapshot.QuotaPerUnit)
 }
 
+func TestModelPriceHelperUsesBillingModelName(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	savedModelPrices := ratio_setting.ModelPrice2JSONString()
+	savedModelRatios := ratio_setting.ModelRatio2JSONString()
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(savedModelPrices))
+		require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(savedModelRatios))
+	})
+
+	modelPrices, err := common.Marshal(map[string]float64{"gpt-image-2-w": 0.04})
+	require.NoError(t, err)
+	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(string(modelPrices)))
+	require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(`{"admin-image-model":15}`))
+
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Set("group", "default")
+	info := &relaycommon.RelayInfo{
+		OriginModelName:  "admin-image-model",
+		BillingModelName: "gpt-image-2-w",
+		UserGroup:        "default",
+		UsingGroup:       "default",
+	}
+
+	priceData, err := ModelPriceHelper(ctx, info, 1000, &types.TokenCountMeta{})
+	require.NoError(t, err)
+	require.True(t, priceData.UsePrice)
+	require.Equal(t, 20000, priceData.QuotaToPreConsume)
+}
+
 func TestModelPriceHelperTieredPreConsumeMaxTokensFallback(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

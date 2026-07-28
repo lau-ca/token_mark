@@ -103,6 +103,12 @@ type RelayInfo struct {
 	UsePrice               bool
 	RelayMode              int
 	OriginModelName        string
+	BillingModelName       string
+	CompositeGroupName     string
+	CompositePhysicalGroup string
+	CompositeRouteOrder    int
+	CompositeOperation     string
+	CompositeAttempts      []CompositeAttempt
 	RequestURLPath         string
 	RequestHeaders         map[string]string
 	ShouldIncludeUsage     bool
@@ -191,6 +197,25 @@ type RelayInfo struct {
 	*ResponsesUsageInfo
 	*ChannelMeta
 	*TaskRelayInfo
+}
+
+type CompositeAttempt struct {
+	RouteOrder    int    `json:"route_order"`
+	PhysicalGroup string `json:"physical_group"`
+	BillingModel  string `json:"billing_model"`
+	ChannelId     int    `json:"channel_id,omitempty"`
+	StatusCode    int    `json:"status_code,omitempty"`
+	ErrorCode     string `json:"error_code,omitempty"`
+}
+
+func (info *RelayInfo) EffectiveBillingModelName() string {
+	if info != nil && info.BillingModelName != "" {
+		return info.BillingModelName
+	}
+	if info == nil {
+		return ""
+	}
+	return info.OriginModelName
 }
 
 func (info *RelayInfo) InitChannelMeta(c *gin.Context) {

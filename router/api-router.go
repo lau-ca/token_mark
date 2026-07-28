@@ -385,6 +385,18 @@ func SetApiRouter(router *gin.Engine) {
 			modelsRoute.DELETE("/:id", controller.DeleteModelMeta)
 		}
 
+		compositeGroupsRoute := apiRouter.Group("/composite-groups")
+		compositeGroupsRoute.Use(middleware.AdminAuth())
+		{
+			compositeGroupsRoute.GET("/", controller.AdminListCompositeGroups)
+			compositeGroupsRoute.GET("/:id", controller.AdminGetCompositeGroup)
+			compositeGroupsRoute.POST("/", controller.AdminCreateCompositeGroup)
+			compositeGroupsRoute.PUT("/:id", controller.AdminUpdateCompositeGroup)
+			compositeGroupsRoute.PATCH("/:id/status", controller.AdminUpdateCompositeGroupStatus)
+			compositeGroupsRoute.POST("/:id/validate", controller.AdminValidateCompositeGroup)
+			compositeGroupsRoute.DELETE("/:id", controller.AdminDeleteCompositeGroup)
+		}
+
 		// Deployments (model deployment management)
 		deploymentsRoute := apiRouter.Group("/deployments")
 		deploymentsRoute.Use(middleware.AdminAuth())

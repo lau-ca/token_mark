@@ -112,6 +112,7 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 	appendRequestConversionChain(relayInfo, other)
 	appendFinalRequestFormat(relayInfo, other)
 	appendBillingInfo(relayInfo, other)
+	appendCompositeRoutingInfo(relayInfo, other)
 	appendParamOverrideInfo(relayInfo, other)
 	appendStreamStatus(relayInfo, other)
 	return other
@@ -202,6 +203,25 @@ func appendBillingInfo(relayInfo *relaycommon.RelayInfo, other map[string]interf
 		}
 		// Wallet quota is not deducted when billed from subscription.
 		other["wallet_quota_deducted"] = 0
+	}
+}
+
+func appendCompositeRoutingInfo(relayInfo *relaycommon.RelayInfo, other map[string]interface{}) {
+	if relayInfo == nil || other == nil || relayInfo.CompositeGroupName == "" {
+		return
+	}
+	adminInfo, ok := other["admin_info"].(map[string]interface{})
+	if !ok || adminInfo == nil {
+		adminInfo = map[string]interface{}{}
+		other["admin_info"] = adminInfo
+	}
+	adminInfo["composite_group"] = relayInfo.CompositeGroupName
+	adminInfo["composite_operation"] = relayInfo.CompositeOperation
+	adminInfo["composite_route_order"] = relayInfo.CompositeRouteOrder
+	adminInfo["billing_model"] = relayInfo.EffectiveBillingModelName()
+	adminInfo["physical_group"] = relayInfo.CompositePhysicalGroup
+	if len(relayInfo.CompositeAttempts) > 0 {
+		adminInfo["composite_failed_attempts"] = relayInfo.CompositeAttempts
 	}
 }
 

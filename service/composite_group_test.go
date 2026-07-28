@@ -1,9 +1,12 @@
 package service
 
 import (
+	"net/http/httptest"
 	"testing"
 
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -31,6 +34,43 @@ func TestBuildCompositePolicySnapshotUsesAdministratorPublicModel(t *testing.T) 
 	routes := policy.RoutesFor(model.CompositeOperationGeneration)
 	require.Len(t, routes, 2)
 	assert.Equal(t, "gpt-image-2-w", routes[0].InternalModel)
+}
+
+func TestBuildCompositePolicySnapshotRetainsDisabledGroup(t *testing.T) {
+	snapshot, err := buildCompositePolicySnapshot([]model.CompositeGroup{{
+		Id:          2,
+		Name:        "image_disabled",
+		PublicModel: "admin-image-model",
+		Status:      0,
+	}})
+	require.NoError(t, err)
+
+	policy, ok := snapshot.Resolve("image_disabled")
+	require.True(t, ok)
+	assert.False(t, policy.Enabled)
+}
+
+func TestListSelectableCompositeGroupsHonorsGlobalSwitch(t *testing.T) {
+	originalEnabled := setting.CompositeGroupRoutingEnabled
+	originalSnapshot := compositePolicySnapshot.Load()
+	t.Cleanup(func() {
+		setting.CompositeGroupRoutingEnabled = originalEnabled
+		compositePolicySnapshot.Store(originalSnapshot)
+	})
+	compositePolicySnapshot.Store(&CompositePolicySnapshot{byGroup: map[string]*CompositeGroupPolicy{
+		"image_stable": {
+			Name:           "image_stable",
+			PublicModel:    "admin-image-model",
+			Enabled:        true,
+			UserSelectable: true,
+		},
+	}})
+
+	setting.CompositeGroupRoutingEnabled = false
+	assert.Empty(t, ListSelectableCompositeGroups("default"))
+
+	setting.CompositeGroupRoutingEnabled = true
+	assert.Contains(t, ListSelectableCompositeGroups("default"), "image_stable")
 }
 
 func TestValidateCompositeGroupStructure(t *testing.T) {
@@ -82,4 +122,32 @@ func TestShouldRetryCompositeStatus(t *testing.T) {
 	assert.True(t, ShouldRetryCompositeStatus("429,500-503,505-599", 500))
 	assert.False(t, ShouldRetryCompositeStatus("429,500-503,505-599", 400))
 	assert.False(t, ShouldRetryCompositeStatus("429,500-503,505-599", 504))
+}
+
+func TestCompositePolicyContextAndOperation(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	policy := &CompositeGroupPolicy{Name: "image_stable", PublicModel: "admin-image-model"}
+
+	assert.False(t, HasCompositePolicyContext(c))
+	SetCompositePolicyContext(c, policy, model.CompositeOperationGeneration)
+
+	got, operation, ok := GetCompositePolicyContext(c)
+	require.True(t, ok)
+	assert.Same(t, policy, got)
+	assert.Equal(t, model.CompositeOperationGeneration, operation)
+	assert.True(t, HasCompositePolicyContext(c))
+
+	tests := map[string]string{
+		"/v1/images/generations": model.CompositeOperationGeneration,
+		"/v1/images/edits":       model.CompositeOperationEdit,
+		"/v1/edits":              model.CompositeOperationEdit,
+	}
+	for path, expected := range tests {
+		actual, supported := CompositeOperationFromPath(path)
+		assert.True(t, supported)
+		assert.Equal(t, expected, actual)
+	}
+	_, supported := CompositeOperationFromPath("/v1/chat/completions")
+	assert.False(t, supported)
 }
