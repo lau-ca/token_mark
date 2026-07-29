@@ -27,7 +27,11 @@ import { Button } from '@/components/ui/button'
 import { getUserQuotaDates } from '@/features/dashboard/api'
 import { useSummaryCardsConfig } from '@/features/dashboard/hooks/use-dashboard-config'
 import type { QuotaDataItem } from '@/features/dashboard/types'
-import { getSelfQuotaForecast } from '@/features/quota-forecast/api'
+import {
+  getSelfQuotaForecast,
+  QUOTA_FORECAST_STALE_TIME,
+  SELF_QUOTA_FORECAST_QUERY_KEY,
+} from '@/features/quota-forecast/api'
 import { getQuotaForecastTone } from '@/features/quota-forecast/lib'
 import { QuotaForecastDisplay } from '@/features/quota-forecast/quota-forecast-display'
 import { useStatus } from '@/hooks/use-status'
@@ -146,9 +150,9 @@ export function SummaryCards() {
     staleTime: 60 * 1000,
   })
   const forecastQuery = useQuery({
-    queryKey: ['quota-forecast', 'self'],
+    queryKey: SELF_QUOTA_FORECAST_QUERY_KEY,
     queryFn: getSelfQuotaForecast,
-    staleTime: 5 * 60 * 1000,
+    staleTime: QUOTA_FORECAST_STALE_TIME,
     retry: 1,
   })
 
@@ -247,7 +251,7 @@ export function SummaryCards() {
 
   return (
     <div className='bg-card overflow-hidden rounded-2xl border shadow-xs'>
-      <div className='grid xl:grid-cols-[minmax(0,1fr)_19rem]'>
+      <div className='grid xl:grid-cols-[minmax(0,1fr)_21rem]'>
         <div className='flex flex-col gap-2.5 p-3 sm:gap-3 sm:p-5'>
           <div className='flex flex-wrap items-start justify-between gap-3'>
             <div className='flex flex-col gap-1'>
@@ -302,7 +306,7 @@ export function SummaryCards() {
               {formatQuota(remainQuota)}
             </div>
 
-            <div className='grid grid-cols-2 gap-2'>
+            <div className='grid grid-cols-[minmax(0,1fr)_minmax(10.5rem,1.35fr)] gap-2'>
               <div className='bg-background/60 rounded-lg px-2.5 py-2'>
                 <div className='text-muted-foreground flex items-center gap-1 text-[11px] leading-none font-medium'>
                   <Flame className='size-3 shrink-0' aria-hidden='true' />

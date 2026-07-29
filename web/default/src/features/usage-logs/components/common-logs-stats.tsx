@@ -18,9 +18,17 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Skeleton } from '@/components/ui/skeleton'
+import {
+  getSelfQuotaForecast,
+  QUOTA_FORECAST_STALE_TIME,
+  SELF_QUOTA_FORECAST_QUERY_KEY,
+} from '@/features/quota-forecast/api'
+import { getQuotaForecastTone } from '@/features/quota-forecast/lib'
+import { QuotaForecastDisplay } from '@/features/quota-forecast/quota-forecast-display'
 import { formatLogQuota } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
@@ -31,19 +39,15 @@ import { useLogsViewScope, useUsageLogsContext } from './usage-logs-provider'
 
 const route = getRouteApi('/_authenticated/usage-logs/$section')
 
-function StatBadge(props: {
-  label: string
-  value: string | number
-  accent: string
-}) {
+function StatBadge(props: { label: string; value: ReactNode; accent: string }) {
   return (
-    <span className='border-border/60 bg-muted/25 inline-flex h-7 items-center gap-2 rounded-md border px-2.5 text-xs shadow-xs'>
+    <div className='border-border/60 bg-muted/25 inline-flex h-7 items-center gap-2 rounded-md border px-2.5 text-xs shadow-xs'>
       <span className={cn('h-3.5 w-0.5 rounded-full', props.accent)} />
       <span className='text-muted-foreground'>{props.label}</span>
-      <span className='text-foreground/85 font-mono font-semibold tabular-nums'>
+      <div className='text-foreground/85 font-mono font-semibold tabular-nums'>
         {props.value}
-      </span>
-    </span>
+      </div>
+    </div>
   )
 }
 
@@ -74,6 +78,23 @@ export function CommonLogsStats() {
     },
     placeholderData: (previousData) => previousData,
   })
+  const forecastQuery = useQuery({
+    queryKey: SELF_QUOTA_FORECAST_QUERY_KEY,
+    queryFn: getSelfQuotaForecast,
+    staleTime: QUOTA_FORECAST_STALE_TIME,
+    retry: 1,
+    enabled: !isAdmin,
+  })
+  const forecast = forecastQuery.data?.success
+    ? forecastQuery.data.data
+    : undefined
+  const forecastTone = getQuotaForecastTone(forecast)
+  let forecastAccent = 'bg-slate-400/70'
+  if (forecastTone === 'destructive') {
+    forecastAccent = 'bg-rose-500/70'
+  } else if (forecastTone === 'warning') {
+    forecastAccent = 'bg-amber-500/75'
+  }
 
   if (isLoading) {
     return (
@@ -92,6 +113,22 @@ export function CommonLogsStats() {
         value={sensitiveVisible ? formatLogQuota(stats?.quota || 0) : '••••'}
         accent='bg-sky-500/70'
       />
+      {!isAdmin ? (
+        <StatBadge
+          label={t('Runway')}
+          value={
+            <QuotaForecastDisplay
+              forecast={forecast}
+              isLoading={forecastQuery.isLoading}
+              isError={
+                forecastQuery.isError || forecastQuery.data?.success === false
+              }
+              variant='stats'
+            />
+          }
+          accent={forecastAccent}
+        />
+      ) : null}
       <StatBadge
         label={t('RPM')}
         value={stats?.rpm || 0}
