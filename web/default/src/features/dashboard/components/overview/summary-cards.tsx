@@ -27,6 +27,9 @@ import { Button } from '@/components/ui/button'
 import { getUserQuotaDates } from '@/features/dashboard/api'
 import { useSummaryCardsConfig } from '@/features/dashboard/hooks/use-dashboard-config'
 import type { QuotaDataItem } from '@/features/dashboard/types'
+import { getSelfQuotaForecast } from '@/features/quota-forecast/api'
+import { getQuotaForecastTone } from '@/features/quota-forecast/lib'
+import { QuotaForecastDisplay } from '@/features/quota-forecast/quota-forecast-display'
 import { useStatus } from '@/hooks/use-status'
 import { getCurrencyLabel, isCurrencyDisplayEnabled } from '@/lib/currency'
 import { formatNumber, formatQuota } from '@/lib/format'
@@ -99,40 +102,20 @@ function getSummarySparkline(
   return undefined
 }
 
-function getRunwayDays(
-  remainQuota: number,
-  recentUsage: number
-): number | null {
-  if (remainQuota <= 0 || recentUsage <= 0) return null
-  const days = remainQuota / recentUsage
-  if (!Number.isFinite(days)) return null
-  return days
-}
+type HealthLevel = 'healthy' | 'caution' | 'critical' | 'neutral'
 
-type HealthLevel = 'healthy' | 'caution' | 'critical'
-
-function getHealthLevel(remainQuota: number, recentUsage: number): HealthLevel {
-  if (remainQuota <= 0) return 'critical'
-  const days = getRunwayDays(remainQuota, recentUsage)
-  if (days !== null && days < 3) return 'caution'
-  return 'healthy'
-}
-
-const HEALTH_CONFIG: Record<
-  HealthLevel,
-  { dotClass: string; labelKey: string }
-> = {
+const HEALTH_CONFIG: Record<HealthLevel, { dotClass: string }> = {
   healthy: {
     dotClass: 'bg-success',
-    labelKey: 'Healthy',
   },
   caution: {
     dotClass: 'bg-warning',
-    labelKey: 'Low balance',
   },
   critical: {
     dotClass: 'bg-destructive',
-    labelKey: 'Balance depleted',
+  },
+  neutral: {
+    dotClass: 'bg-muted-foreground/50',
   },
 }
 
@@ -161,6 +144,12 @@ export function SummaryCards() {
         default_time: 'hour',
       }),
     staleTime: 60 * 1000,
+  })
+  const forecastQuery = useQuery({
+    queryKey: ['quota-forecast', 'self'],
+    queryFn: getSelfQuotaForecast,
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
   })
 
   const summaryValues = useMemo(() => {
@@ -206,25 +195,32 @@ export function SummaryCards() {
     [usageTrendQuery.data?.data]
   )
 
-  const healthLevel = getHealthLevel(remainQuota, recentUsage)
+  const forecast = forecastQuery.data?.success
+    ? forecastQuery.data.data
+    : undefined
+  const forecastTone = getQuotaForecastTone(forecast)
+  let healthLevel: HealthLevel = 'neutral'
+  let healthLabelKey = 'Forecast unavailable'
+  if (forecast?.status === 'depleted') {
+    healthLevel = 'critical'
+    healthLabelKey = 'Balance depleted'
+  } else if (forecastTone === 'destructive') {
+    healthLevel = 'critical'
+    healthLabelKey = 'Low balance'
+  } else if (forecastTone === 'warning') {
+    healthLevel = 'caution'
+    healthLabelKey = 'Low balance'
+  } else if (forecast?.status === 'predicted') {
+    healthLevel = 'healthy'
+    healthLabelKey = 'Healthy'
+  } else if (forecast?.status === 'no_recent_usage') {
+    healthLabelKey = 'No recent usage'
+  } else if (forecast?.status === 'sampling') {
+    healthLabelKey = 'Collecting usage data'
+  }
   const healthCfg = HEALTH_CONFIG[healthLevel]
-  const runwayDays = getRunwayDays(remainQuota, recentUsage)
 
   const todayUsageDisplay = formatQuota(recentUsage)
-  let runwayDisplay: string
-  if (runwayDays !== null) {
-    if (runwayDays < 1) {
-      runwayDisplay = t('Less than 1 day left')
-    } else if (runwayDays > 999) {
-      runwayDisplay = `999+ ${t('days')}`
-    } else {
-      runwayDisplay = `~${formatNumber(Math.floor(runwayDays))} ${t('days')}`
-    }
-  } else if (remainQuota <= 0) {
-    runwayDisplay = t('Balance depleted')
-  } else {
-    runwayDisplay = t('No recent usage')
-  }
 
   const items = useSummaryCardsConfig({
     ...summaryValues,
@@ -297,7 +293,7 @@ export function SummaryCards() {
                   aria-hidden='true'
                 />
                 <span className='text-muted-foreground text-[11px] font-medium'>
-                  {t(healthCfg.labelKey)}
+                  {t(healthLabelKey)}
                 </span>
               </span>
             </div>
@@ -318,7 +314,8 @@ export function SummaryCards() {
               </div>
               <div className='bg-background/60 rounded-lg px-2.5 py-2'>
                 <div className='text-muted-foreground flex items-center gap-1 text-[11px] leading-none font-medium'>
-                  {runwayDays !== null && runwayDays < 3 ? (
+                  {forecast?.status === 'predicted' &&
+                  (forecast.remaining_seconds || 0) <= 3 * 24 * 60 * 60 ? (
                     <TrendingDown
                       className='size-3 shrink-0'
                       aria-hidden='true'
@@ -331,15 +328,16 @@ export function SummaryCards() {
                   )}
                   <span className='truncate'>{t('Runway')}</span>
                 </div>
-                <div
-                  className={cn(
-                    'mt-1.5 truncate text-xs font-semibold tabular-nums',
-                    healthLevel === 'critical' && 'text-destructive',
-                    healthLevel === 'caution' && 'text-warning'
-                  )}
-                >
-                  {runwayDisplay}
-                </div>
+                <QuotaForecastDisplay
+                  forecast={forecast}
+                  isLoading={forecastQuery.isLoading}
+                  isError={
+                    forecastQuery.isError ||
+                    forecastQuery.data?.success === false
+                  }
+                  variant='dashboard'
+                  className='mt-1.5 text-xs font-semibold'
+                />
               </div>
             </div>
           </div>

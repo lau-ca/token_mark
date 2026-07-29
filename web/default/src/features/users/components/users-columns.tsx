@@ -32,6 +32,8 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { QuotaForecastDisplay } from '@/features/quota-forecast/quota-forecast-display'
+import type { QuotaForecastResult } from '@/features/quota-forecast/types'
 import { formatQuota, formatTimestamp } from '@/lib/format'
 import { ROLE } from '@/lib/roles'
 import { cn } from '@/lib/utils'
@@ -53,7 +55,15 @@ function getQuotaProgressColor(percentage: number): string {
   return '[&_[data-slot=progress-indicator]]:bg-emerald-500'
 }
 
-export function useUsersColumns(): ColumnDef<User>[] {
+interface UsersColumnsOptions {
+  forecasts: Map<number, QuotaForecastResult>
+  isForecastLoading: boolean
+  isForecastError: boolean
+}
+
+export function useUsersColumns(
+  options: UsersColumnsOptions
+): ColumnDef<User>[] {
   const { t } = useTranslation()
   const { setOpen, setCurrentRow } = useUsers()
   const currentUser = useAuthStore((state) => state.auth.user)
@@ -186,50 +196,64 @@ export function useUsersColumns(): ColumnDef<User>[] {
 
         if (total === 0) {
           return (
-            <StatusBadge
-              label={t('No Quota')}
-              variant='neutral'
-              copyable={false}
-              className='-ml-1.5'
-            />
+            <div className='space-y-1.5'>
+              <StatusBadge
+                label={t('No Quota')}
+                variant='neutral'
+                copyable={false}
+                className='-ml-1.5'
+              />
+              <QuotaForecastDisplay
+                forecast={options.forecasts.get(user.id)}
+                isLoading={options.isForecastLoading}
+                isError={options.isForecastError}
+              />
+            </div>
           )
         }
 
         return (
-          <Tooltip>
-            <TooltipTrigger
-              render={<div className='w-[150px] cursor-help space-y-1' />}
-            >
-              <div className='flex justify-between text-xs'>
-                <span className='font-medium tabular-nums'>
-                  {formatQuota(remaining)}
-                </span>
-                <span className='text-muted-foreground tabular-nums'>
-                  {formatQuota(total)}
-                </span>
-              </div>
-              <Progress
-                value={percentage}
-                className={cn('h-1.5', getQuotaProgressColor(percentage))}
-              />
-            </TooltipTrigger>
-            <TooltipContent>
-              <div className='space-y-1 text-xs'>
-                <div>
-                  {t('Used:')} {formatQuota(used)}
+          <div className='w-[150px] space-y-1.5'>
+            <Tooltip>
+              <TooltipTrigger
+                render={<div className='cursor-help space-y-1' />}
+              >
+                <div className='flex justify-between text-xs'>
+                  <span className='font-medium tabular-nums'>
+                    {formatQuota(remaining)}
+                  </span>
+                  <span className='text-muted-foreground tabular-nums'>
+                    {formatQuota(total)}
+                  </span>
                 </div>
-                <div>
-                  {t('Remaining:')} {formatQuota(remaining)}
+                <Progress
+                  value={percentage}
+                  className={cn('h-1.5', getQuotaProgressColor(percentage))}
+                />
+              </TooltipTrigger>
+              <TooltipContent>
+                <div className='space-y-1 text-xs'>
+                  <div>
+                    {t('Used:')} {formatQuota(used)}
+                  </div>
+                  <div>
+                    {t('Remaining:')} {formatQuota(remaining)}
+                  </div>
+                  <div>
+                    {t('Total:')} {formatQuota(total)}
+                  </div>
+                  <div>
+                    {t('Percentage:')} {percentage.toFixed(1)}%
+                  </div>
                 </div>
-                <div>
-                  {t('Total:')} {formatQuota(total)}
-                </div>
-                <div>
-                  {t('Percentage:')} {percentage.toFixed(1)}%
-                </div>
-              </div>
-            </TooltipContent>
-          </Tooltip>
+              </TooltipContent>
+            </Tooltip>
+            <QuotaForecastDisplay
+              forecast={options.forecasts.get(user.id)}
+              isLoading={options.isForecastLoading}
+              isError={options.isForecastError}
+            />
+          </div>
         )
       },
       size: 170,
@@ -288,8 +312,8 @@ export function useUsersColumns(): ColumnDef<User>[] {
         const user = row.original
         const canManage = Boolean(
           currentUser &&
-            (currentUser.role === ROLE.SUPER_ADMIN ||
-              currentUser.role > user.role)
+          (currentUser.role === ROLE.SUPER_ADMIN ||
+            currentUser.role > user.role)
         )
         return (
           <div className='flex items-center gap-2'>

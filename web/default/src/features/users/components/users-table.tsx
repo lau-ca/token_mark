@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -27,6 +28,8 @@ import {
   DataTablePage,
   useDataTable,
 } from '@/components/data-table'
+import { getAdminQuotaForecasts } from '@/features/quota-forecast/api'
+import type { QuotaForecastResult } from '@/features/quota-forecast/types'
 import { useMediaQuery } from '@/hooks'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
 
@@ -50,7 +53,6 @@ function isDisabledUserRow(user: User) {
 
 export function UsersTable() {
   const { t } = useTranslation()
-  const columns = useUsersColumns()
   const { refreshTrigger } = useUsers()
   const isMobile = useMediaQuery('(max-width: 640px)')
 
@@ -132,7 +134,33 @@ export function UsersTable() {
     placeholderData: (previousData) => previousData,
   })
 
-  const users = data?.items || []
+  const users = useMemo(() => data?.items || [], [data?.items])
+
+  const forecastUserIds = useMemo(
+    () => users.map((user) => user.id).sort((left, right) => left - right),
+    [users]
+  )
+  const forecastsQuery = useQuery({
+    queryKey: ['quota-forecasts', 'admin', forecastUserIds],
+    queryFn: () => getAdminQuotaForecasts(forecastUserIds),
+    enabled: forecastUserIds.length > 0,
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
+  })
+  const forecasts = useMemo(() => {
+    const items = forecastsQuery.data?.success
+      ? forecastsQuery.data.data || []
+      : []
+    return new Map<number, QuotaForecastResult>(
+      items.map((forecast) => [forecast.user_id, forecast])
+    )
+  }, [forecastsQuery.data])
+  const columns = useUsersColumns({
+    forecasts,
+    isForecastLoading: forecastsQuery.isLoading,
+    isForecastError:
+      forecastsQuery.isError || forecastsQuery.data?.success === false,
+  })
 
   const { table } = useDataTable({
     data: users,
