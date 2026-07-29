@@ -23,6 +23,8 @@ The forecast assumes:
 - Future consumption follows the weighted average of the most recent seven rolling 24-hour windows.
 - Only consumed quota contributes to the usage rate. Refund and management logs do not count as consumption.
 
+The seven-day window is also the inactivity boundary. If total consumption in the most recent seven days is zero, do not look further back and do not extrapolate from older activity. Return `no_recent_usage` without an exhaustion timestamp. This prevents a user who has been inactive for a long time from receiving a misleading forecast based on stale behavior.
+
 Let `U1` be consumption during the most recent 24 hours, `U2` the preceding 24 hours, and so on through `U7`. Use weights `7, 6, 5, 4, 3, 2, 1` respectively.
 
 ```text
@@ -38,7 +40,7 @@ The API returns one of these states:
 - `predicted`: current quota and sufficient consumption history produce a forecast.
 - `depleted`: current quota is zero or negative.
 - `sampling`: the account has less than 24 hours of usable history.
-- `no_recent_usage`: usable history exists but consumption during the seven-day window is zero.
+- `no_recent_usage`: usable history exists but total consumption during the seven-day window is zero; no forecast is calculated.
 - `unavailable`: the forecast could not be calculated safely.
 
 Predictions beyond 365 days remain valid in the API, while the UI presents them as "more than one year" to avoid false precision.
@@ -69,7 +71,8 @@ Add a focused service that:
 2. Loads current quota and account creation time from the primary user database.
 3. Reads seven days of hourly `quota_data` for those users with one grouped query.
 4. Buckets the hourly totals into seven rolling 24-hour windows in Go.
-5. Calculates a result for every requested user, including users with no matching usage rows.
+5. Stops forecasting when all seven windows contain zero consumption instead of consulting older usage.
+6. Calculates a result for every requested user, including users with no matching usage rows.
 
 The database query should group by `user_id` and `created_at`. Time-window weighting stays in Go to avoid database-specific date functions.
 
@@ -135,7 +138,7 @@ Cell states:
 - `predicted`: localized forecast time.
 - `depleted`: "Depleted" with destructive styling.
 - `sampling`: "Collecting usage data".
-- `no_recent_usage`: "No recent usage".
+- `no_recent_usage`: "No recent usage, no forecast".
 - Request failure or `unavailable`: "Forecast unavailable".
 
 Color treatment:
@@ -185,6 +188,7 @@ Backend tests protect:
 - Weight order and normalization for seven full windows.
 - New-account normalization and partial first-window prorating.
 - `depleted`, `sampling`, and `no_recent_usage` states.
+- Seven days of zero consumption never falls back to activity older than the forecast window.
 - Forecast timestamp calculation and overflow protection.
 - Admin authorization, self-user scoping, ID deduplication, and the 100-user limit.
 - One grouped data query serving multiple users.
