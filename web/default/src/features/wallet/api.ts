@@ -39,6 +39,7 @@ import type {
   WaffoPaymentResponse,
   WaffoPancakePaymentRequest,
   WaffoPancakePaymentResponse,
+  InfiniPaymentResponse,
 } from './types'
 
 // ============================================================================
@@ -164,6 +165,24 @@ export async function requestWaffoPancakePayment(
   request: WaffoPancakePaymentRequest
 ): Promise<WaffoPancakePaymentResponse> {
   const res = await api.post('/api/user/waffo-pancake/pay', request, {
+    skipBusinessError: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+export async function calculateInfiniAmount(
+  request: AmountRequest
+): Promise<AmountResponse> {
+  const res = await api.post('/api/user/infini/amount', request, {
+    skipBusinessError: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+export async function requestInfiniPayment(
+  request: AmountRequest
+): Promise<InfiniPaymentResponse> {
+  const res = await api.post('/api/user/infini/pay', request, {
     skipBusinessError: true,
   } as Record<string, unknown>)
   return res.data

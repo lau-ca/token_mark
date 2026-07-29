@@ -311,6 +311,15 @@ export type BillingSettings = {
   CreemWebhookSecret: string
   CreemTestMode: boolean
   CreemProducts: string
+  InfiniEnabled: boolean
+  InfiniSandbox: boolean
+  InfiniKeyID: string
+  InfiniSecretKey: string
+  InfiniWebhookSecret: string
+  InfiniCurrency: string
+  InfiniPayMethods: string
+  InfiniUnitPrice: number
+  InfiniMinTopUp: number
   WaffoEnabled: boolean
   WaffoApiKey: string
   WaffoPrivateKey: string

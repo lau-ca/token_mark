@@ -17,9 +17,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { getRouteApi, useNavigate } from '@tanstack/react-router'
-import { Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff, RefreshCw } from 'lucide-react'
 import { useState, useCallback, useMemo, lazy, Suspense } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
 import { SectionPageLayout } from '@/components/layout'
 import { FadeIn } from '@/components/page-transition'
@@ -35,6 +36,7 @@ import { ROLE } from '@/lib/roles'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth-store'
 
+import { syncQuotaData } from './api'
 import { ModelsChartPreferences } from './components/models/models-chart-preferences'
 import { ModelsFilter } from './components/models/models-filter-dialog'
 import { OverviewDashboard } from './components/overview/overview-dashboard'
@@ -217,6 +219,25 @@ export function Dashboard() {
     }
   )
   const [flowSensitiveVisible, setFlowSensitiveVisible] = useState(true)
+  const [syncing, setSyncing] = useState(false)
+  const [modelRefreshKey, setModelRefreshKey] = useState(0)
+
+  const handleSyncQuotaData = useCallback(async () => {
+    setSyncing(true)
+    try {
+      const result = await syncQuotaData()
+      if (!result.success) {
+        toast.error(result.message || t('Sync failed'))
+        return
+      }
+      setModelRefreshKey((value) => value + 1)
+      toast.success(t('Dashboard data synced'))
+    } catch {
+      toast.error(t('Sync failed'))
+    } finally {
+      setSyncing(false)
+    }
+  }, [t])
 
   const handleFilterChange = useCallback((filters: DashboardFilters) => {
     setModelFilters(filters)
@@ -266,6 +287,25 @@ export function Dashboard() {
   const modelActions =
     activeSection === 'models' ? (
       <>
+        {isAdmin && (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant='ghost'
+                  size='icon'
+                  className='text-muted-foreground hover:text-foreground size-8'
+                  onClick={handleSyncQuotaData}
+                  disabled={syncing}
+                  aria-label={t('Sync dashboard data')}
+                />
+              }
+            >
+              <RefreshCw className={cn('size-4', syncing && 'animate-spin')} />
+            </TooltipTrigger>
+            <TooltipContent>{t('Sync dashboard data')}</TooltipContent>
+          </Tooltip>
+        )}
         <ModelsChartPreferences
           preferences={chartPreferences}
           onPreferencesChange={handleChartPreferencesChange}
@@ -352,6 +392,7 @@ export function Dashboard() {
                   <LazyLogStatCards
                     filters={modelFilters}
                     onDataUpdate={handleDataUpdate}
+                    refreshKey={modelRefreshKey}
                   />
                 </Suspense>
               </FadeIn>

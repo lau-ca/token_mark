@@ -45,6 +45,30 @@ export function updateAssistantMessageWithError(
   })
 }
 
+export function completeAssistantMessageWithError(
+  message: Message,
+  errorMessage: string,
+  errorCode?: string,
+  title: string = ERROR_MESSAGES.API_REQUEST_ERROR
+): Message {
+  return completeAssistantTiming({
+    ...updateCurrentVersionContent(message, `${title}: ${errorMessage}`),
+    status: MESSAGE_STATUS.ERROR,
+    isReasoningStreaming: false,
+    errorCode: errorCode || null,
+  })
+}
+
+export function updateAssistantMessageByKey(
+  messages: Message[],
+  messageKey: string,
+  updater: (message: Message) => Message
+): Message[] {
+  return messages.map((message) =>
+    message.key === messageKey ? updater(message) : message
+  )
+}
+
 /**
  * Update the most recent assistant message, preserving the array when absent.
  */

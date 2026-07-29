@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -105,6 +107,8 @@ func GetAllChannels(c *gin.Context) {
 	idSort, _ := strconv.ParseBool(c.Query("id_sort"))
 	sortOptions := model.NewChannelSortOptions(c.Query("sort_by"), c.Query("sort_order"), idSort)
 	enableTagMode, _ := strconv.ParseBool(c.Query("tag_mode"))
+	enableGroupMode, _ := strconv.ParseBool(c.Query("group_mode"))
+	enableGroupMode = enableGroupMode && !enableTagMode
 	groupFilter := model.NormalizeChannelGroupFilter(c.Query("group"))
 	statusParam := c.Query("status")
 	// statusFilter: -1 all, 1 enabled, 0 disabled (include auto & manual)
@@ -147,6 +151,24 @@ func GetAllChannels(c *gin.Context) {
 				return
 			}
 			channelData = append(channelData, tagChannels...)
+		}
+	} else if enableGroupMode {
+		groups, groupTotal, err := model.GetPaginatedChannelGroups(buildChannelListQuery(groupFilter, statusFilter, typeFilter), pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		total = groupTotal
+		for _, group := range groups {
+			var groupChannels []*model.Channel
+			if err := sortOptions.Apply(model.ApplyChannelGroupFilter(buildChannelListQuery("", statusFilter, typeFilter), group)).Omit("key").Find(&groupChannels).Error; err != nil {
+				common.ApiError(c, err)
+				return
+			}
+			for _, channel := range groupChannels {
+				channel.Group = group
+			}
+			channelData = append(channelData, groupChannels...)
 		}
 	} else {
 		if err := buildChannelListQuery(groupFilter, statusFilter, typeFilter).Count(&total).Error; err != nil {
@@ -281,6 +303,8 @@ func SearchChannels(c *gin.Context) {
 	idSort, _ := strconv.ParseBool(c.Query("id_sort"))
 	sortOptions := model.NewChannelSortOptions(c.Query("sort_by"), c.Query("sort_order"), idSort)
 	enableTagMode, _ := strconv.ParseBool(c.Query("tag_mode"))
+	enableGroupMode, _ := strconv.ParseBool(c.Query("group_mode"))
+	enableGroupMode = enableGroupMode && !enableTagMode
 	channelData := make([]*model.Channel, 0)
 	if enableTagMode {
 		tags, err := model.SearchTags(keyword, group, modelKeyword, idSort)
@@ -367,16 +391,50 @@ func SearchChannels(c *gin.Context) {
 	}
 
 	total := len(channelData)
-	startIdx := (page - 1) * pageSize
-	if startIdx > total {
-		startIdx = total
+	pagedData := channelData
+	if enableGroupMode {
+		groupSet := make(map[string]struct{})
+		for _, channel := range channelData {
+			for _, channelGroup := range channel.GetGroups() {
+				groupSet[channelGroup] = struct{}{}
+			}
+		}
+		groups := make([]string, 0, len(groupSet))
+		for channelGroup := range groupSet {
+			groups = append(groups, channelGroup)
+		}
+		sort.Strings(groups)
+		total = len(groups)
+		startGroup := (page - 1) * pageSize
+		if startGroup > total {
+			startGroup = total
+		}
+		endGroup := startGroup + pageSize
+		if endGroup > total {
+			endGroup = total
+		}
+		groupedChannels := make([]*model.Channel, 0, len(channelData))
+		for _, channelGroup := range groups[startGroup:endGroup] {
+			for _, channel := range channelData {
+				if slices.Contains(channel.GetGroups(), channelGroup) {
+					copyChannel := *channel
+					copyChannel.Group = channelGroup
+					groupedChannels = append(groupedChannels, &copyChannel)
+				}
+			}
+		}
+		pagedData = groupedChannels
+	} else {
+		startIdx := (page - 1) * pageSize
+		if startIdx > total {
+			startIdx = total
+		}
+		endIdx := startIdx + pageSize
+		if endIdx > total {
+			endIdx = total
+		}
+		pagedData = channelData[startIdx:endIdx]
 	}
-	endIdx := startIdx + pageSize
-	if endIdx > total {
-		endIdx = total
-	}
-
-	pagedData := channelData[startIdx:endIdx]
 
 	for _, datum := range pagedData {
 		clearChannelInfo(datum)

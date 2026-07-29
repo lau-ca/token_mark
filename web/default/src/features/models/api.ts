@@ -22,6 +22,7 @@ import type {
   GetModelsParams,
   GetModelsResponse,
   GetModelResponse,
+  GetModelCapabilityCatalogResponse,
   GetVendorsResponse,
   GetVendorResponse,
   Model,
@@ -67,6 +68,11 @@ export async function searchModels(
  */
 export async function getModel(id: number): Promise<GetModelResponse> {
   const res = await api.get(`/api/models/${id}`)
+  return res.data
+}
+
+export async function getModelCapabilityCatalog(): Promise<GetModelCapabilityCatalogResponse> {
+  const res = await api.get('/api/models/capabilities')
   return res.data
 }
 

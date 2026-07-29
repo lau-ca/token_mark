@@ -97,6 +97,15 @@ func InitOptionMap() {
 	common.OptionMap["CreemProducts"] = setting.CreemProducts
 	common.OptionMap["CreemTestMode"] = strconv.FormatBool(setting.CreemTestMode)
 	common.OptionMap["CreemWebhookSecret"] = setting.CreemWebhookSecret
+	common.OptionMap["InfiniEnabled"] = strconv.FormatBool(setting.InfiniEnabled)
+	common.OptionMap["InfiniSandbox"] = strconv.FormatBool(setting.InfiniSandbox)
+	common.OptionMap["InfiniKeyID"] = setting.InfiniKeyID
+	common.OptionMap["InfiniSecretKey"] = setting.InfiniSecretKey
+	common.OptionMap["InfiniWebhookSecret"] = setting.InfiniWebhookSecret
+	common.OptionMap["InfiniCurrency"] = setting.InfiniCurrency
+	common.OptionMap["InfiniPayMethods"] = setting.InfiniPayMethods
+	common.OptionMap["InfiniUnitPrice"] = strconv.FormatFloat(setting.InfiniUnitPrice, 'f', -1, 64)
+	common.OptionMap["InfiniMinTopUp"] = strconv.Itoa(setting.InfiniMinTopUp)
 	common.OptionMap["WaffoEnabled"] = strconv.FormatBool(setting.WaffoEnabled)
 	common.OptionMap["WaffoApiKey"] = setting.WaffoApiKey
 	common.OptionMap["WaffoPrivateKey"] = setting.WaffoPrivateKey
@@ -506,6 +515,24 @@ func updateOptionMap(key string, value string) (err error) {
 		setting.CreemTestMode = value == "true"
 	case "CreemWebhookSecret":
 		setting.CreemWebhookSecret = value
+	case "InfiniEnabled":
+		setting.InfiniEnabled = value == "true"
+	case "InfiniSandbox":
+		setting.InfiniSandbox = value == "true"
+	case "InfiniKeyID":
+		setting.InfiniKeyID = value
+	case "InfiniSecretKey":
+		setting.InfiniSecretKey = value
+	case "InfiniWebhookSecret":
+		setting.InfiniWebhookSecret = value
+	case "InfiniCurrency":
+		setting.InfiniCurrency = value
+	case "InfiniPayMethods":
+		setting.InfiniPayMethods = value
+	case "InfiniUnitPrice":
+		setting.InfiniUnitPrice, _ = strconv.ParseFloat(value, 64)
+	case "InfiniMinTopUp":
+		setting.InfiniMinTopUp, _ = strconv.Atoi(value)
 	case "WaffoEnabled":
 		setting.WaffoEnabled = value == "true"
 	case "WaffoApiKey":

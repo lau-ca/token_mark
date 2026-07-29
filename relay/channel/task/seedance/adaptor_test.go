@@ -63,10 +63,118 @@ func TestSeedanceRequestValidationAndBody(t *testing.T) {
 	assert.Empty(t, upstream.Seconds)
 }
 
+func TestSeedanceRequestMapsPlaygroundImageToReferenceImages(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	context, _, info := newSeedanceContext(t, `{
+		"model":"videos-standard",
+		"prompt":"animate this frame",
+		"duration":4,
+		"resolution":"720p",
+		"image":"https://example.com/frame.png"
+	}`)
+
+	adaptor := &TaskAdaptor{}
+	require.Nil(t, adaptor.ValidateRequestAndSetAction(context, info))
+	requestBody, err := adaptor.BuildRequestBody(context, info)
+	require.NoError(t, err)
+	body, err := io.ReadAll(requestBody)
+	require.NoError(t, err)
+
+	var upstream relaycommon.TaskSubmitReq
+	require.NoError(t, common.Unmarshal(body, &upstream))
+	assert.Equal(t, []string{"https://example.com/frame.png"}, upstream.ReferenceImages)
+	assert.Empty(t, upstream.Image)
+	assert.Empty(t, upstream.Images)
+}
+
+func TestSeedanceV2RequestUsesUpstreamProtocol(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	context, _, info := newSeedanceContext(t, `{
+		"model":"seedance2.0",
+		"prompt":"animate this frame",
+		"seconds":5,
+		"size":"1280x720",
+		"aspect_ratio":"16:9",
+		"image":"https://example.com/frame.png"
+	}`)
+	info.OriginModelName = "seedance2.0"
+	info.ChannelMeta.UpstreamModelName = "seedance2.0"
+
+	adaptor := &TaskAdaptor{}
+	require.Nil(t, adaptor.ValidateRequestAndSetAction(context, info))
+	requestBody, err := adaptor.BuildRequestBody(context, info)
+	require.NoError(t, err)
+	body, err := io.ReadAll(requestBody)
+	require.NoError(t, err)
+
+	var upstream map[string]any
+	require.NoError(t, common.Unmarshal(body, &upstream))
+	assert.Equal(t, "seedance2.0", upstream["model"])
+	assert.Equal(t, "5", upstream["seconds"])
+	assert.Equal(t, "1280x720", upstream["size"])
+	assert.Equal(t, "16:9", upstream["aspect_ratio"])
+	assert.Equal(t, "https://example.com/frame.png", upstream["image"])
+	assert.NotContains(t, upstream, "duration")
+	assert.NotContains(t, upstream, "resolution")
+	assert.NotContains(t, upstream, "ratio")
+	assert.NotContains(t, upstream, "referenceImages")
+}
+
+func TestSeedanceV2RequestValidation(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	tests := []struct {
+		name string
+		body string
+		code string
+	}{
+		{
+			name: "seconds below minimum",
+			body: `{"model":"seedance2.0","prompt":"animate","seconds":3,"size":"1280x720","aspect_ratio":"16:9"}`,
+			code: "invalid_seconds",
+		},
+		{
+			name: "seconds above maximum",
+			body: `{"model":"seedance2.0","prompt":"animate","seconds":16,"size":"1280x720","aspect_ratio":"16:9"}`,
+			code: "invalid_seconds",
+		},
+		{
+			name: "mismatched size and ratio",
+			body: `{"model":"seedance2.0","prompt":"animate","seconds":5,"size":"1280x720","aspect_ratio":"9:16"}`,
+			code: "invalid_size",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			context, _, info := newSeedanceContext(t, test.body)
+			info.OriginModelName = "seedance2.0"
+			info.ChannelMeta.UpstreamModelName = "seedance2.0"
+			taskErr := (&TaskAdaptor{}).ValidateRequestAndSetAction(context, info)
+			require.NotNil(t, taskErr)
+			assert.Equal(t, test.code, taskErr.Code)
+		})
+	}
+}
+
 func TestSeedanceRejectsRemix(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	context, _, info := newSeedanceContext(t, `{"model":"videos-standard","prompt":"change it","duration":4,"resolution":"720p"}`)
 	info.Action = constant.TaskActionRemix
+	taskErr := (&TaskAdaptor{}).ValidateRequestAndSetAction(context, info)
+	require.NotNil(t, taskErr)
+	assert.Equal(t, http.StatusBadRequest, taskErr.StatusCode)
+}
+
+func TestSeedanceDoesNotAcceptXAIImageObject(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	context, _, info := newSeedanceContext(t, `{
+		"model":"videos-standard",
+		"prompt":"animate",
+		"duration":4,
+		"resolution":"720p",
+		"image":{"url":"https://example.com/frame.png"}
+	}`)
+
 	taskErr := (&TaskAdaptor{}).ValidateRequestAndSetAction(context, info)
 	require.NotNil(t, taskErr)
 	assert.Equal(t, http.StatusBadRequest, taskErr.StatusCode)

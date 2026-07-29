@@ -34,6 +34,11 @@ type userModelsResponse struct {
 	Data    []string `json:"data"`
 }
 
+type detailedUserModelsResponse struct {
+	Success bool                        `json:"success"`
+	Data    []dto.PlaygroundModelOption `json:"data"`
+}
+
 func setupModelListControllerTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
@@ -199,6 +204,40 @@ func TestGetUserModelsFiltersByRequestedGroup(t *testing.T) {
 	GetUserModels(vipContext)
 
 	require.Empty(t, decodeUserModelsResponse(t, vipRecorder))
+}
+
+func TestGetUserModelsReturnsOptionalPlaygroundDetails(t *testing.T) {
+	db := setupModelListControllerTestDB(t)
+	require.NoError(t, db.Create(&model.User{
+		Id:       1003,
+		Username: "playground-detail-user",
+		Password: "password",
+		Group:    "default",
+		Status:   common.UserStatusEnabled,
+	}).Error)
+	require.NoError(t, db.Create(&model.Ability{
+		Group: "default", Model: "zz-image-model", ChannelId: 1, Enabled: true,
+	}).Error)
+	require.NoError(t, db.Create(&model.Model{
+		ModelName: "zz-image-model",
+		Status:    1,
+		Endpoints: `{"image-generation":{"path":"/v1/images/generations","playground":{"capabilities":["image.generate"]}}}`,
+	}).Error)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/user/models?group=default&details=true", nil)
+	ctx.Set("id", 1003)
+
+	GetUserModels(ctx)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var payload detailedUserModelsResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
+	require.True(t, payload.Success)
+	require.Len(t, payload.Data, 1)
+	assert.Equal(t, "zz-image-model", payload.Data[0].ModelName)
+	assert.Contains(t, payload.Data[0].Endpoints, "image-generation")
 }
 
 func TestListModelsIncludesTieredBillingModel(t *testing.T) {

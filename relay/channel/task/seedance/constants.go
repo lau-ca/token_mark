@@ -6,6 +6,8 @@ var ModelList = []string{
 	relaycommon.SeedanceVideoModelFast,
 	relaycommon.SeedanceVideoModelMini,
 	relaycommon.SeedanceVideoModelStandard,
+	"seedance2.0-fast",
+	"seedance2.0",
 }
 
 const ChannelName = "seedance"

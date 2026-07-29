@@ -30,6 +30,7 @@ import {
   RefreshCw,
   ArrowUpFromLine,
   Activity,
+  Layers3,
 } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -75,6 +76,8 @@ export function ChannelsPrimaryButtons() {
     setCurrentRow,
     enableTagMode,
     setEnableTagMode,
+    enableGroupMode,
+    setEnableGroupMode,
     idSort,
     setIdSort,
     batchMode,
@@ -95,6 +98,19 @@ export function ChannelsPrimaryButtons() {
   const handleTagModeToggle = (checked: boolean) => {
     localStorage.setItem('enable-tag-mode', String(checked))
     setEnableTagMode(checked)
+    if (checked) {
+      localStorage.setItem('enable-group-mode', 'false')
+      setEnableGroupMode(false)
+    }
+  }
+
+  const handleGroupModeToggle = (checked: boolean) => {
+    localStorage.setItem('enable-group-mode', String(checked))
+    setEnableGroupMode(checked)
+    if (checked) {
+      localStorage.setItem('enable-tag-mode', 'false')
+      setEnableTagMode(false)
+    }
   }
 
   const handleIdSortToggle = (checked: boolean) => {
@@ -122,6 +138,18 @@ export function ChannelsPrimaryButtons() {
             id='channel-batch-mode'
             checked={batchMode}
             onCheckedChange={handleBatchModeToggle}
+          />
+        </div>
+
+        <div className='hidden items-center gap-2 rounded-md border px-3 py-1.5 sm:flex'>
+          <Layers3 className='text-muted-foreground h-4 w-4' />
+          <Label htmlFor='group-mode' className='cursor-pointer text-sm'>
+            {t('Group Mode')}
+          </Label>
+          <Switch
+            id='group-mode'
+            checked={enableGroupMode}
+            onCheckedChange={handleGroupModeToggle}
           />
         </div>
 
@@ -196,6 +224,15 @@ export function ChannelsPrimaryButtons() {
             >
               <Tags className='mr-2 h-4 w-4' />
               {t('Tag Mode')}
+            </DropdownMenuCheckboxItem>
+
+            <DropdownMenuCheckboxItem
+              className='sm:hidden'
+              checked={enableGroupMode}
+              onCheckedChange={handleGroupModeToggle}
+            >
+              <Layers3 className='mr-2 h-4 w-4' />
+              {t('Group Mode')}
             </DropdownMenuCheckboxItem>
 
             <DropdownMenuCheckboxItem

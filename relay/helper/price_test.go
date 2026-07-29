@@ -88,6 +88,63 @@ func TestModelPriceHelperUsesBillingModelName(t *testing.T) {
 	require.Equal(t, 20000, priceData.QuotaToPreConsume)
 }
 
+func TestModelPriceHelperUsesBillingModelNameForTokenRatio(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	savedModelPrices := ratio_setting.ModelPrice2JSONString()
+	savedModelRatios := ratio_setting.ModelRatio2JSONString()
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(savedModelPrices))
+		require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(savedModelRatios))
+	})
+
+	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{}`))
+	require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(`{"gpt-image-2":2}`))
+
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Set("group", "default")
+	info := &relaycommon.RelayInfo{
+		OriginModelName:  "admin-image-model",
+		BillingModelName: "gpt-image-2",
+		UserGroup:        "default",
+		UsingGroup:       "default",
+	}
+
+	priceData, err := ModelPriceHelper(ctx, info, 1000, &types.TokenCountMeta{})
+	require.NoError(t, err)
+	require.False(t, priceData.UsePrice)
+	require.Equal(t, 2.0, priceData.ModelRatio)
+	require.Positive(t, priceData.QuotaToPreConsume)
+}
+
+func TestModelPriceHelperUsesBillingModelNameForTieredExpression(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	savedBilling := billing_setting.GetConfigCopy()
+	t.Cleanup(func() {
+		billing_setting.ReplaceConfig(savedBilling.BillingMode, savedBilling.BillingExpr)
+	})
+	billing_setting.ReplaceConfig(
+		map[string]string{"gpt-image-tiered": billing_setting.BillingModeTieredExpr},
+		map[string]string{"gpt-image-tiered": `tier("image", p * 2)`},
+	)
+
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Set("group", "default")
+	info := &relaycommon.RelayInfo{
+		OriginModelName:  "admin-image-model",
+		BillingModelName: "gpt-image-tiered",
+		UserGroup:        "default",
+		UsingGroup:       "default",
+		BillingRequestInput: &billingexpr.RequestInput{
+			Body: []byte(`{}`),
+		},
+	}
+
+	_, err := ModelPriceHelper(ctx, info, 1000, &types.TokenCountMeta{})
+	require.NoError(t, err)
+	require.NotNil(t, info.TieredBillingSnapshot)
+	require.Equal(t, "image", info.TieredBillingSnapshot.EstimatedTier)
+}
+
 func TestModelPriceHelperTieredPreConsumeMaxTokensFallback(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

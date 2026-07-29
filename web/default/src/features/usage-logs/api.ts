@@ -18,8 +18,9 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
 
-import { buildQueryParams } from './lib/utils'
+import { mergeLogFilterModels } from './lib/filter-options'
 import type {
+  CommonLogFilterOptions,
   GetLogsParams,
   GetLogsResponse,
   GetLogStatsParams,
@@ -28,6 +29,38 @@ import type {
   GetTaskLogsParams,
   UserInfo,
 } from './types'
+
+type PricingFilterItem = {
+  model_name: string
+  enable_groups?: string[]
+}
+
+type CompositeFilterItem = {
+  name: string
+  public_model: string
+}
+
+type UserGroupFilterItem = {
+  composite?: boolean
+  public_model?: string
+}
+
+type ChannelFilterItem = {
+  id: number
+  name: string
+}
+
+function buildQueryParams(params: Record<string, unknown>): URLSearchParams {
+  const queryParams = new URLSearchParams()
+
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null && value !== '') {
+      queryParams.append(key, String(value))
+    }
+  }
+
+  return queryParams
+}
 
 // ============================================================================
 // Generic API Helpers
@@ -89,6 +122,103 @@ export async function getUserInfo(
 ): Promise<{ success: boolean; message?: string; data?: UserInfo }> {
   const res = await api.get(`/api/user/${userId}`)
   return res.data
+}
+
+async function getAllChannelFilterOptions(): Promise<ChannelFilterItem[]> {
+  const firstResponse = await api.get('/api/channel', {
+    params: { p: 1, page_size: 100, sort_by: 'id', sort_order: 'asc' },
+  })
+  const firstPage = firstResponse.data?.data
+  const firstItems = (firstPage?.items ?? []) as ChannelFilterItem[]
+  const total = Number(firstPage?.total ?? firstItems.length)
+  const pageCount = Math.ceil(total / 100)
+
+  if (pageCount <= 1) return firstItems
+
+  const remainingResponses = await Promise.all(
+    Array.from({ length: pageCount - 1 }, (_, index) =>
+      api.get('/api/channel', {
+        params: {
+          p: index + 2,
+          page_size: 100,
+          sort_by: 'id',
+          sort_order: 'asc',
+        },
+      })
+    )
+  )
+
+  return [
+    ...firstItems,
+    ...remainingResponses.flatMap(
+      (response) => (response.data?.data?.items ?? []) as ChannelFilterItem[]
+    ),
+  ]
+}
+
+export async function getCommonLogFilterOptions(
+  isAdmin: boolean
+): Promise<CommonLogFilterOptions> {
+  const pricingPromise = api.get('/api/pricing')
+
+  if (isAdmin) {
+    const [pricingResponse, groupsResponse, compositeResponse, channels] =
+      await Promise.all([
+        pricingPromise,
+        api.get('/api/group/'),
+        api.get('/api/composite-groups/'),
+        getAllChannelFilterOptions(),
+      ])
+    const physicalGroups = (groupsResponse.data?.data ?? []) as string[]
+    const compositeGroups = (compositeResponse.data?.data ?? []) as
+      | CompositeFilterItem[]
+      | undefined
+    const groups = [
+      ...physicalGroups.map((name) => ({ name })),
+      ...(compositeGroups ?? []).map((group) => ({
+        name: group.name,
+        composite: true,
+        publicModel: group.public_model,
+      })),
+    ].sort((a, b) => a.name.localeCompare(b.name))
+    const pricingItems = (pricingResponse.data?.data ??
+      []) as PricingFilterItem[]
+    const models = mergeLogFilterModels(
+      pricingItems.map((item) => ({
+        name: item.model_name,
+        groups: item.enable_groups ?? [],
+      })),
+      groups
+    )
+
+    return { groups, models, channels }
+  }
+
+  const [pricingResponse, groupsResponse] = await Promise.all([
+    pricingPromise,
+    api.get('/api/user/self/groups'),
+  ])
+  const userGroups = (groupsResponse.data?.data ?? {}) as Record<
+    string,
+    UserGroupFilterItem
+  >
+  const groups = Object.entries(userGroups)
+    .map(([name, group]) => ({
+      name,
+      composite: group.composite === true,
+      publicModel: group.public_model,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name))
+  const pricingItems = (pricingResponse.data?.data ?? []) as PricingFilterItem[]
+  const models = mergeLogFilterModels(
+    pricingItems.map((item) => ({
+      name: item.model_name,
+      groups: item.enable_groups ?? [],
+    })),
+    groups
+  )
+
+  return { groups, models, channels: [] }
 }
 
 // ============================================================================

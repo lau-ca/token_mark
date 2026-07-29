@@ -97,7 +97,7 @@ func LogQuotaData(params QuotaDataLogParams) {
 	logQuotaDataCache(quotaData)
 }
 
-func SaveQuotaDataCache() {
+func SaveQuotaDataCache() int {
 	CacheQuotaDataLock.Lock()
 	defer CacheQuotaDataLock.Unlock()
 	size := len(CacheQuotaData)
@@ -122,6 +122,7 @@ func SaveQuotaDataCache() {
 	}
 	CacheQuotaData = make(map[string]*QuotaData)
 	common.SysLog(fmt.Sprintf("保存数据看板数据成功，共保存%d条数据", size))
+	return size
 }
 
 func increaseQuotaData(quotaData *QuotaData) {

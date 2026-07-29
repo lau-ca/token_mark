@@ -30,6 +30,7 @@ import { listDeployments } from './api'
 import { DeploymentAccessGuard } from './components/deployment-access-guard'
 import { DeploymentsTable } from './components/deployments-table'
 import { CreateDeploymentDrawer } from './components/dialogs/create-deployment-drawer'
+import { ModelCapabilitiesTable } from './components/model-capabilities-table'
 import { ModelsDialogs } from './components/models-dialogs'
 import { ModelsPrimaryButtons } from './components/models-primary-buttons'
 import { ModelsProvider, useModels } from './components/models-provider'
@@ -50,6 +51,9 @@ const SECTION_META: Record<ModelsSectionId, { titleKey: string }> = {
   },
   deployments: {
     titleKey: 'Deployments',
+  },
+  capabilities: {
+    titleKey: 'Capabilities',
   },
 }
 
@@ -82,21 +86,23 @@ function ModelsContent() {
   )
 
   const meta = SECTION_META[activeSection] ?? SECTION_META.metadata
+  let pageActions = null
+  if (activeSection === 'metadata') {
+    pageActions = <ModelsPrimaryButtons />
+  } else if (activeSection === 'deployments') {
+    pageActions = (
+      <Button onClick={() => setCreateDeploymentOpen(true)} size='sm'>
+        <Plus className='h-4 w-4' />
+        {t('Create deployment')}
+      </Button>
+    )
+  }
 
   return (
     <>
       <SectionPageLayout fixedContent>
         <SectionPageLayout.Title>{t(meta.titleKey)}</SectionPageLayout.Title>
-        <SectionPageLayout.Actions>
-          {activeSection === 'metadata' ? (
-            <ModelsPrimaryButtons />
-          ) : (
-            <Button onClick={() => setCreateDeploymentOpen(true)} size='sm'>
-              <Plus className='h-4 w-4' />
-              {t('Create deployment')}
-            </Button>
-          )}
-        </SectionPageLayout.Actions>
+        <SectionPageLayout.Actions>{pageActions}</SectionPageLayout.Actions>
         <SectionPageLayout.Content>
           <div className='flex h-full min-h-0 flex-col gap-4'>
             <Tabs value={activeSection} onValueChange={handleSectionChange}>
@@ -109,11 +115,9 @@ function ModelsContent() {
               </TabsList>
             </Tabs>
             <div className='min-h-0 flex-1'>
-              {activeSection === 'metadata' ? (
-                <ModelsTable />
-              ) : (
-                <DeploymentsSection />
-              )}
+              {activeSection === 'metadata' && <ModelsTable />}
+              {activeSection === 'deployments' && <DeploymentsSection />}
+              {activeSection === 'capabilities' && <ModelCapabilitiesTable />}
             </div>
           </div>
         </SectionPageLayout.Content>

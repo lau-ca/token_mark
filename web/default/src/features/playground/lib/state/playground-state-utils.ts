@@ -29,7 +29,21 @@ export type MessageStateUpdater =
   | ((previousMessages: Message[]) => Message[])
 
 export function getInitialPlaygroundConfig(): PlaygroundConfig {
-  return { ...DEFAULT_CONFIG, ...loadConfig() }
+  const stored = loadConfig()
+  return {
+    ...DEFAULT_CONFIG,
+    ...stored,
+    mode_selections: {
+      chat: stored.mode_selections?.chat ?? {
+        model: stored.model ?? DEFAULT_CONFIG.model,
+        group: stored.group ?? DEFAULT_CONFIG.group,
+      },
+      image:
+        stored.mode_selections?.image ?? DEFAULT_CONFIG.mode_selections.image,
+      video:
+        stored.mode_selections?.video ?? DEFAULT_CONFIG.mode_selections.video,
+    },
+  }
 }
 
 export function getInitialParameterEnabled(): ParameterEnabled {

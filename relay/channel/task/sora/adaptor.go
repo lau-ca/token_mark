@@ -156,6 +156,10 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		var bodyMap map[string]interface{}
 		if err := common.Unmarshal(cachedBody, &bodyMap); err == nil {
 			bodyMap["model"] = info.UpstreamModelName
+			delete(bodyMap, "group")
+			if taskRequest, err := relaycommon.GetTaskRequest(c); err == nil && taskRequest.Seconds != "" {
+				bodyMap["seconds"] = taskRequest.Seconds
+			}
 			if newBody, err := common.Marshal(bodyMap); err == nil {
 				return bytes.NewReader(newBody), nil
 			}

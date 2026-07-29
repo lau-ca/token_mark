@@ -362,37 +362,43 @@ func TestOpenaiImageHandlerUsesPositiveActualCountForFixedPrice(t *testing.T) {
 	}
 }
 
-func TestOpenaiImageHandlerStripsChannelImageURLWhenBase64Exists(t *testing.T) {
+func TestOpenaiImageHandlerStripsChannelImageURLsWhenBase64Exists(t *testing.T) {
 	oldMode := gin.Mode()
 	gin.SetMode(gin.TestMode)
 	t.Cleanup(func() { gin.SetMode(oldMode) })
 
-	body := `{"created":1710000000,"data":[{"b64_json":"final","url":"https://upstream.example/image.png","revised_prompt":"draw a cat"}],"usage":{"input_tokens":3,"output_tokens":4,"total_tokens":7}}`
+	body := `{"created":1710000000,"data":[{"b64_json":"final","url":"https://upstream.example/image.png","_provider_image_url":"https://provider.example/image.png","revised_prompt":"draw a cat"}],"usage":{"input_tokens":3,"output_tokens":4,"total_tokens":7}}`
 
-	c, recorder, resp, info := newImageTestContext(t, body, "application/json", false)
-	info.ChannelMeta.ChannelOtherSettings = dto.ChannelOtherSettings{ForceImageB64JSONNoURL: true}
+	for _, relayMode := range []int{relayconstant.RelayModeImagesGenerations, relayconstant.RelayModeImagesEdits} {
+		c, recorder, resp, info := newImageTestContext(t, body, "application/json", false)
+		info.RelayMode = relayMode
+		info.ChannelMeta.ChannelOtherSettings = dto.ChannelOtherSettings{ForceImageB64JSONNoURL: true}
 
-	usage, err := OpenaiImageHandler(c, info, resp)
-	require.Nil(t, err)
-	require.Equal(t, 7, usage.TotalTokens)
-	require.Contains(t, recorder.Body.String(), `"b64_json":"final"`)
-	require.Contains(t, recorder.Body.String(), `"revised_prompt":"draw a cat"`)
-	require.NotContains(t, recorder.Body.String(), `"url"`)
-	require.NotContains(t, recorder.Body.String(), `upstream.example`)
+		usage, err := OpenaiImageHandler(c, info, resp)
+		require.Nil(t, err)
+		require.Equal(t, 7, usage.TotalTokens)
+		require.Contains(t, recorder.Body.String(), `"b64_json":"final"`)
+		require.Contains(t, recorder.Body.String(), `"revised_prompt":"draw a cat"`)
+		require.NotContains(t, recorder.Body.String(), `"url"`)
+		require.NotContains(t, recorder.Body.String(), `"_provider_image_url"`)
+		require.NotContains(t, recorder.Body.String(), `upstream.example`)
+		require.NotContains(t, recorder.Body.String(), `provider.example`)
+	}
 }
 
-func TestStripChannelImageURLsRemovesMultipleURLsInOnePass(t *testing.T) {
+func TestStripChannelImageURLsUsesExactFieldMatches(t *testing.T) {
 	info := &relaycommon.RelayInfo{
 		ChannelMeta: &relaycommon.ChannelMeta{
 			ChannelOtherSettings: dto.ChannelOtherSettings{ForceImageB64JSONNoURL: true},
 		},
 	}
-	body := []byte(`{"created":1710000000,"data":[{"b64_json":"one","url":"https://upstream.example/one.png"},{"url":"https://upstream.example/two.png","b64_json":"two"}],"usage":{"total_tokens":7}}`)
+	body := []byte(`{"created":1710000000,"data":[{"b64_json":"one","url":"https://hidden.example/one.png","_provider_image_url":"https://hidden.example/provider.png","provider_image_url":"https://visible.example/provider.png","image_url":"https://visible.example/image.png"},{"_provider_image_url":"https://hidden.example/two.png","b64_json":"two"}],"usage":{"total_tokens":7}}`)
 
 	stripped := stripChannelImageURLs(body, info)
 
-	require.JSONEq(t, `{"created":1710000000,"data":[{"b64_json":"one"},{"b64_json":"two"}],"usage":{"total_tokens":7}}`, string(stripped))
-	require.NotContains(t, string(stripped), `upstream.example`)
+	require.JSONEq(t, `{"created":1710000000,"data":[{"b64_json":"one","provider_image_url":"https://visible.example/provider.png","image_url":"https://visible.example/image.png"},{"b64_json":"two"}],"usage":{"total_tokens":7}}`, string(stripped))
+	require.NotContains(t, string(stripped), `hidden.example`)
+	require.Contains(t, string(stripped), `visible.example`)
 }
 
 func TestOpenaiImageHandlerKeepsOtherChannelImageURL(t *testing.T) {

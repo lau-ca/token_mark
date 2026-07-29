@@ -16,21 +16,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import type { GroupOption, ModelOption } from '../../types'
-
 type InputControlStateOptions = {
   disabled?: boolean
-  groups: GroupOption[]
+  hasModel: boolean
   hasStopHandler: boolean
   isGenerating?: boolean
-  isModelLoading?: boolean
-  models: ModelOption[]
   text: string
 }
 
 type InputControlState = {
   canSubmit: boolean
-  isSelectorDisabled: boolean
   shouldShowStop: boolean
 }
 
@@ -51,18 +46,13 @@ export function getSubmittableInputText(
 
 export function getInputControlState({
   disabled,
-  groups,
+  hasModel,
   hasStopHandler,
   isGenerating,
-  isModelLoading,
-  models,
   text,
 }: InputControlStateOptions): InputControlState {
-  const hasModels = models.length > 0
-
   return {
-    canSubmit: !disabled && hasModels && text.trim().length > 0,
-    isSelectorDisabled: disabled || isModelLoading || groups.length === 0,
+    canSubmit: !disabled && hasModel && text.trim().length > 0,
     shouldShowStop: Boolean(isGenerating && hasStopHandler),
   }
 }

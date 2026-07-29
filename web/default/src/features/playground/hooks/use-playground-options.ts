@@ -17,22 +17,29 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
-import { getUserGroups, getUserModels } from '../api'
+import { getUserGroups, getUserModelCatalog, getUserModels } from '../api'
 import {
   getGroupFallback,
+  getModeModels,
   getModelFallback,
   getOptionLoadErrorMessage,
   shouldClearModelForGroup,
 } from '../lib'
-import type { GroupOption, ModelOption, PlaygroundConfig } from '../types'
+import type {
+  GroupOption,
+  ModelOption,
+  PlaygroundConfig,
+  PlaygroundMode,
+} from '../types'
 
 type UsePlaygroundOptionsParams = {
   currentGroup: string
   currentModel: string
+  currentMode: PlaygroundMode
   setGroups: (groups: GroupOption[]) => void
   setModels: (models: ModelOption[]) => void
   updateConfig: <K extends keyof PlaygroundConfig>(
@@ -44,6 +51,7 @@ type UsePlaygroundOptionsParams = {
 export function usePlaygroundOptions({
   currentGroup,
   currentModel,
+  currentMode,
   setGroups,
   setModels,
   updateConfig,
@@ -69,6 +77,29 @@ export function usePlaygroundOptions({
     queryKey: ['playground-groups'],
     queryFn: getUserGroups,
   })
+
+  const groupValues = useMemo(
+    () => groupsData?.map((group) => group.value) ?? [],
+    [groupsData]
+  )
+  const { data: modelCatalogData, isLoading: isLoadingModelCatalog } = useQuery(
+    {
+      queryKey: ['playground-model-catalog', groupValues],
+      queryFn: () => getUserModelCatalog(groupsData ?? []),
+      enabled: groupValues.length > 0,
+      staleTime: 5 * 60 * 1000,
+    }
+  )
+  const modeModelCatalog = useMemo(() => {
+    if (!modelCatalogData) return {}
+
+    return Object.fromEntries(
+      Object.entries(modelCatalogData).map(([group, groupModels]) => [
+        group,
+        getModeModels(groupModels, currentMode),
+      ])
+    )
+  }, [currentMode, modelCatalogData])
 
   useEffect(() => {
     if (!isModelsError) return
@@ -96,30 +127,44 @@ export function usePlaygroundOptions({
     if (!modelsData) return
 
     setModels(modelsData)
-    const fallback = getModelFallback(modelsData, currentModel)
+    const compatibleModels = getModeModels(modelsData, currentMode)
+    const fallback = getModelFallback(compatibleModels, currentModel)
 
     if (fallback) {
       updateConfig('model', fallback)
       return
     }
 
-    if (shouldClearModelForGroup(modelsData, currentModel)) {
+    if (shouldClearModelForGroup(compatibleModels, currentModel)) {
       updateConfig('model', '')
     }
-  }, [modelsData, currentModel, setModels, updateConfig])
+  }, [modelsData, currentMode, currentModel, setModels, updateConfig])
 
   useEffect(() => {
     if (!groupsData) return
 
-    setGroups(groupsData)
-    const fallback = getGroupFallback(groupsData, currentGroup)
+    const compatibleGroups = modelCatalogData
+      ? groupsData.filter(
+          (group) => (modeModelCatalog[group.value]?.length ?? 0) > 0
+        )
+      : groupsData
+    setGroups(compatibleGroups)
+    const fallback = getGroupFallback(compatibleGroups, currentGroup)
 
     if (fallback) {
       updateConfig('group', fallback)
     }
-  }, [groupsData, currentGroup, setGroups, updateConfig])
+  }, [
+    currentGroup,
+    groupsData,
+    modeModelCatalog,
+    modelCatalogData,
+    setGroups,
+    updateConfig,
+  ])
 
   return {
-    isLoadingModels,
+    isLoadingModels: isLoadingModels || isLoadingModelCatalog,
+    modelCatalog: modeModelCatalog,
   }
 }

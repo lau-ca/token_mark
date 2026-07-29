@@ -244,21 +244,19 @@ func validateMultipartTaskRequest(c *gin.Context, info *RelayInfo, action string
 }
 
 func ValidateMultipartDirect(c *gin.Context, info *RelayInfo) *dto.TaskError {
-	var prompt string
-	var model string
-	var seconds int
-	var size string
-	var hasInputReference bool
-
 	var req TaskSubmitReq
 	if err := common.UnmarshalBodyReusable(c, &req); err != nil {
 		return createTaskError(err, "invalid_json", http.StatusBadRequest, true)
 	}
+	return ValidateParsedTaskRequest(c, info, req)
+}
 
-	prompt = req.Prompt
-	model = req.Model
-	size = req.Size
-	seconds, _ = strconv.Atoi(req.Seconds)
+func ValidateParsedTaskRequest(c *gin.Context, info *RelayInfo, req TaskSubmitReq) *dto.TaskError {
+	prompt := req.Prompt
+	model := req.Model
+	size := req.Size
+	seconds, _ := strconv.Atoi(req.Seconds)
+	var hasInputReference bool
 	if seconds == 0 {
 		seconds = req.Duration
 	}

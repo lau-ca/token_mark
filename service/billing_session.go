@@ -232,6 +232,13 @@ func (s *BillingSession) preConsume(c *gin.Context, quota int) *types.NewAPIErro
 func (s *BillingSession) reserveFunding(delta int) error {
 	switch funding := s.funding.(type) {
 	case *WalletFunding:
+		userQuota, err := model.GetUserQuota(funding.userId, false)
+		if err != nil {
+			return err
+		}
+		if userQuota < delta {
+			return fmt.Errorf("insufficient user quota for additional reservation: remaining %d, required %d", userQuota, delta)
+		}
 		if err := model.DecreaseUserQuota(funding.userId, delta, false); err != nil {
 			return types.NewError(err, types.ErrorCodeUpdateDataError, types.ErrOptionWithSkipRetry())
 		}

@@ -630,11 +630,7 @@ func GetUserModels(c *gin.Context) {
 			return
 		}
 
-		c.JSON(http.StatusOK, gin.H{
-			"success": true,
-			"message": "",
-			"data":    model.GetGroupEnabledModels(group),
-		})
+		writeUserModelsResponse(c, model.GetGroupEnabledModels(group), c.Query("details") == "true")
 		return
 	}
 
@@ -646,12 +642,64 @@ func GetUserModels(c *gin.Context) {
 			}
 		}
 	}
+	writeUserModelsResponse(c, models, c.Query("details") == "true")
+	return
+}
+
+func writeUserModelsResponse(c *gin.Context, modelNames []string, details bool) {
+	if !details {
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"message": "",
+			"data":    modelNames,
+		})
+		return
+	}
+
+	metadata, err := model.GetModelMetadataByNames(modelNames)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	options := make([]dto.PlaygroundModelOption, 0, len(modelNames))
+	for _, modelName := range modelNames {
+		endpointConfigs := map[string]dto.ModelEndpointConfig{}
+		if item := metadata[modelName]; item != nil {
+			endpointConfigs, err = dto.ParseModelEndpointConfigs(item.Endpoints)
+			if err != nil {
+				common.ApiError(c, err)
+				return
+			}
+		}
+
+		endpointTypes := make([]constant.EndpointType, 0, len(endpointConfigs))
+		for endpointName := range endpointConfigs {
+			endpointTypes = append(endpointTypes, constant.EndpointType(endpointName))
+		}
+		if len(endpointTypes) == 0 {
+			endpointTypes = model.GetModelSupportEndpointTypes(modelName)
+		}
+		for _, endpointType := range endpointTypes {
+			endpointName := string(endpointType)
+			if _, exists := endpointConfigs[endpointName]; exists {
+				continue
+			}
+			if config, ok := dto.GetDefaultModelEndpointConfig(endpointType); ok {
+				endpointConfigs[endpointName] = config
+			}
+		}
+		options = append(options, dto.PlaygroundModelOption{
+			ModelName:              modelName,
+			SupportedEndpointTypes: endpointTypes,
+			Endpoints:              endpointConfigs,
+		})
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
-		"data":    models,
+		"data":    options,
 	})
-	return
 }
 
 type updateUserRequest struct {

@@ -197,6 +197,98 @@ function quotaSaturationKindLabel(
   return t('Invalid (NaN)')
 }
 
+function getCompositeOperationLabel(
+  operation: string | undefined,
+  t: TFunction
+): string {
+  if (operation === 'image_generation') return t('Image Generation')
+  if (operation === 'image_edit') return t('Image Editing')
+  return operation || '-'
+}
+
+function CompositeRoutingDetails(props: {
+  log: UsageLog
+  adminInfo: NonNullable<LogOtherData['admin_info']>
+}) {
+  const { t } = useTranslation()
+  const failedAttempts = props.adminInfo.composite_failed_attempts ?? []
+  const failedAttemptRows = [
+    ...failedAttempts
+      .reduce((rows, attempt) => {
+        const parts = [
+          `${attempt.route_order}. ${attempt.physical_group} → ${attempt.billing_model}`,
+        ]
+        if (attempt.channel_id) parts.push(`#${attempt.channel_id}`)
+        if (attempt.status_code) parts.push(`HTTP ${attempt.status_code}`)
+        if (attempt.error_code) parts.push(attempt.error_code)
+        const key = parts.join(' · ')
+        const current = rows.get(key)
+        rows.set(key, { key, count: (current?.count ?? 0) + 1 })
+        return rows
+      }, new Map<string, { key: string; count: number }>())
+      .values(),
+  ]
+
+  return (
+    <DetailSection
+      icon={<Route className='size-3.5' aria-hidden='true' />}
+      iconTone='info'
+      label={t('Composite routing')}
+    >
+      <DetailRow
+        label={t('Composite Group')}
+        value={props.adminInfo.composite_group || props.log.group}
+        mono
+      />
+      <DetailRow label={t('Public Model')} value={props.log.model_name} mono />
+      <DetailRow
+        label={t('Operation')}
+        value={getCompositeOperationLabel(
+          props.adminInfo.composite_operation,
+          t
+        )}
+      />
+      {props.adminInfo.physical_group && (
+        <DetailRow
+          label={t('Physical Group')}
+          value={props.adminInfo.physical_group}
+          mono
+        />
+      )}
+      {props.adminInfo.billing_model && (
+        <DetailRow
+          label={t('Billing Model')}
+          value={props.adminInfo.billing_model}
+          mono
+        />
+      )}
+      {props.adminInfo.composite_route_order != null && (
+        <DetailRow
+          label={t('Route Order')}
+          value={String(props.adminInfo.composite_route_order)}
+          mono
+        />
+      )}
+      {failedAttemptRows.length > 0 && (
+        <div className='border-border/70 mt-2 space-y-1.5 border-t pt-2'>
+          <div className='text-muted-foreground text-xs font-medium'>
+            {t('Failed Attempts')}
+          </div>
+          {failedAttemptRows.map((attempt) => (
+            <div
+              className='bg-background/60 rounded border px-2 py-1.5 font-mono text-[11px] break-all'
+              key={attempt.key}
+            >
+              {attempt.key}
+              {attempt.count > 1 ? ` ×${attempt.count}` : ''}
+            </div>
+          ))}
+        </div>
+      )}
+    </DetailSection>
+  )
+}
+
 function BillingBreakdown(props: {
   log: UsageLog
   other: LogOtherData
@@ -676,6 +768,10 @@ export function DetailsDialog(props: DetailsDialogProps) {
             <DetailRow label={t('Token')} value={props.log.token_name} mono />
           )}
 
+          {props.log.model_name && (
+            <DetailRow label={t('Model')} value={props.log.model_name} mono />
+          )}
+
           {(props.log.group || other?.group) && (
             <DetailRow
               label={t('Group')}
@@ -733,6 +829,10 @@ export function DetailsDialog(props: DetailsDialogProps) {
             />
           )}
         </div>
+
+        {props.isAdmin && adminInfo?.composite_group && (
+          <CompositeRoutingDetails log={props.log} adminInfo={adminInfo} />
+        )}
 
         {/* Request conversion (admin only, not for refund) */}
         {showConversion && (

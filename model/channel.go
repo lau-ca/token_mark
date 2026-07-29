@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"sort"
 	"strings"
 	"sync"
 
@@ -175,6 +176,35 @@ func ApplyChannelGroupFilter(query *gorm.DB, group string) *gorm.DB {
 		return query
 	}
 	return query.Where(channelGroupFilterCondition(), channelGroupFilterPattern(group))
+}
+
+func GetPaginatedChannelGroups(query *gorm.DB, offset int, limit int) ([]string, int64, error) {
+	var groupValues []string
+	if err := query.Select(commonGroupCol).Pluck(commonGroupCol, &groupValues).Error; err != nil {
+		return nil, 0, err
+	}
+
+	groupSet := make(map[string]struct{})
+	for _, groupValue := range groupValues {
+		for _, group := range (&Channel{Group: groupValue}).GetGroups() {
+			groupSet[group] = struct{}{}
+		}
+	}
+
+	groups := make([]string, 0, len(groupSet))
+	for group := range groupSet {
+		groups = append(groups, group)
+	}
+	sort.Strings(groups)
+	total := int64(len(groups))
+	if offset >= len(groups) {
+		return []string{}, total, nil
+	}
+	end := offset + limit
+	if limit <= 0 || end > len(groups) {
+		end = len(groups)
+	}
+	return groups[offset:end], total, nil
 }
 
 // Value implements driver.Valuer interface

@@ -150,6 +150,23 @@ export function Wallet(props: WalletProps) {
     return selectedPaymentMethod?.type || getDefaultPaymentType(topupInfo)
   }, [selectedPaymentMethod, topupInfo])
 
+  const currentPaymentType = getCurrentPaymentType()
+  const currentDiscountRate =
+    topupInfo?.discount?.[topupAmount] || DEFAULT_DISCOUNT_RATE
+  const currentPaymentPriceRatio = useMemo(() => {
+    if (topupAmount <= 0 || paymentAmount <= 0 || calculating) {
+      return (status?.price as number) || 1
+    }
+
+    return paymentAmount / topupAmount / currentDiscountRate
+  }, [
+    calculating,
+    currentDiscountRate,
+    paymentAmount,
+    status?.price,
+    topupAmount,
+  ])
+
   // Handle preset selection
   const handleSelectPreset = (preset: PresetAmount) => {
     setTopupAmount(preset.value)
@@ -286,6 +303,7 @@ export function Wallet(props: WalletProps) {
                   onTopupAmountChange={handleTopupAmountChange}
                   paymentAmount={paymentAmount}
                   calculating={calculating}
+                  selectedPaymentType={currentPaymentType}
                   onPaymentMethodSelect={handlePaymentMethodSelect}
                   paymentLoading={paymentLoading}
                   redemptionCode={redemptionCode}
@@ -294,7 +312,7 @@ export function Wallet(props: WalletProps) {
                   redeeming={redeeming}
                   topupLink={topupInfo?.topup_link}
                   loading={topupLoading}
-                  priceRatio={(status?.price as number) || 1}
+                  priceRatio={currentPaymentPriceRatio}
                   usdExchangeRate={effectiveUsdExchangeRate}
                   onOpenBilling={() => setBillingDialogOpen(true)}
                   creemProducts={topupInfo?.creem_products}

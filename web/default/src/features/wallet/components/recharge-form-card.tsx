@@ -62,6 +62,7 @@ interface RechargeFormCardProps {
   onTopupAmountChange: (amount: number) => void
   paymentAmount: number
   calculating: boolean
+  selectedPaymentType: string
   onPaymentMethodSelect: (method: PaymentMethod) => void
   paymentLoading: string | null
   redemptionCode: string
@@ -92,6 +93,7 @@ export function RechargeFormCard({
   onTopupAmountChange,
   paymentAmount,
   calculating,
+  selectedPaymentType,
   onPaymentMethodSelect,
   paymentLoading,
   redemptionCode,
@@ -130,6 +132,7 @@ export function RechargeFormCard({
   const hasConfigurableTopup =
     topupInfo?.enable_online_topup ||
     topupInfo?.enable_stripe_topup ||
+    topupInfo?.enable_infini_topup ||
     enableWaffoTopup ||
     enableWaffoPancakeTopup
   const hasAnyTopup = hasConfigurableTopup || enableCreemTopup
@@ -263,12 +266,18 @@ export function RechargeFormCard({
                             )}
                           </div>
                           <div className='text-muted-foreground mt-1.5 w-full text-xs sm:mt-2'>
-                            Pay {formatCurrency(actualPrice)}
-                            {hasDiscount && savedAmount > 0 && (
-                              <span className='text-green-600'>
-                                {' '}
-                                • Save {formatCurrency(savedAmount)}
-                              </span>
+                            {calculating ? (
+                              <Skeleton className='h-4 w-20' />
+                            ) : (
+                              <>
+                                Pay {formatCurrency(actualPrice)}
+                                {hasDiscount && savedAmount > 0 && (
+                                  <span className='text-green-600'>
+                                    {' '}
+                                    • Save {formatCurrency(savedAmount)}
+                                  </span>
+                                )}
+                              </>
                             )}
                           </div>
                         </Button>
@@ -340,7 +349,11 @@ export function RechargeFormCard({
                               ? `${method.name}. ${disabledReason}`
                               : method.name
                           }
-                          className='min-h-14 min-w-0 justify-start gap-2 rounded-lg px-3 py-2 text-left'
+                          className={cn(
+                            'min-h-14 min-w-0 justify-start gap-2 rounded-lg px-3 py-2 text-left',
+                            selectedPaymentType === method.type &&
+                              'border-foreground bg-foreground/5 dark:border-foreground dark:bg-foreground/10'
+                          )}
                         >
                           {paymentLoading === method.type ? (
                             <Loader2 className='h-4 w-4 animate-spin' />

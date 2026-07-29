@@ -62,8 +62,10 @@ func relayCompositeImage(c *gin.Context, relayFormat types.RelayFormat) {
 		newAPIError = types.NewError(err, types.ErrorCodeGenRelayInfoFailed)
 		return
 	}
+	defer refundCompositeBillingOnPanic(c, relayInfo)
 	relayInfo.CompositeGroupName = policy.Name
 	relayInfo.CompositeOperation = operation
+	common.SetContextKey(c, constant.ContextKeyCompositeDisableRequestBodyPassthrough, true)
 
 	meta := imageRequest.GetTokenCountMeta()
 	if setting.ShouldCheckPromptSensitive() {
@@ -148,13 +150,7 @@ func relayCompositeImage(c *gin.Context, relayFormat types.RelayFormat) {
 		relayInfo.UsingGroup = policy.Name
 		common.SetContextKey(c, constant.ContextKeyUsingGroup, policy.Name)
 		for attempt := 0; attempt <= route.RetryCount; attempt++ {
-			relayInfo.RetryIndex = attempt
-			relayInfo.LastError = nil
-			relayInfo.ChannelMeta = nil
-			relayInfo.UpstreamModelName = ""
-			relayInfo.IsModelMapped = false
-			relayInfo.RequestConversionChain = nil
-			relayInfo.FinalRequestRelayFormat = ""
+			resetCompositeRelayAttempt(relayInfo, attempt)
 			resetCompositeChannelContext(c)
 
 			retry := attempt
@@ -208,6 +204,25 @@ func relayCompositeImage(c *gin.Context, relayFormat types.RelayFormat) {
 	if newAPIError == nil {
 		newAPIError = types.NewError(errors.New("composite image group has no available route"), types.ErrorCodeGetChannelFailed)
 	}
+}
+
+func resetCompositeRelayAttempt(relayInfo *relaycommon.RelayInfo, attempt int) {
+	relayInfo.RetryIndex = attempt
+	relayInfo.LastError = nil
+	relayInfo.ChannelMeta = &relaycommon.ChannelMeta{}
+	relayInfo.RequestConversionChain = nil
+	relayInfo.FinalRequestRelayFormat = ""
+}
+
+func refundCompositeBillingOnPanic(c *gin.Context, relayInfo *relaycommon.RelayInfo) {
+	recovered := recover()
+	if recovered == nil {
+		return
+	}
+	if relayInfo != nil && relayInfo.Billing != nil {
+		relayInfo.Billing.Refund(c)
+	}
+	panic(recovered)
 }
 
 func shouldRetryCompositeImage(err *types.NewAPIError, statusExpression string) bool {

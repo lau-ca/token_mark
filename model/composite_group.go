@@ -17,7 +17,7 @@ const (
 
 type CompositeGroup struct {
 	Id                int            `json:"id"`
-	Name              string         `json:"name" gorm:"size:64;not null;uniqueIndex:uk_composite_group_name_deleted,priority:1"`
+	Name              string         `json:"name" gorm:"size:64;not null;uniqueIndex:uk_composite_group_name"`
 	PublicModel       string         `json:"public_model" gorm:"size:128;not null"`
 	DisplayName       string         `json:"display_name" gorm:"size:128"`
 	Description       string         `json:"description" gorm:"type:text"`
@@ -28,7 +28,7 @@ type CompositeGroup struct {
 	EditEnabled       bool           `json:"edit_enabled"`
 	CreatedTime       int64          `json:"created_time" gorm:"bigint"`
 	UpdatedTime       int64          `json:"updated_time" gorm:"bigint"`
-	DeletedAt         gorm.DeletedAt `json:"-" gorm:"index;uniqueIndex:uk_composite_group_name_deleted,priority:2"`
+	DeletedAt         gorm.DeletedAt `json:"-" gorm:"index"`
 
 	Routes []CompositeGroupRoute `json:"routes" gorm:"-"`
 }

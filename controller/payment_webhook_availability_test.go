@@ -67,6 +67,41 @@ func TestCreemWebhookEnabledRequiresTopUpAndWebhookConfig(t *testing.T) {
 	require.False(t, isCreemWebhookEnabled())
 }
 
+func TestInfiniWebhookEnabledRequiresIndependentConfig(t *testing.T) {
+	confirmPaymentComplianceForTest(t)
+	originalEnabled := setting.InfiniEnabled
+	originalKeyID := setting.InfiniKeyID
+	originalSecretKey := setting.InfiniSecretKey
+	originalWebhookSecret := setting.InfiniWebhookSecret
+	originalPayMethods := setting.InfiniPayMethods
+	originalUnitPrice := setting.InfiniUnitPrice
+	originalMinTopUp := setting.InfiniMinTopUp
+	t.Cleanup(func() {
+		setting.InfiniEnabled = originalEnabled
+		setting.InfiniKeyID = originalKeyID
+		setting.InfiniSecretKey = originalSecretKey
+		setting.InfiniWebhookSecret = originalWebhookSecret
+		setting.InfiniPayMethods = originalPayMethods
+		setting.InfiniUnitPrice = originalUnitPrice
+		setting.InfiniMinTopUp = originalMinTopUp
+	})
+
+	setting.InfiniEnabled = true
+	setting.InfiniKeyID = "key-id"
+	setting.InfiniSecretKey = "secret"
+	setting.InfiniWebhookSecret = "webhook"
+	setting.InfiniPayMethods = "[1]"
+	setting.InfiniUnitPrice = 1
+	setting.InfiniMinTopUp = 1
+	require.True(t, isInfiniWebhookEnabled())
+
+	setting.InfiniPayMethods = "[]"
+	require.False(t, isInfiniWebhookEnabled())
+	setting.InfiniPayMethods = "[1]"
+	setting.InfiniEnabled = false
+	require.False(t, isInfiniWebhookEnabled())
+}
+
 func TestWaffoWebhookEnabledRequiresTopUpAndWebhookConfig(t *testing.T) {
 	confirmPaymentComplianceForTest(t)
 	originalEnabled := setting.WaffoEnabled

@@ -16,32 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { SlidersHorizontalIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { PromptInputButton } from '@/components/ai-elements/prompt-input'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover'
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from '@/components/ui/sheet'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
-import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
 
 import {
@@ -52,6 +32,7 @@ import {
   type PlaygroundParameterKey,
 } from '../../lib/parameters/playground-parameters'
 import type { ParameterEnabled, PlaygroundConfig } from '../../types'
+import { PlaygroundParameterPanelShell } from './playground-parameter-panel-shell'
 
 type PlaygroundParameterPanelProps = {
   config: PlaygroundConfig
@@ -197,70 +178,18 @@ function PlaygroundParameterContent({
 
 export function PlaygroundParameterPanel(props: PlaygroundParameterPanelProps) {
   const { t } = useTranslation()
-  const isMobile = useIsMobile()
   const activeCount = PLAYGROUND_PARAMETER_CONTROLS.filter(
     (control) => props.parameterEnabled[control.key]
   ).length
 
-  const trigger = (
-    <PromptInputButton
-      aria-label={t('Parameters')}
-      className='text-muted-foreground hover:text-foreground hover:bg-muted/70 relative font-medium'
-      disabled={props.disabled}
-      variant='ghost'
-    >
-      <SlidersHorizontalIcon size={16} />
-      <span className='bg-primary text-primary-foreground absolute -top-1 -right-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full px-1 text-[9px] leading-none font-semibold'>
-        {activeCount}
-      </span>
-    </PromptInputButton>
-  )
-
-  if (isMobile) {
-    return (
-      <Sheet>
-        <Tooltip>
-          <TooltipTrigger render={<SheetTrigger render={trigger} />} />
-          <TooltipContent>
-            <p>{t('Parameters')}</p>
-          </TooltipContent>
-        </Tooltip>
-        <SheetContent
-          className='max-h-[85vh] overflow-hidden rounded-t-xl'
-          side='bottom'
-        >
-          <SheetHeader>
-            <SheetTitle>{t('Parameter settings')}</SheetTitle>
-          </SheetHeader>
-          <PlaygroundParameterContent {...props} compact />
-        </SheetContent>
-      </Sheet>
-    )
-  }
-
   return (
-    <Popover>
-      <Tooltip>
-        <TooltipTrigger render={<PopoverTrigger render={trigger} />} />
-        <TooltipContent>
-          <p>{t('Parameters')}</p>
-        </TooltipContent>
-      </Tooltip>
-      <PopoverContent
-        align='start'
-        className='w-[22rem] max-w-[calc(100vw-2rem)] gap-3 p-3'
-        collisionPadding={8}
-        side='top'
-        sideOffset={8}
-      >
-        <div className='space-y-1 px-1'>
-          <div className='text-sm font-semibold'>{t('Parameter settings')}</div>
-          <div className='text-muted-foreground text-xs leading-4'>
-            {t('Only enabled parameters are sent with the request.')}
-          </div>
-        </div>
-        <PlaygroundParameterContent {...props} />
-      </PopoverContent>
-    </Popover>
+    <PlaygroundParameterPanelShell
+      activeCount={activeCount}
+      description={t('Only enabled parameters are sent with the request.')}
+      disabled={props.disabled}
+      renderContent={(compact) => (
+        <PlaygroundParameterContent {...props} compact={compact} />
+      )}
+    />
   )
 }

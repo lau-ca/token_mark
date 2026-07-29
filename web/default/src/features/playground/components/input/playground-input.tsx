@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState } from 'react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -25,11 +25,18 @@ import {
   PromptInputTextarea,
   type PromptInputMessage,
 } from '@/components/ai-elements/prompt-input'
+import { useStatus } from '@/hooks/use-status'
 
-import { getSubmittableInputText } from '../../lib'
+import {
+  buildPlaygroundChatCurl,
+  buildChatCompletionPayload,
+  getModeEndpoint,
+  getSubmittableInputText,
+  resolvePlaygroundIntegrationGuide,
+  resolvePlaygroundApiBaseUrl,
+} from '../../lib'
 import type {
   ModelOption,
-  GroupOption,
   ParameterEnabled,
   PlaygroundConfig,
 } from '../../types'
@@ -39,17 +46,13 @@ import { PlaygroundInputTools } from './playground-input-tools'
 interface PlaygroundInputProps {
   config: PlaygroundConfig
   onSubmit: (text: string) => void
+  onValueChange: (value: string) => void
   onStop?: () => void
   disabled?: boolean
   isGenerating?: boolean
-  models: ModelOption[]
-  modelValue: string
-  onModelChange: (value: string) => void
-  isModelLoading?: boolean
-  groups: GroupOption[]
-  groupValue: string
-  onGroupChange: (value: string) => void
+  hasModel: boolean
   hasMessages?: boolean
+  modelOption?: ModelOption
   onConfigChange: <K extends keyof PlaygroundConfig>(
     key: K,
     value: PlaygroundConfig[K]
@@ -60,36 +63,80 @@ interface PlaygroundInputProps {
     value: boolean
   ) => void
   parameterEnabled: ParameterEnabled
+  value: string
 }
 
 export function PlaygroundInput({
   config,
   onSubmit,
+  onValueChange,
   onStop,
   disabled,
   isGenerating,
-  models,
-  modelValue,
-  onModelChange,
-  isModelLoading = false,
-  groups,
-  groupValue,
-  onGroupChange,
+  hasModel,
   hasMessages = false,
+  modelOption,
   onConfigChange,
   onClearMessages,
   onParameterEnabledChange,
   parameterEnabled,
+  value,
 }: PlaygroundInputProps) {
   const { t } = useTranslation()
-  const [text, setText] = useState('')
+  const { status } = useStatus()
+  const apiBaseUrl = resolvePlaygroundApiBaseUrl(status)
+  const endpointEntry = useMemo(
+    () => (modelOption ? getModeEndpoint(modelOption, 'chat') : undefined),
+    [modelOption]
+  )
+  const examplePrompt = value.trim() || '<YOUR_PROMPT>'
+  const curl = useMemo(
+    () =>
+      buildPlaygroundChatCurl({
+        apiBaseUrl,
+        config,
+        parameterEnabled,
+        prompt: examplePrompt,
+      }),
+    [apiBaseUrl, config, examplePrompt, parameterEnabled]
+  )
+  const guide = useMemo(() => {
+    if (!endpointEntry || !config.model || !apiBaseUrl) return null
+    const definition = endpointEntry[1].playground?.integration
+    if (!definition) return null
+    const payload = buildChatCompletionPayload(
+      [
+        {
+          key: 'integration-draft',
+          from: 'user',
+          versions: [{ id: 'integration-draft', content: examplePrompt }],
+        },
+      ],
+      config,
+      parameterEnabled
+    )
+    return resolvePlaygroundIntegrationGuide({
+      apiBaseUrl,
+      definition,
+      group: config.group,
+      model: config.model,
+      parameters: Object.fromEntries(
+        Object.entries(payload).filter(
+          ([key]) => !['model', 'group', 'messages'].includes(key)
+        )
+      ) as Record<string, string | number | boolean>,
+      prompt: examplePrompt,
+      requestCurl: curl,
+      requestJson: JSON.stringify(payload, null, 2),
+    })
+  }, [apiBaseUrl, config, curl, endpointEntry, examplePrompt, parameterEnabled])
 
   const handleSubmit = (message: PromptInputMessage) => {
     const submittableText = getSubmittableInputText(message, disabled)
 
     if (!submittableText) return
     onSubmit(submittableText)
-    setText('')
+    onValueChange('')
   }
 
   return (
@@ -106,28 +153,24 @@ export function PlaygroundInput({
           spellCheck={false}
           className='min-h-20 px-5 pt-4 pb-3 leading-7 md:min-h-24 md:text-base'
           disabled={disabled}
-          onChange={(event) => setText(event.target.value)}
+          onChange={(event) => onValueChange(event.target.value)}
           placeholder={t('Ask anything')}
-          value={text}
+          value={value}
         />
 
         <PromptInputFooter className='border-border/60 bg-muted/20 dark:bg-muted/10 border-t px-3 py-2.5 backdrop-blur'>
           <PlaygroundInputControls
             disabled={disabled}
-            groups={groups}
-            groupValue={groupValue}
+            hasModel={hasModel}
             isGenerating={isGenerating}
-            isModelLoading={isModelLoading}
-            models={models}
-            modelValue={modelValue}
-            onGroupChange={onGroupChange}
-            onModelChange={onModelChange}
             onStop={onStop}
-            text={text}
+            text={value}
             tools={
               <PlaygroundInputTools
+                apiBaseUrl={apiBaseUrl}
                 config={config}
                 disabled={disabled}
+                guide={guide}
                 hasMessages={hasMessages}
                 onConfigChange={onConfigChange}
                 onClearMessages={onClearMessages}

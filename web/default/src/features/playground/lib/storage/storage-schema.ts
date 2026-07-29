@@ -27,6 +27,13 @@ export const MAX_LOADED_MESSAGE_CHARS = 40_000
 export const playgroundConfigSchema = z.object({
   model: z.string().optional(),
   group: z.string().optional(),
+  mode_selections: z
+    .object({
+      chat: z.object({ model: z.string(), group: z.string() }),
+      image: z.object({ model: z.string(), group: z.string() }),
+      video: z.object({ model: z.string(), group: z.string() }),
+    })
+    .optional(),
   temperature: z.number().optional(),
   top_p: z.number().optional(),
   max_tokens: z.number().optional(),
@@ -71,6 +78,24 @@ const reasoningSchema = z.object({
   durationMs: z.number().optional(),
 })
 
+const playgroundMediaSchema = z.object({
+  type: z.enum(['image', 'video']),
+  url: z.string().optional(),
+  taskId: z.string().optional(),
+  isTransient: z.boolean().optional(),
+  storageKey: z.string().optional(),
+  filename: z.string().optional(),
+  progress: z.number().optional(),
+})
+
+const playgroundRequestContextSchema = z.object({
+  model: z.string(),
+  group: z.string(),
+  parameters: z
+    .record(z.string(), z.union([z.string(), z.number(), z.boolean()]))
+    .optional(),
+})
+
 const messageSchema = z.object({
   key: z.string(),
   from: messageRoleSchema,
@@ -86,6 +111,9 @@ const messageSchema = z.object({
   isContentComplete: z.boolean().optional(),
   status: messageStatusSchema.optional(),
   errorCode: z.string().nullable().optional(),
+  mode: z.enum(['chat', 'image', 'video']).optional(),
+  media: z.array(playgroundMediaSchema).optional(),
+  requestContext: playgroundRequestContextSchema.optional(),
 })
 
 export const messagesSchema = z.array(messageSchema)

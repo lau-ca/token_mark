@@ -5,9 +5,78 @@ import (
 	"net/http"
 	"testing"
 
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/types"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+type compositeBillingSpy struct {
+	refundCount int
+}
+
+func (s *compositeBillingSpy) Settle(int) error {
+	return nil
+}
+
+func (s *compositeBillingSpy) Refund(*gin.Context) {
+	s.refundCount++
+}
+
+func (s *compositeBillingSpy) NeedsRefund() bool {
+	return true
+}
+
+func (s *compositeBillingSpy) GetPreConsumedQuota() int {
+	return 1
+}
+
+func (s *compositeBillingSpy) Reserve(int) error {
+	return nil
+}
+
+func TestResetCompositeRelayAttempt(t *testing.T) {
+	relayInfo := &relaycommon.RelayInfo{
+		RetryIndex:  3,
+		LastError:   types.NewError(errors.New("previous failure"), types.ErrorCodeDoRequestFailed),
+		ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "mapped-model", IsModelMapped: true},
+		RequestConversionChain: []types.RelayFormat{
+			types.RelayFormatOpenAIImage,
+		},
+		FinalRequestRelayFormat: types.RelayFormatOpenAIImage,
+	}
+
+	resetCompositeRelayAttempt(relayInfo, 1)
+
+	require.NotNil(t, relayInfo.ChannelMeta)
+	assert.Equal(t, 1, relayInfo.RetryIndex)
+	assert.Nil(t, relayInfo.LastError)
+	assert.Empty(t, relayInfo.UpstreamModelName)
+	assert.False(t, relayInfo.IsModelMapped)
+	assert.Empty(t, relayInfo.RequestConversionChain)
+	assert.Empty(t, relayInfo.FinalRequestRelayFormat)
+}
+
+func TestCompositePanicRefund(t *testing.T) {
+	billing := &compositeBillingSpy{}
+	relayInfo := &relaycommon.RelayInfo{Billing: billing}
+	c, _ := gin.CreateTestContext(nil)
+
+	var recovered any
+	func() {
+		defer func() {
+			recovered = recover()
+		}()
+		func() {
+			defer refundCompositeBillingOnPanic(c, relayInfo)
+			panic("composite panic")
+		}()
+	}()
+
+	assert.Equal(t, "composite panic", recovered)
+	assert.Equal(t, 1, billing.refundCount)
+}
 
 func TestShouldRetryCompositeImage(t *testing.T) {
 	tests := []struct {

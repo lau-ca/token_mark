@@ -102,6 +102,24 @@ func TestRechargeWaffoPancake_RejectsMismatchedPaymentMethod(t *testing.T) {
 	assert.Equal(t, 0, getUserQuotaForPaymentGuardTest(t, 101))
 }
 
+func TestRechargeInfini_IsIdempotentAndProviderGuarded(t *testing.T) {
+	truncateTables(t)
+	insertUserForPaymentGuardTest(t, 111, 0)
+	insertTopUpForPaymentGuardTest(t, "infini-topup", 111, PaymentProviderInfini)
+
+	require.NoError(t, RechargeInfini("infini-topup", "127.0.0.1"))
+	firstQuota := getUserQuotaForPaymentGuardTest(t, 111)
+	require.Positive(t, firstQuota)
+	require.NoError(t, RechargeInfini("infini-topup", "127.0.0.1"))
+	assert.Equal(t, firstQuota, getUserQuotaForPaymentGuardTest(t, 111))
+	assert.Equal(t, common.TopUpStatusSuccess, getTopUpStatusForPaymentGuardTest(t, "infini-topup"))
+
+	insertTopUpForPaymentGuardTest(t, "infini-mismatch", 111, PaymentProviderStripe)
+	err := RechargeInfini("infini-mismatch", "127.0.0.1")
+	require.ErrorIs(t, err, ErrPaymentMethodMismatch)
+	assert.Equal(t, common.TopUpStatusPending, getTopUpStatusForPaymentGuardTest(t, "infini-mismatch"))
+}
+
 func TestUpdatePendingTopUpStatus_RejectsMismatchedPaymentProvider(t *testing.T) {
 	testCases := []struct {
 		name                    string

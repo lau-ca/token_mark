@@ -58,8 +58,7 @@ export const compositeGroupSchema = z
     pricing_visible: z.boolean(),
     generation_enabled: z.boolean(),
     edit_enabled: z.boolean(),
-    generation_routes: z.array(routeSchema),
-    edit_routes: z.array(routeSchema),
+    routes: z.array(routeSchema),
   })
   .superRefine((value, ctx) => {
     if (!value.generation_enabled && !value.edit_enabled) {
@@ -69,18 +68,11 @@ export const compositeGroupSchema = z
         message: 'Enable at least one image operation',
       })
     }
-    if (value.generation_enabled && value.generation_routes.length === 0) {
+    if (value.routes.length === 0) {
       ctx.addIssue({
         code: 'custom',
-        path: ['generation_routes'],
-        message: 'Add at least one generation route',
-      })
-    }
-    if (value.edit_enabled && value.edit_routes.length === 0) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['edit_routes'],
-        message: 'Add at least one edit route',
+        path: ['routes'],
+        message: 'Add at least one route',
       })
     }
   })
@@ -95,6 +87,16 @@ export function createCompositeGroupDefaults(
     retry_count: route.retry_count,
     retry_status_codes: route.retry_status_codes,
   })
+  const generationRoutes =
+    group?.routes.filter(
+      (route) => route.operation === COMPOSITE_OPERATIONS.generation
+    ) ?? []
+  const sharedRoutes =
+    generationRoutes.length > 0
+      ? generationRoutes
+      : (group?.routes.filter(
+          (route) => route.operation === COMPOSITE_OPERATIONS.edit
+        ) ?? [])
   return {
     name: group?.name ?? '',
     public_model: group?.public_model ?? '',
@@ -105,16 +107,9 @@ export function createCompositeGroupDefaults(
     pricing_visible: group?.pricing_visible ?? false,
     generation_enabled: group?.generation_enabled ?? true,
     edit_enabled: group?.edit_enabled ?? true,
-    generation_routes:
-      group?.routes
-        .filter((route) => route.operation === COMPOSITE_OPERATIONS.generation)
-        .sort((a, b) => a.route_order - b.route_order)
-        .map(toRoute) ?? [],
-    edit_routes:
-      group?.routes
-        .filter((route) => route.operation === COMPOSITE_OPERATIONS.edit)
-        .sort((a, b) => a.route_order - b.route_order)
-        .map(toRoute) ?? [],
+    routes: sharedRoutes
+      .sort((a, b) => a.route_order - b.route_order)
+      .map(toRoute),
   }
 }
 
@@ -122,26 +117,35 @@ export function serializeCompositeGroup(
   input: CompositeGroupFormInput
 ): CompositeGroupPayload {
   const values = compositeGroupSchema.parse(input)
-  const generationRoutes = values.generation_routes.map((route, index) => ({
+  const toPayloadRoute = (
+    route: CompositeGroupFormInput['routes'][number],
+    index: number,
+    operation: CompositeGroupPayload['routes'][number]['operation']
+  ) => ({
     physical_group: route.physical_group,
     internal_model: route.internal_model,
     retry_count: route.retry_count,
     retry_status_codes: parseHttpStatusCodeRules(route.retry_status_codes)
       .normalized,
-    operation: COMPOSITE_OPERATIONS.generation,
+    operation,
     route_order: index + 1,
     status: 1,
-  }))
-  const editRoutes = values.edit_routes.map((route, index) => ({
-    physical_group: route.physical_group,
-    internal_model: route.internal_model,
-    retry_count: route.retry_count,
-    retry_status_codes: parseHttpStatusCodeRules(route.retry_status_codes)
-      .normalized,
-    operation: COMPOSITE_OPERATIONS.edit,
-    route_order: index + 1,
-    status: 1,
-  }))
+  })
+  const routes = [] as CompositeGroupPayload['routes']
+  if (values.generation_enabled) {
+    routes.push(
+      ...values.routes.map((route, index) =>
+        toPayloadRoute(route, index, COMPOSITE_OPERATIONS.generation)
+      )
+    )
+  }
+  if (values.edit_enabled) {
+    routes.push(
+      ...values.routes.map((route, index) =>
+        toPayloadRoute(route, index, COMPOSITE_OPERATIONS.edit)
+      )
+    )
+  }
   return {
     name: values.name,
     public_model: values.public_model,
@@ -152,6 +156,6 @@ export function serializeCompositeGroup(
     pricing_visible: values.pricing_visible,
     generation_enabled: values.generation_enabled,
     edit_enabled: values.edit_enabled,
-    routes: [...generationRoutes, ...editRoutes],
+    routes,
   }
 }

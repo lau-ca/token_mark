@@ -744,15 +744,37 @@ export function getAttentionReason(channel: Channel): string | null {
 /**
  * Tag row type (extends Channel with children)
  */
-export type TagRow = Channel & {
+export type ChannelAggregateRow = Channel & {
   children: Channel[]
+  aggregateKind: 'tag' | 'group'
+  aggregateValue: string
 }
+
+export type TagRow = ChannelAggregateRow
 
 /**
  * Type guard to check whether a row is a tag aggregate row
  */
 export function isTagAggregateRow(row: Channel | TagRow): row is TagRow {
-  return Array.isArray((row as TagRow).children)
+  return (
+    Array.isArray((row as ChannelAggregateRow).children) &&
+    (row as ChannelAggregateRow).aggregateKind === 'tag'
+  )
+}
+
+export function isGroupAggregateRow(
+  row: Channel | ChannelAggregateRow
+): row is ChannelAggregateRow {
+  return (
+    Array.isArray((row as ChannelAggregateRow).children) &&
+    (row as ChannelAggregateRow).aggregateKind === 'group'
+  )
+}
+
+export function isChannelAggregateRow(
+  row: Channel | ChannelAggregateRow
+): row is ChannelAggregateRow {
+  return Array.isArray((row as ChannelAggregateRow).children)
 }
 
 /**
@@ -789,6 +811,8 @@ export function aggregateChannelsByTag(
         balance_updated_time: 0,
         models: '',
         children: [],
+        aggregateKind: 'tag',
+        aggregateValue: tag,
       } as TagRow
       tagMap.set(tag, tagRow)
       result.push(tagRow)
@@ -843,6 +867,55 @@ export function aggregateChannelsByTag(
       tagRow.status = 1
     } else if (tagRow.status === undefined) {
       tagRow.status = channel.status
+    }
+  }
+
+  return result
+}
+
+export function aggregateChannelsByGroup(
+  channels: Channel[]
+): (Channel | ChannelAggregateRow)[] {
+  const groupMap = new Map<string, ChannelAggregateRow>()
+  const result: ChannelAggregateRow[] = []
+
+  for (const channel of channels) {
+    for (const group of parseGroupsList(channel.group)) {
+      let groupRow = groupMap.get(group)
+      if (!groupRow) {
+        groupRow = {
+          ...channel,
+          key: group,
+          id: group as unknown as number,
+          name: group,
+          type: 0,
+          status: undefined as unknown as number,
+          group,
+          used_quota: 0,
+          response_time: 0,
+          priority: null,
+          weight: null,
+          balance: 0,
+          test_time: 0,
+          created_time: 0,
+          balance_updated_time: 0,
+          models: '',
+          children: [],
+          aggregateKind: 'group',
+          aggregateValue: group,
+        }
+        groupMap.set(group, groupRow)
+        result.push(groupRow)
+      }
+      if (groupRow.children.some((child) => child.id === channel.id)) continue
+      groupRow.children.push(channel)
+      const childCount = groupRow.children.length
+      groupRow.used_quota += channel.used_quota
+      groupRow.response_time =
+        (groupRow.response_time * (childCount - 1) + channel.response_time) /
+        childCount
+      if (channel.status === 1) groupRow.status = 1
+      else if (groupRow.status === undefined) groupRow.status = channel.status
     }
   }
 

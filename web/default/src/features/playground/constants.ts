@@ -37,6 +37,9 @@ export const API_ENDPOINTS = {
   CHAT_COMPLETIONS: '/pg/chat/completions',
   USER_MODELS: '/api/user/models',
   USER_GROUPS: '/api/user/self/groups',
+  IMAGE_GENERATIONS: '/pg/images/generations',
+  IMAGE_EDITS: '/pg/images/edits',
+  VIDEOS: '/pg/videos',
 } as const
 
 // Default group — uses 'default' as the safe fallback; auto-group is
@@ -47,6 +50,11 @@ export const DEFAULT_GROUP = 'default' as const
 export const DEFAULT_CONFIG: PlaygroundConfig = {
   model: 'gpt-4o',
   group: DEFAULT_GROUP,
+  mode_selections: {
+    chat: { model: 'gpt-4o', group: DEFAULT_GROUP },
+    image: { model: '', group: DEFAULT_GROUP },
+    video: { model: '', group: DEFAULT_GROUP },
+  },
   temperature: 0.7,
   top_p: 1,
   max_tokens: 4096,
@@ -70,6 +78,7 @@ export const STORAGE_KEYS = {
   CONFIG: 'playground_config',
   MESSAGES: 'playground_messages',
   PARAMETER_ENABLED: 'playground_parameter_enabled',
+  MODE: 'playground_mode:v1',
 } as const
 
 // Error messages

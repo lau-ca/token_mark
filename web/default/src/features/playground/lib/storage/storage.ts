@@ -94,6 +94,21 @@ function trimMessages(messages: Message[]): Message[] {
   return messages.slice(-MAX_STORED_MESSAGES)
 }
 
+function prepareMessagesForStorage(messages: Message[]): Message[] {
+  return messages.map((message) => {
+    if (!message.media?.some((item) => item.isTransient)) {
+      return message
+    }
+
+    return {
+      ...message,
+      media: message.media.map((item) =>
+        item.isTransient ? { ...item, url: undefined } : item
+      ),
+    }
+  })
+}
+
 function getMessageSize(message: Message): number {
   const versionsSize = message.versions.reduce(
     (total, version) => total + version.content.length,
@@ -374,7 +389,7 @@ export function loadMessages(): Message[] | null {
  */
 export function saveMessages(messages: Message[]): void {
   try {
-    const trimmed = trimMessages(messages)
+    const trimmed = prepareMessagesForStorage(trimMessages(messages))
     const parsed = messagesSchema.parse(trimmed) as Message[]
     writeStoredValue(STORAGE_KEYS.MESSAGES, parsed)
   } catch (error) {

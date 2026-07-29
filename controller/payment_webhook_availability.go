@@ -46,6 +46,24 @@ func isCreemWebhookEnabled() bool {
 	return isCreemTopUpEnabled() && isCreemWebhookConfigured()
 }
 
+func isInfiniTopUpEnabled() bool {
+	if !isPaymentComplianceConfirmed() || !setting.InfiniEnabled {
+		return false
+	}
+	if strings.TrimSpace(setting.InfiniKeyID) == "" ||
+		strings.TrimSpace(setting.InfiniSecretKey) == "" ||
+		strings.TrimSpace(setting.InfiniWebhookSecret) == "" ||
+		setting.InfiniUnitPrice <= 0 || setting.InfiniMinTopUp < 1 {
+		return false
+	}
+	_, err := getInfiniPayMethods()
+	return err == nil
+}
+
+func isInfiniWebhookEnabled() bool {
+	return isInfiniTopUpEnabled()
+}
+
 func isWaffoTopUpEnabled() bool {
 	if !isPaymentComplianceConfirmed() {
 		return false

@@ -57,7 +57,6 @@ interface LogsFilterToolbarProps<TData> {
 
 interface LogsFilterFieldProps {
   children: ReactNode
-  wide?: boolean
   className?: string
 }
 
@@ -66,7 +65,6 @@ export function LogsFilterField(props: LogsFilterFieldProps) {
     <div
       className={cn(
         'min-w-0 [&_[data-slot=select-trigger]]:w-full [&_[data-slot=select-trigger]]:text-sm [&_[data-slot=select-value]]:leading-5',
-        props.wide && 'sm:col-span-2',
         props.className
       )}
     >
@@ -138,7 +136,10 @@ export function LogsFilterToolbar<TData>(props: LogsFilterToolbarProps<TData>) {
     return (
       <Drawer open={mobileFiltersOpen} onOpenChange={setMobileFiltersOpen}>
         <div
-          className={cn('bg-card/50 rounded-lg border p-2.5', props.className)}
+          className={cn(
+            'bg-card rounded-xl border p-2.5 shadow-xs',
+            props.className
+          )}
         >
           {!mobilePanelCollapsed && (
             <div className='grid gap-2'>{props.mobilePinnedFilters}</div>
@@ -156,11 +157,11 @@ export function LogsFilterToolbar<TData>(props: LogsFilterToolbarProps<TData>) {
                 type='button'
                 variant='ghost'
                 size='icon'
-                onClick={() => setMobilePanelCollapsed((collapsed) => !collapsed)}
-                aria-expanded={!mobilePanelCollapsed}
-                aria-label={
-                  mobilePanelCollapsed ? t('Expand') : t('Collapse')
+                onClick={() =>
+                  setMobilePanelCollapsed((collapsed) => !collapsed)
                 }
+                aria-expanded={!mobilePanelCollapsed}
+                aria-label={mobilePanelCollapsed ? t('Expand') : t('Collapse')}
                 className='text-muted-foreground hover:text-foreground mr-auto size-7'
               >
                 <ChevronDown
@@ -245,28 +246,32 @@ export function LogsFilterToolbar<TData>(props: LogsFilterToolbarProps<TData>) {
   return (
     <div
       className={cn(
-        'bg-card/50 rounded-lg border p-2.5 sm:p-3',
+        'bg-card overflow-hidden rounded-xl border shadow-xs',
         props.className
       )}
     >
-      <div className='flex flex-wrap items-start gap-2'>
-        <div className='grid min-w-0 flex-1 grid-cols-1 gap-2 sm:grid-cols-[repeat(auto-fit,minmax(10rem,1fr))]'>
-          {props.primaryFilters}
-        </div>
-        {advancedToggle && (
-          <div className='flex shrink-0 items-center justify-end'>
-            {advancedToggle}
+      <div className='p-3'>
+        <div className='flex flex-wrap items-center gap-2'>
+          <div className='flex min-w-0 flex-1 flex-wrap items-center gap-2'>
+            {props.primaryFilters}
           </div>
-        )}
+          {advancedToggle && (
+            <div className='flex shrink-0 items-center justify-end'>
+              {advancedToggle}
+            </div>
+          )}
+        </div>
       </div>
 
       {advancedOpen && props.advancedFilters && (
-        <div className='mt-2 grid grid-cols-1 gap-2 sm:grid-cols-[repeat(auto-fit,minmax(10rem,1fr))]'>
-          {props.advancedFilters}
+        <div className='border-border/70 bg-muted/15 border-t px-3 py-2.5'>
+          <div className='flex flex-wrap items-center gap-2'>
+            {props.advancedFilters}
+          </div>
         </div>
       )}
 
-      <div className='mt-2 flex flex-wrap items-center gap-2'>
+      <div className='border-border/70 bg-muted/10 flex flex-wrap items-center gap-2 border-t px-3 py-2.5'>
         {props.stats}
         <div className='ms-auto flex flex-wrap items-center justify-end gap-1.5 sm:gap-2'>
           {props.actionStart}

@@ -159,6 +159,29 @@ const paymentSchema = z.object({
       })
     }
   }),
+  InfiniEnabled: z.boolean(),
+  InfiniSandbox: z.boolean(),
+  InfiniKeyID: z.string(),
+  InfiniSecretKey: z.string(),
+  InfiniWebhookSecret: z.string(),
+  InfiniCurrency: z.string().min(1),
+  InfiniPayMethods: z.string().superRefine((value, ctx) => {
+    const error = getJsonError(
+      value,
+      (parsed) =>
+        Array.isArray(parsed) &&
+        parsed.length > 0 &&
+        parsed.every(
+          (method) =>
+            typeof method === 'number' && [1, 2, 3, 5, 6].includes(method)
+        )
+    )
+    if (error) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: error })
+    }
+  }),
+  InfiniUnitPrice: z.coerce.number().positive(),
+  InfiniMinTopUp: z.coerce.number().int().min(1),
   WaffoEnabled: z.boolean(),
   WaffoApiKey: z.string(),
   WaffoPrivateKey: z.string(),
@@ -413,6 +436,7 @@ export function PaymentSettingsSection({
       AmountOptions: formatJsonForEditor(parsedDefaults.AmountOptions),
       AmountDiscount: formatJsonForEditor(parsedDefaults.AmountDiscount),
       CreemProducts: formatJsonForEditor(parsedDefaults.CreemProducts),
+      InfiniPayMethods: formatJsonForEditor(parsedDefaults.InfiniPayMethods),
     })
   }, [defaultsSignature, form])
 
@@ -437,6 +461,15 @@ export function PaymentSettingsSection({
       CreemWebhookSecret: values.CreemWebhookSecret.trim(),
       CreemTestMode: values.CreemTestMode,
       CreemProducts: values.CreemProducts.trim(),
+      InfiniEnabled: values.InfiniEnabled,
+      InfiniSandbox: values.InfiniSandbox,
+      InfiniKeyID: values.InfiniKeyID.trim(),
+      InfiniSecretKey: values.InfiniSecretKey.trim(),
+      InfiniWebhookSecret: values.InfiniWebhookSecret.trim(),
+      InfiniCurrency: values.InfiniCurrency.trim().toUpperCase() || 'USD',
+      InfiniPayMethods: values.InfiniPayMethods.trim(),
+      InfiniUnitPrice: values.InfiniUnitPrice,
+      InfiniMinTopUp: values.InfiniMinTopUp,
       WaffoEnabled: values.WaffoEnabled,
       WaffoSandbox: values.WaffoSandbox,
       WaffoMerchantId: values.WaffoMerchantId.trim(),
@@ -482,6 +515,16 @@ export function PaymentSettingsSection({
       CreemWebhookSecret: initialRef.current.CreemWebhookSecret.trim(),
       CreemTestMode: initialRef.current.CreemTestMode,
       CreemProducts: initialRef.current.CreemProducts.trim(),
+      InfiniEnabled: initialRef.current.InfiniEnabled,
+      InfiniSandbox: initialRef.current.InfiniSandbox,
+      InfiniKeyID: initialRef.current.InfiniKeyID.trim(),
+      InfiniSecretKey: initialRef.current.InfiniSecretKey.trim(),
+      InfiniWebhookSecret: initialRef.current.InfiniWebhookSecret.trim(),
+      InfiniCurrency:
+        initialRef.current.InfiniCurrency.trim().toUpperCase() || 'USD',
+      InfiniPayMethods: initialRef.current.InfiniPayMethods.trim(),
+      InfiniUnitPrice: initialRef.current.InfiniUnitPrice,
+      InfiniMinTopUp: initialRef.current.InfiniMinTopUp,
       WaffoEnabled: initialRef.current.WaffoEnabled,
       WaffoSandbox: initialRef.current.WaffoSandbox,
       WaffoMerchantId: initialRef.current.WaffoMerchantId.trim(),
@@ -627,6 +670,49 @@ export function PaymentSettingsSection({
       normalizeJsonForComparison(initial.CreemProducts)
     ) {
       updates.push({ key: 'CreemProducts', value: sanitized.CreemProducts })
+    }
+
+    if (sanitized.InfiniEnabled !== initial.InfiniEnabled) {
+      updates.push({ key: 'InfiniEnabled', value: sanitized.InfiniEnabled })
+    }
+    if (sanitized.InfiniSandbox !== initial.InfiniSandbox) {
+      updates.push({ key: 'InfiniSandbox', value: sanitized.InfiniSandbox })
+    }
+    if (sanitized.InfiniKeyID !== initial.InfiniKeyID) {
+      updates.push({ key: 'InfiniKeyID', value: sanitized.InfiniKeyID })
+    }
+    if (
+      sanitized.InfiniSecretKey &&
+      sanitized.InfiniSecretKey !== initial.InfiniSecretKey
+    ) {
+      updates.push({ key: 'InfiniSecretKey', value: sanitized.InfiniSecretKey })
+    }
+    if (
+      sanitized.InfiniWebhookSecret &&
+      sanitized.InfiniWebhookSecret !== initial.InfiniWebhookSecret
+    ) {
+      updates.push({
+        key: 'InfiniWebhookSecret',
+        value: sanitized.InfiniWebhookSecret,
+      })
+    }
+    if (sanitized.InfiniCurrency !== initial.InfiniCurrency) {
+      updates.push({ key: 'InfiniCurrency', value: sanitized.InfiniCurrency })
+    }
+    if (
+      normalizeJsonForComparison(sanitized.InfiniPayMethods) !==
+      normalizeJsonForComparison(initial.InfiniPayMethods)
+    ) {
+      updates.push({
+        key: 'InfiniPayMethods',
+        value: sanitized.InfiniPayMethods,
+      })
+    }
+    if (sanitized.InfiniUnitPrice !== initial.InfiniUnitPrice) {
+      updates.push({ key: 'InfiniUnitPrice', value: sanitized.InfiniUnitPrice })
+    }
+    if (sanitized.InfiniMinTopUp !== initial.InfiniMinTopUp) {
+      updates.push({ key: 'InfiniMinTopUp', value: sanitized.InfiniMinTopUp })
     }
 
     if (sanitized.WaffoEnabled !== initial.WaffoEnabled) {
@@ -882,6 +968,7 @@ export function PaymentSettingsSection({
                 <TabsTrigger value='epay'>Epay</TabsTrigger>
                 <TabsTrigger value='stripe'>{t('Stripe')}</TabsTrigger>
                 <TabsTrigger value='creem'>Creem</TabsTrigger>
+                <TabsTrigger value='infini'>Infini</TabsTrigger>
                 <TabsTrigger value='waffo-pancake'>Waffo Pancake</TabsTrigger>
                 <TabsTrigger value='waffo'>Waffo</TabsTrigger>
               </TabsList>
@@ -1580,6 +1667,243 @@ export function PaymentSettingsSection({
                       </FormControl>
                       <FormDescription>
                         {t('Configure Creem products. Provide a JSON array.')}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            </TabsContent>
+
+            <TabsContent value='infini' className={paymentTabContentClassName}>
+              <div className='space-y-4'>
+                <div>
+                  <h3 className='text-lg font-medium'>{t('Infini Gateway')}</h3>
+                  <p className='text-muted-foreground text-sm'>
+                    {t('Configuration for Infini Hosted Checkout integration')}
+                  </p>
+                </div>
+
+                <div className='rounded-md bg-blue-50 p-4 text-sm text-blue-900 dark:bg-blue-950 dark:text-blue-100'>
+                  <p className='mb-2 font-medium'>
+                    {t('Webhook Configuration:')}
+                  </p>
+                  <ul className='list-inside list-disc space-y-1'>
+                    <li>
+                      {t('Webhook URL:')}{' '}
+                      <code className='rounded bg-blue-100 px-1 py-0.5 text-xs dark:bg-blue-900'>
+                        {'<ServerAddress>/api/infini/webhook'}
+                      </code>
+                    </li>
+                    <li>
+                      {t(
+                        'Subscribe to the order.update event in Infini Business'
+                      )}
+                    </li>
+                    <li>
+                      <a
+                        href='https://business.infini.money'
+                        target='_blank'
+                        rel='noreferrer'
+                        className='underline hover:no-underline'
+                      >
+                        {t('Open Infini Business')}
+                      </a>
+                    </li>
+                  </ul>
+                </div>
+
+                <div className='grid gap-6 md:grid-cols-2'>
+                  <FormField
+                    control={form.control}
+                    name='InfiniEnabled'
+                    render={({ field }) => (
+                      <SettingsSwitchItem>
+                        <SettingsSwitchContent>
+                          <FormLabel>{t('Enable Infini payments')}</FormLabel>
+                          <FormDescription>
+                            {t('Show Infini as an independent payment gateway')}
+                          </FormDescription>
+                        </SettingsSwitchContent>
+                        <FormControl>
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                      </SettingsSwitchItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='InfiniSandbox'
+                    render={({ field }) => (
+                      <SettingsSwitchItem>
+                        <SettingsSwitchContent>
+                          <FormLabel>{t('Sandbox mode')}</FormLabel>
+                          <FormDescription>
+                            {t('Use the Infini sandbox API and credentials')}
+                          </FormDescription>
+                        </SettingsSwitchContent>
+                        <FormControl>
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                      </SettingsSwitchItem>
+                    )}
+                  />
+                </div>
+
+                <div className='grid gap-6 md:grid-cols-3'>
+                  <FormField
+                    control={form.control}
+                    name='InfiniKeyID'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Infini Key ID')}</FormLabel>
+                        <FormControl>
+                          <Input autoComplete='off' {...field} />
+                        </FormControl>
+                        <FormDescription>
+                          {t(
+                            'Public key ID created on the Infini Developer page'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='InfiniSecretKey'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Infini Secret Key')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            type='password'
+                            autoComplete='new-password'
+                            placeholder={t('Enter new key to update')}
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t('Leave blank unless rotating the secret')}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='InfiniWebhookSecret'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Webhook secret')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            type='password'
+                            autoComplete='new-password'
+                            placeholder={t('Enter webhook secret')}
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t(
+                            'Webhook signing secret (leave blank unless updating)'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div className='grid gap-6 md:grid-cols-3'>
+                  <FormField
+                    control={form.control}
+                    name='InfiniCurrency'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Order currency')}</FormLabel>
+                        <FormControl>
+                          <Input placeholder='USD' {...field} />
+                        </FormControl>
+                        <FormDescription>
+                          {t('Currency sent to Infini Hosted Checkout')}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='InfiniUnitPrice'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>
+                          {t('Unit price (local currency / USD)')}
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            type='number'
+                            step='0.01'
+                            min={0.01}
+                            {...safeNumberFieldProps(field)}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t(
+                            'Amount charged by Infini for each USD of balance'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='InfiniMinTopUp'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Minimum top-up (USD)')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            type='number'
+                            step='1'
+                            min={1}
+                            {...safeNumberFieldProps(field)}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t('Minimum recharge amount in USD')}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <FormField
+                  control={form.control}
+                  name='InfiniPayMethods'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Infini payment methods')}</FormLabel>
+                      <FormControl>
+                        <Textarea rows={3} placeholder='[1]' {...field} />
+                      </FormControl>
+                      <FormDescription>
+                        {t(
+                          'JSON array: 1 crypto, 2 card, 3 Binance Pay, 5 Apple Pay, 6 Google Pay'
+                        )}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>

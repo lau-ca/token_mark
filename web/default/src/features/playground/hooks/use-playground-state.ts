@@ -24,9 +24,13 @@ import {
   saveParameterEnabled,
   saveMessages,
   applyMessageStateUpdate,
+  deleteStoredMedia,
+  getStoredMediaKeys,
   getInitialParameterEnabled,
   getInitialPlaygroundConfig,
+  hydrateStoredMedia,
   loadMessages,
+  pruneStoredMedia,
   type MessageStateUpdater,
 } from '../lib'
 import type {
@@ -35,6 +39,8 @@ import type {
   ParameterEnabled,
   ModelOption,
   GroupOption,
+  PlaygroundMode,
+  PlaygroundModeSelection,
 } from '../types'
 
 const MESSAGE_SAVE_DEBOUNCE_MS = 500
@@ -57,6 +63,7 @@ export function usePlaygroundState() {
   const messagesSaveTimerRef = useRef<number | null>(null)
   const latestMessagesRef = useRef<Message[]>(messages)
   const hasLoadedMessagesRef = useRef(false)
+  const mediaObjectUrlsRef = useRef<Map<string, string>>(new Map())
 
   const [models, setModels] = useState<ModelOption[]>([])
   const [groups, setGroups] = useState<GroupOption[]>([])
@@ -75,6 +82,7 @@ export function usePlaygroundState() {
     messagesSaveTimerRef.current = window.setTimeout(() => {
       messagesSaveTimerRef.current = null
       saveMessages(latestMessagesRef.current)
+      void pruneStoredMedia(getStoredMediaKeys(latestMessagesRef.current))
     }, MESSAGE_SAVE_DEBOUNCE_MS)
   }, [])
 
@@ -82,15 +90,23 @@ export function usePlaygroundState() {
     let cancelled = false
 
     window.setTimeout(() => {
-      const loadedMessages = loadMessages() ?? []
-      if (cancelled) {
-        return
-      }
+      void (async () => {
+        const loadedMessages = loadMessages() ?? []
+        const hydrated = await hydrateStoredMedia(loadedMessages)
+        if (cancelled) {
+          for (const url of hydrated.objectUrls.values()) {
+            URL.revokeObjectURL(url)
+          }
+          return
+        }
 
-      latestMessagesRef.current = loadedMessages
-      hasLoadedMessagesRef.current = true
-      setMessages(loadedMessages)
-      setIsLoadingMessages(false)
+        mediaObjectUrlsRef.current = hydrated.objectUrls
+        latestMessagesRef.current = hydrated.messages
+        hasLoadedMessagesRef.current = true
+        setMessages(hydrated.messages)
+        setIsLoadingMessages(false)
+        void pruneStoredMedia(getStoredMediaKeys(hydrated.messages))
+      })()
     }, 0)
 
     return () => {
@@ -104,6 +120,9 @@ export function usePlaygroundState() {
         window.clearTimeout(messagesSaveTimerRef.current)
         saveMessages(latestMessagesRef.current)
       }
+      for (const url of mediaObjectUrlsRef.current.values()) {
+        URL.revokeObjectURL(url)
+      }
     },
     []
   )
@@ -113,6 +132,27 @@ export function usePlaygroundState() {
     <K extends keyof PlaygroundConfig>(key: K, value: PlaygroundConfig[K]) => {
       setConfig((prev) => {
         const updated = { ...prev, [key]: value }
+        saveConfig(updated)
+        return updated
+      })
+    },
+    []
+  )
+
+  const updateModeSelection = useCallback(
+    <K extends keyof PlaygroundModeSelection>(
+      mode: PlaygroundMode,
+      key: K,
+      value: PlaygroundModeSelection[K]
+    ) => {
+      setConfig((prev) => {
+        const updated = {
+          ...prev,
+          mode_selections: {
+            ...prev.mode_selections,
+            [mode]: { ...prev.mode_selections[mode], [key]: value },
+          },
+        }
         saveConfig(updated)
         return updated
       })
@@ -137,6 +177,17 @@ export function usePlaygroundState() {
     (updater: MessageStateUpdater) => {
       setMessages((prev) => {
         const newMessages = applyMessageStateUpdate(prev, updater)
+        const previousKeys = getStoredMediaKeys(prev)
+        const nextKeys = getStoredMediaKeys(newMessages)
+        const removedKeys = [...previousKeys].filter(
+          (storageKey) => !nextKeys.has(storageKey)
+        )
+        for (const storageKey of removedKeys) {
+          const url = mediaObjectUrlsRef.current.get(storageKey)
+          if (url) URL.revokeObjectURL(url)
+          mediaObjectUrlsRef.current.delete(storageKey)
+        }
+        void deleteStoredMedia(removedKeys)
         persistMessages(newMessages)
         return newMessages
       })
@@ -172,6 +223,7 @@ export function usePlaygroundState() {
 
     // Actions
     updateConfig,
+    updateModeSelection,
     updateParameterEnabled,
     updateMessages,
     clearMessages,

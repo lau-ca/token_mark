@@ -37,6 +37,16 @@ type responseTask struct {
 	Error       *dto.OpenAIVideoError `json:"error,omitempty"`
 }
 
+type seedanceV2SubmitRequest struct {
+	Model       string   `json:"model"`
+	Prompt      string   `json:"prompt"`
+	Seconds     string   `json:"seconds"`
+	Size        string   `json:"size"`
+	AspectRatio string   `json:"aspect_ratio"`
+	Image       string   `json:"image,omitempty"`
+	Images      []string `json:"images,omitempty"`
+}
+
 type TaskAdaptor struct {
 	taskcommon.BaseBilling
 	apiKey  string
@@ -54,7 +64,37 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 	if info.Action != "" && info.Action != constant.TaskActionTextGenerate && info.Action != constant.TaskActionGenerate {
 		return service.TaskErrorWrapperLocal(fmt.Errorf("operation is not supported by Seedance"), "unsupported_operation", http.StatusBadRequest)
 	}
-	return relaycommon.ValidateMultipartDirect(c, info)
+	if taskErr := relaycommon.ValidateMultipartDirect(c, info); taskErr != nil {
+		return taskErr
+	}
+	if !isSeedanceV2Model(info.UpstreamModelName) {
+		return nil
+	}
+
+	request, err := relaycommon.GetTaskRequest(c)
+	if err != nil {
+		return service.TaskErrorWrapperLocal(err, "invalid_request", http.StatusBadRequest)
+	}
+	seconds, err := seedanceV2Seconds(request)
+	if err != nil {
+		return service.TaskErrorWrapperLocal(err, "invalid_seconds", http.StatusBadRequest)
+	}
+	if seconds < 4 || seconds > 15 {
+		return service.TaskErrorWrapperLocal(fmt.Errorf("seconds must be between 4 and 15"), "invalid_seconds", http.StatusBadRequest)
+	}
+
+	size := strings.TrimSpace(request.Size)
+	aspectRatio := strings.TrimSpace(request.AspectRatio)
+	validPair := (size == "1280x720" && aspectRatio == "16:9") ||
+		(size == "720x1280" && aspectRatio == "9:16")
+	if !validPair {
+		return service.TaskErrorWrapperLocal(
+			fmt.Errorf("size and aspect_ratio must be 1280x720 with 16:9 or 720x1280 with 9:16"),
+			"invalid_size",
+			http.StatusBadRequest,
+		)
+	}
+	return nil
 }
 
 func (a *TaskAdaptor) BuildRequestURL(_ *relaycommon.RelayInfo) (string, error) {
@@ -72,6 +112,34 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	if err != nil {
 		return nil, err
 	}
+	if isSeedanceV2Model(info.UpstreamModelName) {
+		seconds, err := seedanceV2Seconds(request)
+		if err != nil {
+			return nil, err
+		}
+		payload := seedanceV2SubmitRequest{
+			Model:       info.UpstreamModelName,
+			Prompt:      request.Prompt,
+			Seconds:     strconv.Itoa(seconds),
+			Size:        strings.TrimSpace(request.Size),
+			AspectRatio: strings.TrimSpace(request.AspectRatio),
+		}
+		if image := strings.TrimSpace(request.Image); image != "" {
+			payload.Image = image
+		} else if len(request.Images) > 0 {
+			payload.Images = request.Images
+		} else if len(request.ReferenceImages) > 0 {
+			payload.Images = request.ReferenceImages
+		}
+		body, err := common.Marshal(payload)
+		if err != nil {
+			return nil, err
+		}
+		return bytes.NewReader(body), nil
+	}
+	if len(request.ReferenceImages) == 0 && len(request.Images) > 0 {
+		request.ReferenceImages = []string{request.Images[0]}
+	}
 	request.Model = info.UpstreamModelName
 	request.Seconds = ""
 	request.Image = ""
@@ -85,6 +153,29 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		return nil, err
 	}
 	return bytes.NewReader(body), nil
+}
+
+func isSeedanceV2Model(modelName string) bool {
+	switch strings.ToLower(strings.TrimSpace(modelName)) {
+	case "seedance2.0", "seedance2.0-fast":
+		return true
+	default:
+		return false
+	}
+}
+
+func seedanceV2Seconds(request relaycommon.TaskSubmitReq) (int, error) {
+	if request.Seconds != "" {
+		seconds, err := strconv.Atoi(request.Seconds)
+		if err != nil {
+			return 0, fmt.Errorf("seconds must be an integer")
+		}
+		return seconds, nil
+	}
+	if request.Duration > 0 {
+		return request.Duration, nil
+	}
+	return 0, fmt.Errorf("seconds is required")
 }
 
 func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (*http.Response, error) {

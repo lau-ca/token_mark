@@ -54,6 +54,12 @@ export interface Model {
   matched_count?: number
 }
 
+export interface ModelCapabilityCatalogItem {
+  model_name: string
+  supported_endpoint_types: string[]
+  metadata?: Model
+}
+
 /**
  * Vendor entity from API
  */
@@ -127,6 +133,12 @@ export interface GetModelResponse {
   success: boolean
   message?: string
   data?: Model
+}
+
+export interface GetModelCapabilityCatalogResponse {
+  success: boolean
+  message?: string
+  data?: ModelCapabilityCatalogItem[]
 }
 
 /**
@@ -304,7 +316,7 @@ export type SyncSource = 'official' | 'config'
 /**
  * Model tab type
  */
-export type ModelTabCategory = 'metadata' | 'deployments'
+export type ModelTabCategory = 'metadata' | 'deployments' | 'capabilities'
 
 /**
  * Deployment entity from API

@@ -20,6 +20,7 @@ import { t } from 'i18next'
 
 import { ERROR_MESSAGES, MESSAGE_ROLES, MESSAGE_STATUS } from '../../constants'
 import type { ChatCompletionResponse, Message } from '../../types'
+import { getPendingVideoTaskId } from '../media/playground-video-tasks'
 import { parseThinkTags } from './message-reasoning-utils'
 import {
   completeAssistantTiming,
@@ -221,6 +222,7 @@ export function sanitizeMessagesOnLoad(messages: Message[]): Message[] {
     const message = messages[i]
 
     if (isPendingAssistantMessage(message)) {
+      if (getPendingVideoTaskId(message)) continue
       targetIndex = i
       break
     }

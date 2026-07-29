@@ -33,8 +33,8 @@ import type { PresetAmount, TopupInfo } from '../types'
  */
 function isSafariBrowser(): boolean {
   return (
-    navigator.userAgent.indexOf('Safari') > -1 &&
-    navigator.userAgent.indexOf('Chrome') < 1
+    navigator.userAgent.includes('Safari') &&
+    !navigator.userAgent.includes('Chrome')
   )
 }
 
@@ -86,6 +86,10 @@ export function isWaffoPancakePayment(paymentType: string): boolean {
   return paymentType === PAYMENT_TYPES.WAFFO_PANCAKE
 }
 
+export function isInfiniPayment(paymentType: string): boolean {
+  return paymentType === PAYMENT_TYPES.INFINI
+}
+
 /**
  * Get default payment type from topup info
  */
@@ -109,6 +113,10 @@ export function getDefaultPaymentType(topupInfo: TopupInfo | null): string {
 
   if (topupInfo.enable_waffo_pancake_topup) {
     return PAYMENT_TYPES.WAFFO_PANCAKE
+  }
+
+  if (topupInfo.enable_infini_topup) {
+    return PAYMENT_TYPES.INFINI
   }
 
   return DEFAULT_PAYMENT_TYPE
@@ -136,6 +144,10 @@ export function getMinTopupAmount(topupInfo: TopupInfo | null): number {
 
   if (topupInfo.enable_waffo_pancake_topup) {
     return topupInfo.waffo_pancake_min_topup || DEFAULT_MIN_TOPUP
+  }
+
+  if (topupInfo.enable_infini_topup) {
+    return topupInfo.infini_min_topup || DEFAULT_MIN_TOPUP
   }
 
   return DEFAULT_MIN_TOPUP

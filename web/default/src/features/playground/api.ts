@@ -45,7 +45,7 @@ export async function sendChatCompletion(
  */
 export async function getUserModels(group: string): Promise<ModelOption[]> {
   const res = await api.get(API_ENDPOINTS.USER_MODELS, {
-    params: { group },
+    params: { group, details: true },
   })
   const { data } = res
 
@@ -53,10 +53,40 @@ export async function getUserModels(group: string): Promise<ModelOption[]> {
     return []
   }
 
-  return data.data.map((model: string) => ({
-    label: model,
-    value: model,
-  }))
+  return data.data.map((model: string | Record<string, unknown>) => {
+    if (typeof model === 'string') {
+      return {
+        label: model,
+        value: model,
+        supportedEndpointTypes: [],
+        endpoints: {},
+      }
+    }
+    const modelName = String(model.model_name ?? '')
+    return {
+      label: modelName,
+      value: modelName,
+      supportedEndpointTypes: Array.isArray(model.supported_endpoint_types)
+        ? model.supported_endpoint_types.map(String)
+        : [],
+      endpoints:
+        model.endpoints && typeof model.endpoints === 'object'
+          ? (model.endpoints as ModelOption['endpoints'])
+          : {},
+    }
+  })
+}
+
+export async function getUserModelCatalog(
+  groups: GroupOption[]
+): Promise<Record<string, ModelOption[]>> {
+  const entries = await Promise.all(
+    groups.map(
+      async (group) => [group.value, await getUserModels(group.value)] as const
+    )
+  )
+
+  return Object.fromEntries(entries)
 }
 
 /**

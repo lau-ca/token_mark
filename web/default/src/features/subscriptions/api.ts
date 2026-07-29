@@ -155,6 +155,13 @@ export async function paySubscriptionWaffoPancake(
   return res.data
 }
 
+export async function paySubscriptionInfini(
+  data: SubscriptionPayRequest
+): Promise<SubscriptionPayResponse> {
+  const res = await api.post('/api/subscription/infini/pay', data)
+  return res.data
+}
+
 export async function paySubscriptionBalance(
   data: SubscriptionPayRequest
 ): Promise<SubscriptionPayResponse> {

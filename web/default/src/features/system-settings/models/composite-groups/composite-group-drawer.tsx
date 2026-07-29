@@ -216,64 +216,50 @@ export function CompositeGroupDrawer(props: CompositeGroupDrawerProps) {
           </SideDrawerSection>
 
           <SideDrawerSection>
-            <Controller
-              control={form.control}
-              name='generation_enabled'
-              render={({ field }) => (
-                <Field orientation='horizontal'>
-                  <div className='flex-1'>
-                    <FieldLabel htmlFor='generation-enabled'>
-                      {t('Generation routes')}
-                    </FieldLabel>
-                    <FieldDescription>
-                      {t('Ordered targets for /v1/images/generations.')}
-                    </FieldDescription>
-                  </div>
-                  <Switch
-                    id='generation-enabled'
-                    checked={field.value}
-                    disabled={props.isSaving}
-                    onCheckedChange={field.onChange}
-                  />
-                </Field>
-              )}
-            />
-            <RouteTargetEditor
-              form={form}
-              name='generation_routes'
-              options={props.options}
-              disabled={props.isSaving || !generationEnabled}
-            />
+            <SideDrawerSectionHeader title={t('Capabilities')} />
+            <FieldGroup className='gap-3'>
+              {(
+                [
+                  ['generation_enabled', 'image.generate'],
+                  ['edit_enabled', 'image.edit'],
+                ] as const
+              ).map(([name, label]) => (
+                <Controller
+                  key={name}
+                  control={form.control}
+                  name={name}
+                  render={({ field }) => (
+                    <Field orientation='horizontal'>
+                      <FieldLabel
+                        htmlFor={`composite-${name}`}
+                        className='flex-1'
+                      >
+                        {t(label)}
+                      </FieldLabel>
+                      <Switch
+                        id={`composite-${name}`}
+                        checked={field.value}
+                        disabled={props.isSaving}
+                        onCheckedChange={field.onChange}
+                      />
+                    </Field>
+                  )}
+                />
+              ))}
+            </FieldGroup>
+            <FieldError>
+              {form.formState.errors.generation_enabled?.message
+                ? t(form.formState.errors.generation_enabled.message)
+                : undefined}
+            </FieldError>
           </SideDrawerSection>
 
           <SideDrawerSection>
-            <Controller
-              control={form.control}
-              name='edit_enabled'
-              render={({ field }) => (
-                <Field orientation='horizontal'>
-                  <div className='flex-1'>
-                    <FieldLabel htmlFor='edit-enabled'>
-                      {t('Edit routes')}
-                    </FieldLabel>
-                    <FieldDescription>
-                      {t('Ordered targets for /v1/images/edits and /v1/edits.')}
-                    </FieldDescription>
-                  </div>
-                  <Switch
-                    id='edit-enabled'
-                    checked={field.value}
-                    disabled={props.isSaving}
-                    onCheckedChange={field.onChange}
-                  />
-                </Field>
-              )}
-            />
+            <SideDrawerSectionHeader title={t('Routes')} />
             <RouteTargetEditor
               form={form}
-              name='edit_routes'
               options={props.options}
-              disabled={props.isSaving || !editEnabled}
+              disabled={props.isSaving || (!generationEnabled && !editEnabled)}
             />
           </SideDrawerSection>
         </form>

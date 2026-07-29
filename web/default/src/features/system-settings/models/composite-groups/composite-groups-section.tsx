@@ -150,11 +150,6 @@ export function CompositeGroupsSection(props: CompositeGroupsSectionProps) {
       <Card>
         <CardHeader>
           <CardTitle>{t('Composite routing')}</CardTitle>
-          <CardDescription>
-            {t(
-              'Enable composite group routing for API tokens. Keep this off until all relay workers run the same version.'
-            )}
-          </CardDescription>
           <CardAction>
             <Switch
               checked={props.enabled}
@@ -171,26 +166,19 @@ export function CompositeGroupsSection(props: CompositeGroupsSectionProps) {
         </CardHeader>
       </Card>
 
-      <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
-        <p className='text-muted-foreground max-w-3xl text-sm leading-6'>
-          {t(
-            'Composite groups expose one administrator-defined image model while preserving each internal model and physical group billing rule.'
-          )}
-        </p>
-        <div className='flex shrink-0 gap-2'>
-          <Button
-            variant='outline'
-            disabled={groupsQuery.isFetching}
-            onClick={() => groupsQuery.refetch()}
-          >
-            <RefreshCw data-icon='inline-start' aria-hidden='true' />
-            {t('Refresh')}
-          </Button>
-          <Button onClick={openCreate}>
-            <Plus data-icon='inline-start' aria-hidden='true' />
-            {t('Create composite group')}
-          </Button>
-        </div>
+      <div className='flex justify-end gap-2'>
+        <Button
+          variant='outline'
+          disabled={groupsQuery.isFetching}
+          onClick={() => groupsQuery.refetch()}
+        >
+          <RefreshCw data-icon='inline-start' aria-hidden='true' />
+          {t('Refresh')}
+        </Button>
+        <Button onClick={openCreate}>
+          <Plus data-icon='inline-start' aria-hidden='true' />
+          {t('Create composite group')}
+        </Button>
       </div>
 
       {groupsQuery.isLoading && (
@@ -209,6 +197,9 @@ export function CompositeGroupsSection(props: CompositeGroupsSectionProps) {
             const editRoutes = group.routes.filter(
               (route) => route.operation === 'image_edit' && route.status === 1
             )
+            const displayRoutes = group.generation_enabled
+              ? generationRoutes
+              : editRoutes
             return (
               <Card key={group.id}>
                 <CardHeader>
@@ -238,16 +229,12 @@ export function CompositeGroupsSection(props: CompositeGroupsSectionProps) {
                       {group.description}
                     </p>
                   )}
-                  <div className='grid gap-3 sm:grid-cols-2'>
+                  <div>
                     <RouteSummary
-                      title={t('Generation routes')}
-                      enabled={group.generation_enabled}
-                      routes={generationRoutes}
-                    />
-                    <RouteSummary
-                      title={t('Edit routes')}
-                      enabled={group.edit_enabled}
-                      routes={editRoutes}
+                      title={t('Routes')}
+                      generationEnabled={group.generation_enabled}
+                      editEnabled={group.edit_enabled}
+                      routes={displayRoutes}
                     />
                   </div>
                 </CardContent>
@@ -319,7 +306,8 @@ export function CompositeGroupsSection(props: CompositeGroupsSectionProps) {
 
 function RouteSummary(props: {
   title: string
-  enabled: boolean
+  generationEnabled: boolean
+  editEnabled: boolean
   routes: CompositeGroup['routes']
 }) {
   const { t } = useTranslation()
@@ -327,9 +315,14 @@ function RouteSummary(props: {
     <div className='border-border/70 rounded-lg border p-3'>
       <div className='mb-2 flex items-center justify-between gap-2'>
         <span className='text-sm font-medium'>{props.title}</span>
-        <Badge variant='outline'>
-          {t(props.enabled ? 'Enabled' : 'Disabled')}
-        </Badge>
+        <div className='flex gap-1.5'>
+          {props.generationEnabled && (
+            <Badge variant='outline'>{t('image.generate')}</Badge>
+          )}
+          {props.editEnabled && (
+            <Badge variant='outline'>{t('image.edit')}</Badge>
+          )}
+        </div>
       </div>
       <div className='flex flex-col gap-1.5'>
         {props.routes.length ? (

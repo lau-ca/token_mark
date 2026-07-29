@@ -55,6 +55,22 @@ export interface CommonLogFilters extends CommonFilters {
   upstreamRequestId?: string
 }
 
+export interface CommonLogFilterOptions {
+  groups: Array<{
+    name: string
+    composite?: boolean
+    publicModel?: string
+  }>
+  models: Array<{
+    name: string
+    groups: string[]
+  }>
+  channels: Array<{
+    id: number
+    name: string
+  }>
+}
+
 /**
  * Drawing logs specific filters
  */
@@ -135,6 +151,19 @@ export interface LogOtherData {
       original: number
       clamped: number
     }
+    composite_group?: string
+    composite_operation?: string
+    composite_route_order?: number
+    billing_model?: string
+    physical_group?: string
+    composite_failed_attempts?: Array<{
+      route_order: number
+      physical_group: string
+      billing_model: string
+      channel_id?: number
+      status_code?: number
+      error_code?: string
+    }>
   }
   // Language-independent operation descriptor (audit/login logs).
   // Frontend renders localized content from action + params via i18n templates.

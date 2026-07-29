@@ -28,6 +28,7 @@ func TestConvertImageEditRequestMultipart(t *testing.T) {
 		writer := multipart.NewWriter(&body)
 		require.NoError(t, writer.WriteField("model", "gpt-image-1"))
 		require.NoError(t, writer.WriteField("prompt", prompt))
+		require.NoError(t, writer.WriteField("group", "default"))
 		require.NoError(t, writer.WriteField("stream", "true"))
 		require.NoError(t, writer.WriteField("partial_images", "3"))
 		part, err := writer.CreateFormFile("image", "input.png")
@@ -63,6 +64,7 @@ func TestConvertImageEditRequestMultipart(t *testing.T) {
 
 		require.Equal(t, "gpt-image-1", replayedRequest.PostForm.Get("model"))
 		require.Equal(t, prompt, replayedRequest.PostForm.Get("prompt"))
+		require.Empty(t, replayedRequest.PostForm.Get("group"))
 		require.Equal(t, "true", replayedRequest.PostForm.Get("stream"))
 		require.Equal(t, "3", replayedRequest.PostForm.Get("partial_images"))
 		require.Len(t, replayedRequest.MultipartForm.File["image"], 1)

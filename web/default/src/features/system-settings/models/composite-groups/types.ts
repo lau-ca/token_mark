@@ -70,8 +70,7 @@ export type CompositeGroupFormInput = {
   pricing_visible: boolean
   generation_enabled: boolean
   edit_enabled: boolean
-  generation_routes: CompositeRouteFormValue[]
-  edit_routes: CompositeRouteFormValue[]
+  routes: CompositeRouteFormValue[]
 }
 
 export type CompositeGroupPayload = Omit<
@@ -90,5 +89,6 @@ export type CompositeGroupOptions = {
   models: Array<{
     name: string
     billingMode: 'per-request' | 'per-token' | 'tiered'
+    groups: string[]
   }>
 }

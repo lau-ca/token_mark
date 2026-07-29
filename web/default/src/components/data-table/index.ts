@@ -23,6 +23,10 @@ export { BadgeListCell } from './core/badge-list-cell'
 export { TruncatedCell } from './core/truncated-cell'
 export { DataTableViewOptions } from './toolbar/view-options'
 export { DataTableToolbar } from './toolbar/toolbar'
+export {
+  FacetedFilter,
+  type FacetedFilterOption,
+} from './toolbar/faceted-filter'
 export { DataTableBulkActions } from './toolbar/bulk-actions'
 export {
   StaticDataTable,

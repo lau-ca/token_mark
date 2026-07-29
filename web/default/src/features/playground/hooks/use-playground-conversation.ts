@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 
 import {
   appendUserMessagePair,
@@ -24,7 +24,11 @@ import {
   createRegeneratedMessages,
   removeMessageByKey,
 } from '../lib'
-import type { Message } from '../types'
+import type {
+  Message,
+  PlaygroundMode,
+  PlaygroundRequestContext,
+} from '../types'
 
 type UsePlaygroundConversationOptions = {
   messages: Message[]
@@ -32,35 +36,81 @@ type UsePlaygroundConversationOptions = {
     updater: Message[] | ((prev: Message[]) => Message[])
   ) => void
   sendChat: (messages: Message[]) => void
+  mode?: PlaygroundMode
+  requestContext?: PlaygroundRequestContext
+}
+
+function attachRequestContext(
+  messages: Message[],
+  requestContext?: PlaygroundRequestContext
+): Message[] {
+  const lastMessage = messages.at(-1)
+  if (!requestContext || lastMessage?.from !== 'assistant') {
+    return messages
+  }
+
+  return [
+    ...messages.slice(0, -1),
+    {
+      ...lastMessage,
+      requestContext,
+    },
+  ]
 }
 
 export function usePlaygroundConversation({
   messages,
   updateMessages,
   sendChat,
+  mode = 'chat',
+  requestContext,
 }: UsePlaygroundConversationOptions) {
   const [editingMessageKey, setEditingMessageKey] = useState<string | null>(
     null
   )
+  const scopedMessages = useMemo(
+    () => messages.filter((message) => (message.mode ?? 'chat') === mode),
+    [messages, mode]
+  )
+  const replaceScopedMessages = useCallback(
+    (nextMessages: Message[]) => {
+      updateMessages((current) => [
+        ...current.filter((message) => (message.mode ?? 'chat') !== mode),
+        ...nextMessages,
+      ])
+    },
+    [mode, updateMessages]
+  )
 
   const handleSendMessage = useCallback(
     (text: string) => {
-      const nextMessages = appendUserMessagePair(messages, text)
-      updateMessages(nextMessages)
+      const nextMessages = attachRequestContext(
+        appendUserMessagePair(scopedMessages, text),
+        requestContext
+      )
+      replaceScopedMessages(nextMessages)
       sendChat(nextMessages)
     },
-    [messages, updateMessages, sendChat]
+    [replaceScopedMessages, requestContext, scopedMessages, sendChat]
   )
 
   const handleRegenerateMessage = useCallback(
     (message: Message) => {
-      const nextMessages = createRegeneratedMessages(messages, message.key)
-      if (!nextMessages) return
+      const regeneratedMessages = createRegeneratedMessages(
+        scopedMessages,
+        message.key
+      )
+      if (!regeneratedMessages) return
 
-      updateMessages(nextMessages)
+      const nextMessages = attachRequestContext(
+        regeneratedMessages,
+        requestContext
+      )
+
+      replaceScopedMessages(nextMessages)
       sendChat(nextMessages)
     },
-    [messages, updateMessages, sendChat]
+    [replaceScopedMessages, requestContext, scopedMessages, sendChat]
   )
 
   const handleEditMessage = useCallback((message: Message) => {
@@ -78,7 +128,7 @@ export function usePlaygroundConversation({
       if (!editingMessageKey) return
 
       const editResult = applyMessageEdit(
-        messages,
+        scopedMessages,
         editingMessageKey,
         newContent,
         shouldSubmit
@@ -86,13 +136,22 @@ export function usePlaygroundConversation({
       if (!editResult) return
 
       setEditingMessageKey(null)
-      updateMessages(editResult.messages)
+      const nextMessages = editResult.shouldSend
+        ? attachRequestContext(editResult.messages, requestContext)
+        : editResult.messages
+      replaceScopedMessages(nextMessages)
 
       if (editResult.shouldSend) {
-        sendChat(editResult.messages)
+        sendChat(nextMessages)
       }
     },
-    [editingMessageKey, messages, updateMessages, sendChat]
+    [
+      editingMessageKey,
+      replaceScopedMessages,
+      requestContext,
+      scopedMessages,
+      sendChat,
+    ]
   )
 
   const handleDeleteMessage = useCallback(

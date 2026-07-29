@@ -24,13 +24,16 @@ import {
   calculateAmount,
   calculateStripeAmount,
   calculateWaffoPancakeAmount,
+  calculateInfiniAmount,
   requestPayment,
   requestStripePayment,
+  requestInfiniPayment,
   isApiSuccess,
 } from '../api'
 import {
   isStripePayment,
   isWaffoPancakePayment,
+  isInfiniPayment,
   submitPaymentForm,
 } from '../lib'
 
@@ -51,14 +54,20 @@ export function usePayment() {
 
         const isStripe = isStripePayment(paymentType)
         const isPancake = isWaffoPancakePayment(paymentType)
-        const response = isStripe
-          ? await calculateStripeAmount({ amount: topupAmount })
-          : isPancake
-            ? await calculateWaffoPancakeAmount({ amount: topupAmount })
-            : await calculateAmount({ amount: topupAmount })
+        const isInfini = isInfiniPayment(paymentType)
+        let response
+        if (isStripe) {
+          response = await calculateStripeAmount({ amount: topupAmount })
+        } else if (isPancake) {
+          response = await calculateWaffoPancakeAmount({ amount: topupAmount })
+        } else if (isInfini) {
+          response = await calculateInfiniAmount({ amount: topupAmount })
+        } else {
+          response = await calculateAmount({ amount: topupAmount })
+        }
 
         if (isApiSuccess(response) && response.data) {
-          const calculatedAmount = parseFloat(response.data)
+          const calculatedAmount = Number.parseFloat(response.data)
           setAmount(calculatedAmount)
           return calculatedAmount
         }
@@ -66,7 +75,7 @@ export function usePayment() {
         // Don't show error for calculation, just set to 0
         setAmount(0)
         return 0
-      } catch (_error) {
+      } catch {
         setAmount(0)
         return 0
       } finally {
@@ -79,36 +88,69 @@ export function usePayment() {
   // Process payment
   const processPayment = useCallback(
     async (topupAmount: number, paymentType: string) => {
+      let paymentWindow: Window | null = null
       try {
         setProcessing(true)
 
         const isStripe = isStripePayment(paymentType)
+        const isInfini = isInfiniPayment(paymentType)
+        if (isInfini) {
+          paymentWindow = window.open('', '_blank')
+          if (paymentWindow) paymentWindow.opener = null
+        }
         const amount = Math.floor(topupAmount)
 
-        const response = isStripe
-          ? await requestStripePayment({
-              amount,
-              payment_method: 'stripe',
-            })
-          : await requestPayment({
-              amount,
-              payment_method: paymentType,
-            })
+        let response
+        if (isStripe) {
+          response = await requestStripePayment({
+            amount,
+            payment_method: 'stripe',
+          })
+        } else if (isInfini) {
+          response = await requestInfiniPayment({ amount })
+        } else {
+          response = await requestPayment({
+            amount,
+            payment_method: paymentType,
+          })
+        }
 
         if (!isApiSuccess(response)) {
+          paymentWindow?.close()
           toast.error(response.message || i18next.t('Payment request failed'))
           return false
         }
 
         // Handle Stripe payment
-        if (isStripe && response.data?.pay_link) {
-          window.open(response.data.pay_link as string, '_blank')
-          toast.success(i18next.t('Redirecting to payment page...'))
-          return true
+        if (isStripe) {
+          const stripeResponse = response as Awaited<
+            ReturnType<typeof requestStripePayment>
+          >
+          if (stripeResponse.data?.pay_link) {
+            window.open(stripeResponse.data.pay_link, '_blank')
+            toast.success(i18next.t('Redirecting to payment page...'))
+            return true
+          }
+        }
+
+        if (isInfini) {
+          const infiniResponse = response as Awaited<
+            ReturnType<typeof requestInfiniPayment>
+          >
+          if (infiniResponse.data?.checkout_url) {
+            const checkoutURL = infiniResponse.data.checkout_url
+            if (paymentWindow) {
+              paymentWindow.location.href = checkoutURL
+            } else {
+              window.location.href = checkoutURL
+            }
+            toast.success(i18next.t('Redirecting to payment page...'))
+            return true
+          }
         }
 
         // Handle non-Stripe payment
-        if (!isStripe && response.data) {
+        if (!isStripe && !isInfini && response.data) {
           const url = (response as unknown as { url?: string }).url
           if (url) {
             submitPaymentForm(url, response.data)
@@ -117,8 +159,10 @@ export function usePayment() {
           }
         }
 
+        paymentWindow?.close()
         return false
-      } catch (_error) {
+      } catch {
+        paymentWindow?.close()
         toast.error(i18next.t('Payment request failed'))
         return false
       } finally {

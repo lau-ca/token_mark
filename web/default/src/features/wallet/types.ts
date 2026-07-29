@@ -69,6 +69,11 @@ export type WaffoPancakePaymentResponse = ApiResponse<
     }
   | string
 >
+export type InfiniPaymentResponse = ApiResponse<{
+  checkout_url: string
+  order_id?: string
+  trade_no?: string
+}>
 
 /**
  * Creem product configuration
@@ -160,6 +165,10 @@ export interface TopupInfo {
   enable_waffo_pancake_topup?: boolean
   /** Minimum topup amount for Waffo Pancake */
   waffo_pancake_min_topup?: number
+  /** Whether Infini Hosted Checkout is enabled */
+  enable_infini_topup?: boolean
+  /** Minimum top-up amount for Infini */
+  infini_min_topup?: number
   /** Whether redemption code usage is enabled */
   enable_redemption?: boolean
   /** Whether compliance confirmation has been completed */

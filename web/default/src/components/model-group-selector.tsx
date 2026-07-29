@@ -17,9 +17,17 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, {
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Command,
@@ -32,6 +40,7 @@ import {
 import {
   Drawer,
   DrawerContent,
+  DrawerDescription,
   DrawerHeader,
   DrawerTitle,
   DrawerTrigger,
@@ -41,6 +50,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
+import { Separator } from '@/components/ui/separator'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
 
@@ -542,6 +552,7 @@ export interface ModelGroupSelectorProps {
   // Model props
   selectedModel: string
   models: ModelOption[]
+  modelGroups?: Record<string, ModelOption[]>
   onModelChange: (value: string) => void
   // Group props
   selectedGroup: string
@@ -559,6 +570,7 @@ export interface ModelGroupSelectorProps {
 export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
   selectedModel,
   models,
+  modelGroups,
   onModelChange,
   selectedGroup,
   groups,
@@ -569,6 +581,7 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const deferredSearchQuery = useDeferredValue(searchQuery)
   const isMobile = useIsMobile()
   const groupScrollContainerRef = useRef<HTMLDivElement | null>(null)
   const selectedGroupOptionRef = useRef<HTMLButtonElement | null>(null)
@@ -583,32 +596,41 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
     [groups, selectedGroup]
   )
   const filteredModels = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase()
-    if (!query) {
-      return models
-    }
+    const query = deferredSearchQuery.trim().toLowerCase()
+    const choices = query
+      ? Object.entries(modelGroups ?? { [selectedGroup]: models }).flatMap(
+          ([group, groupModels]) =>
+            groupModels.map((model) => ({ ...model, group }))
+        )
+      : models.map((model) => ({ ...model, group: selectedGroup }))
 
-    return models.filter((model) => {
+    if (!query) return choices
+
+    return choices.filter((model) => {
       const searchableText = [
         model.label,
         model.value,
         model.description || '',
         model.category || '',
+        model.group,
       ]
         .join(' ')
         .toLowerCase()
 
       return searchableText.includes(query)
     })
-  }, [models, searchQuery])
+  }, [deferredSearchQuery, modelGroups, models, selectedGroup])
 
   const handleModelChange = useCallback(
-    (value: string) => {
+    (value: string, group: string) => {
+      if (group !== selectedGroup) {
+        onGroupChange(group)
+      }
       onModelChange(value)
       setOpen(false)
       setSearchQuery('')
     },
-    [onModelChange]
+    [onGroupChange, onModelChange, selectedGroup]
   )
 
   const handleGroupChange = useCallback(
@@ -619,7 +641,7 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
   )
 
   useEffect(() => {
-    if (!open) {
+    if (!open || isMobile) {
       return
     }
 
@@ -638,13 +660,13 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
       window.cancelAnimationFrame(firstFrameId)
       window.cancelAnimationFrame(secondFrameId)
     }
-  }, [open, selectedGroup, selectedModel])
+  }, [isMobile, open, selectedGroup, selectedModel])
 
   const renderTrigger = () => (
     <Button
       aria-expanded={open}
       className={cn(
-        'h-8 max-w-[15rem] justify-start gap-2 border px-2.5 font-medium shadow-none',
+        'h-8 min-w-0 max-w-[15rem] justify-start gap-2 border px-2.5 font-medium shadow-none',
         'bg-background/80 hover:bg-accent/70 text-foreground',
         'focus:!ring-0 focus:!outline-none',
         className
@@ -655,12 +677,15 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
       variant='outline'
     >
       <CpuIcon className='text-muted-foreground size-4 shrink-0' />
-      <span className='min-w-0 truncate text-xs'>
+      <span className='min-w-0 flex-1 truncate text-left text-xs'>
         {currentModel?.label || t('Model')}
       </span>
-      <span className='bg-muted text-muted-foreground hidden max-w-20 shrink-0 rounded px-1.5 py-0.5 text-[10px] sm:inline-flex'>
+      <Badge
+        className='hidden max-w-24 shrink-0 truncate text-[10px] sm:inline-flex'
+        variant='secondary'
+      >
         {currentGroup?.label || t('Group')}
-      </span>
+      </Badge>
       <ChevronsUpDown className='text-muted-foreground ml-auto size-3.5 shrink-0 opacity-60' />
     </Button>
   )
@@ -668,7 +693,7 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
   const renderGroupList = () => (
     <div
       className={cn(
-        'min-w-0 space-y-2',
+        'flex min-w-0 flex-col gap-2',
         !isMobile && modelGroupSelectorLayoutClasses.groupColumn
       )}
     >
@@ -694,6 +719,7 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
                   : 'text-muted-foreground hover:bg-accent hover:text-foreground'
               )}
               disabled={disabled}
+              aria-label={t('Choose group {{group}}', { group: group.label })}
               key={group.value}
               onClick={() => handleGroupChange(group.value)}
               ref={isSelected ? selectedGroupOptionRef : undefined}
@@ -702,6 +728,11 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
               <span className='min-w-0 truncate font-medium'>
                 {group.label}
               </span>
+              {modelGroups && (
+                <span className='text-muted-foreground text-[10px] tabular-nums'>
+                  {modelGroups[group.value]?.length ?? 0}
+                </span>
+              )}
               <Check
                 className={cn(
                   'size-3.5 shrink-0',
@@ -725,6 +756,7 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
       shouldFilter={false}
     >
       <CommandInput
+        autoFocus={open && !isMobile}
         className='h-8 text-[13px]'
         onValueChange={setSearchQuery}
         placeholder={t('Search models...')}
@@ -736,8 +768,15 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
         }
       >
         {filteredModels.length === 0 ? (
-          <div className='text-muted-foreground px-3 py-8 text-center text-[12px] leading-5'>
-            {t('No model found.')}
+          <div className='flex flex-col gap-1 px-4 py-10 text-center'>
+            <div className='text-sm font-medium'>
+              {t('No compatible models')}
+            </div>
+            <div className='text-muted-foreground text-xs leading-5'>
+              {searchQuery
+                ? t('Try another model name or clear the search.')
+                : t('Choose another group to see available models.')}
+            </div>
           </div>
         ) : (
           <CommandGroup className='p-1'>
@@ -745,33 +784,44 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
               <CommandItem
                 className={cn(
                   modelGroupSelectorLayoutClasses.modelItem,
-                  selectedModel === model.value
+                  selectedModel === model.value && selectedGroup === model.group
                     ? modelGroupSelectorLayoutClasses.selectedModelItem
                     : modelGroupSelectorLayoutClasses.unselectedModelItem
                 )}
                 key={model.value}
-                onSelect={handleModelChange}
+                onSelect={() => handleModelChange(model.value, model.group)}
                 ref={
-                  selectedModel === model.value
+                  selectedModel === model.value && selectedGroup === model.group
                     ? selectedModelOptionRef
                     : undefined
                 }
-                value={model.value}
+                value={`${model.group}:${model.value}`}
               >
-                <span
-                  className={cn(
-                    'min-w-0 truncate',
-                    selectedModel === model.value
-                      ? modelGroupSelectorLayoutClasses.selectedModelText
-                      : modelGroupSelectorLayoutClasses.unselectedModelText
+                <div className='flex min-w-0 flex-1 items-center gap-2'>
+                  <span
+                    className={cn(
+                      'min-w-0 flex-1 truncate',
+                      selectedModel === model.value &&
+                        selectedGroup === model.group
+                        ? modelGroupSelectorLayoutClasses.selectedModelText
+                        : modelGroupSelectorLayoutClasses.unselectedModelText
+                    )}
+                  >
+                    {model.label}
+                  </span>
+                  {searchQuery && (
+                    <Badge className='max-w-32 truncate' variant='outline'>
+                      {model.group}
+                    </Badge>
                   )}
-                >
-                  {model.label}
-                </span>
+                </div>
                 <Check
                   className={cn(
                     'size-3.5 shrink-0',
-                    selectedModel === model.value ? 'opacity-100' : 'opacity-0'
+                    selectedModel === model.value &&
+                      selectedGroup === model.group
+                      ? 'opacity-100'
+                      : 'opacity-0'
                   )}
                 />
               </CommandItem>
@@ -793,10 +843,24 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
       {renderGroupList()}
       <div
         className={cn(
-          'min-w-0 overflow-hidden rounded-lg border',
+          'flex min-w-0 flex-col overflow-hidden rounded-lg border',
           !isMobile && modelGroupSelectorLayoutClasses.modelColumn
         )}
       >
+        <div className='flex items-center justify-between gap-2 px-3 py-2'>
+          <div className='min-w-0'>
+            <div className='truncate text-xs font-semibold'>
+              {currentGroup?.label || t('Model Group')}
+            </div>
+            <div className='text-muted-foreground text-[11px]'>
+              {t('Select a model for the current workspace')}
+            </div>
+          </div>
+          <Badge className='shrink-0' variant='outline'>
+            {t('{{count}} models', { count: models.length })}
+          </Badge>
+        </div>
+        <Separator />
         {renderModelList()}
       </div>
     </div>
@@ -805,9 +869,12 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
   return isMobile ? (
     <Drawer open={open} onOpenChange={setOpen}>
       <DrawerTrigger asChild>{renderTrigger()}</DrawerTrigger>
-      <DrawerContent className='flex max-h-[80vh] min-h-[60vh] flex-col'>
+      <DrawerContent className='flex max-h-[80vh] flex-col'>
         <DrawerHeader className='pb-3 text-left'>
           <DrawerTitle>{t('Select Model')}</DrawerTitle>
+          <DrawerDescription>
+            {t('Select a model for the current workspace')}
+          </DrawerDescription>
         </DrawerHeader>
         <div className='min-h-0 flex-1 overflow-y-auto px-4 pb-5'>
           {renderContent()}
@@ -820,11 +887,11 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
       <PopoverContent
         align='end'
         className={cn(
-          'bg-popover z-50 w-[34rem] max-w-[calc(100vw-2rem)] rounded-xl border p-0 shadow-lg',
+          'bg-popover w-[40rem] max-w-[calc(100vw-2rem)] rounded-xl border p-0 shadow-lg',
           modelGroupSelectorLayoutClasses.desktopPanel
         )}
         collisionPadding={8}
-        side='top'
+        side='bottom'
         sideOffset={8}
       >
         {renderContent()}

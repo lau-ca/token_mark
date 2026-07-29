@@ -51,6 +51,15 @@ export async function getUserQuotaDates(
   return res.data
 }
 
+export async function syncQuotaData() {
+  const res = await api.post<{
+    success: boolean
+    message?: string
+    data?: { synced: number; node_name: string }
+  }>('/api/data/sync')
+  return res.data
+}
+
 // ----------------------------------------------------------------------------
 // System Monitoring
 // ----------------------------------------------------------------------------

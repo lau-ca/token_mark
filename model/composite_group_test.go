@@ -89,3 +89,16 @@ func TestDeleteCompositeGroupRejectsReferencedToken(t *testing.T) {
 	require.NoError(t, db.Model(&CompositeGroup{}).Where("id = ?", group.Id).Count(&count).Error)
 	assert.EqualValues(t, 1, count)
 }
+
+func TestCompositeGroupNameCannotBeReused(t *testing.T) {
+	db := newCompositeGroupTestDB(t)
+	group := CompositeGroup{Name: "image_stable", PublicModel: "gpt-image-2", GenerationEnabled: true}
+	require.NoError(t, CreateCompositeGroup(db, &group, nil))
+
+	duplicate := CompositeGroup{Name: group.Name, PublicModel: "another-model", GenerationEnabled: true}
+	require.Error(t, CreateCompositeGroup(db, &duplicate, nil))
+
+	require.NoError(t, DeleteCompositeGroup(db, group.Id))
+	reused := CompositeGroup{Name: group.Name, PublicModel: "replacement-model", GenerationEnabled: true}
+	require.Error(t, CreateCompositeGroup(db, &reused, nil))
+}

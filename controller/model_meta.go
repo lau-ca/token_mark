@@ -8,10 +8,48 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 
 	"github.com/gin-gonic/gin"
 )
+
+type modelCapabilityCatalogItem struct {
+	ModelName              string                  `json:"model_name"`
+	SupportedEndpointTypes []constant.EndpointType `json:"supported_endpoint_types"`
+	Metadata               *model.Model            `json:"metadata,omitempty"`
+}
+
+func buildModelCapabilityCatalog(pricings []model.Pricing, metadata map[string]*model.Model) []modelCapabilityCatalogItem {
+	items := make([]modelCapabilityCatalogItem, 0, len(pricings))
+	for _, pricing := range pricings {
+		item := modelCapabilityCatalogItem{
+			ModelName:              pricing.ModelName,
+			SupportedEndpointTypes: pricing.SupportedEndpointTypes,
+		}
+		if exact := metadata[pricing.ModelName]; exact != nil && exact.NameRule == model.NameRuleExact && exact.ModelName == pricing.ModelName {
+			item.Metadata = exact
+		}
+		items = append(items, item)
+	}
+	return items
+}
+
+func GetModelCapabilityCatalog(c *gin.Context) {
+	pricings := model.GetPricing()
+	modelNames := make([]string, 0, len(pricings))
+	for _, pricing := range pricings {
+		modelNames = append(modelNames, pricing.ModelName)
+	}
+
+	metadata, err := model.GetModelMetadataByNames(modelNames)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	common.ApiSuccess(c, buildModelCapabilityCatalog(pricings, metadata))
+}
 
 // GetAllModelsMeta 获取模型列表（分页）
 func GetAllModelsMeta(c *gin.Context) {
@@ -97,6 +135,10 @@ func CreateModelMeta(c *gin.Context) {
 		common.ApiErrorMsg(c, "模型名称不能为空")
 		return
 	}
+	if _, err := dto.ParseModelEndpointConfigs(m.Endpoints); err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return
+	}
 	// 名称冲突检查
 	if dup, err := model.IsModelNameDuplicated(0, m.ModelName); err != nil {
 		common.ApiError(c, err)
@@ -141,6 +183,10 @@ func UpdateModelMeta(c *gin.Context) {
 			return
 		} else if dup {
 			common.ApiErrorMsg(c, "模型名称已存在")
+			return
+		}
+		if _, err := dto.ParseModelEndpointConfigs(m.Endpoints); err != nil {
+			common.ApiErrorMsg(c, err.Error())
 			return
 		}
 

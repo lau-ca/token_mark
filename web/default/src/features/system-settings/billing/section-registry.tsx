@@ -152,6 +152,15 @@ const BILLING_SECTIONS = [
           CreemWebhookSecret: settings.CreemWebhookSecret,
           CreemTestMode: settings.CreemTestMode,
           CreemProducts: settings.CreemProducts,
+          InfiniEnabled: settings.InfiniEnabled ?? false,
+          InfiniSandbox: settings.InfiniSandbox ?? true,
+          InfiniKeyID: settings.InfiniKeyID ?? '',
+          InfiniSecretKey: settings.InfiniSecretKey ?? '',
+          InfiniWebhookSecret: settings.InfiniWebhookSecret ?? '',
+          InfiniCurrency: settings.InfiniCurrency ?? 'USD',
+          InfiniPayMethods: settings.InfiniPayMethods ?? '[1]',
+          InfiniUnitPrice: settings.InfiniUnitPrice ?? 1,
+          InfiniMinTopUp: settings.InfiniMinTopUp ?? 1,
         }}
         waffoDefaultValues={{
           WaffoEnabled: settings.WaffoEnabled ?? false,

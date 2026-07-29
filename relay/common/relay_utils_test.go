@@ -116,6 +116,25 @@ func TestValidateBasicTaskRequestKeepsLegacyMultipartSeconds(t *testing.T) {
 	assert.Equal(t, 9, storedReq.Duration)
 }
 
+func TestValidateBasicTaskRequestAcceptsNumericSeconds(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	context, _ := gin.CreateTestContext(httptest.NewRecorder())
+	context.Request = httptest.NewRequest(
+		http.MethodPost,
+		"/v1/videos",
+		strings.NewReader(`{"model":"seedance2.0","prompt":"animate","seconds":5,"size":"1280x720","aspect_ratio":"16:9"}`),
+	)
+	context.Request.Header.Set("Content-Type", "application/json")
+	info := &RelayInfo{TaskRelayInfo: &TaskRelayInfo{}}
+
+	taskErr := ValidateMultipartDirect(context, info)
+
+	require.Nil(t, taskErr)
+	request, err := GetTaskRequest(context)
+	require.NoError(t, err)
+	assert.Equal(t, "5", request.Seconds)
+}
+
 func TestValidateMultipartDirectSeedanceVideoRequest(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	context, info := newTaskValidationContext(t, `{

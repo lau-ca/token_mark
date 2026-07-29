@@ -29,6 +29,7 @@ type PricingItem = {
   model_name: string
   quota_type: number
   billing_mode?: string
+  enable_groups?: string[]
 }
 
 function requireSuccess<T>(response: CompositeGroupApiResponse<T>): T {
@@ -113,6 +114,7 @@ export async function getCompositeGroupOptions(): Promise<CompositeGroupOptions>
         {
           name: item.model_name,
           billingMode: getBillingMode(item),
+          groups: item.enable_groups ?? [],
         },
       ])
     ).values(),

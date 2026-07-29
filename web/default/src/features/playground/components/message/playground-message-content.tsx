@@ -38,6 +38,7 @@ import {
   SourcesContent,
   SourcesTrigger,
 } from '@/components/ai-elements/sources'
+import { Progress } from '@/components/ui/progress'
 import { cn } from '@/lib/utils'
 
 import { MESSAGE_STATUS } from '../../constants'
@@ -51,6 +52,8 @@ import { getMessageContentStyles } from '../../lib/message/message-styles'
 import type { Message } from '../../types'
 import { MessageError } from './message-error'
 import { MessageMetadata } from './message-metadata'
+import { PlaygroundMessageMedia } from './playground-message-media'
+import { PlaygroundMessageRequestContext } from './playground-message-request-context'
 
 type PlaygroundMessageContentProps = {
   actions: ReactNode
@@ -83,6 +86,38 @@ export function PlaygroundMessageContent({
   const isMessageFinal =
     message.status !== MESSAGE_STATUS.LOADING &&
     message.status !== MESSAGE_STATUS.STREAMING
+  const pendingVideo = message.media?.find(
+    (item) => item.type === 'video' && item.taskId && !item.url
+  )
+  let loadingState: ReactNode = null
+  if (showLoader && pendingVideo) {
+    loadingState = (
+      <div className='border-border/70 bg-muted/20 my-2 w-full max-w-xl space-y-2.5 rounded-lg border px-4 py-3'>
+        <div className='flex items-center justify-between gap-3 text-sm'>
+          <span className='flex items-center gap-2'>
+            <Loader />
+            {t('Generating video...')}
+          </span>
+          <span className='text-muted-foreground tabular-nums'>
+            {Math.round(pendingVideo.progress ?? 0)}%
+          </span>
+        </div>
+        <Progress value={pendingVideo.progress ?? 0} />
+        <p className='text-muted-foreground text-xs'>
+          {t('You can refresh or switch tabs. This task will keep running.')}
+        </p>
+      </div>
+    )
+  } else if (showLoader) {
+    loadingState = (
+      <div className='flex items-center gap-2 py-2'>
+        <Loader />
+        <Shimmer className='text-sm' duration={1}>
+          {t('Responding...')}
+        </Shimmer>
+      </div>
+    )
+  }
 
   return (
     <div
@@ -117,14 +152,11 @@ export function PlaygroundMessageContent({
         </Reasoning>
       )}
 
-      {showLoader && (
-        <div className='flex items-center gap-2 py-2'>
-          <Loader />
-          <Shimmer className='text-sm' duration={1}>
-            {t('Responding...')}
-          </Shimmer>
-        </div>
+      {message.requestContext && (
+        <PlaygroundMessageRequestContext context={message.requestContext} />
       )}
+
+      {loadingState}
 
       {isError && (
         <>
@@ -136,6 +168,9 @@ export function PlaygroundMessageContent({
 
       {!isError && showMessageContent && (
         <>
+          {message.media && message.media.length > 0 && (
+            <PlaygroundMessageMedia items={message.media} />
+          )}
           {isSourceVisible ? (
             <CodeBlock
               code={versionContent}

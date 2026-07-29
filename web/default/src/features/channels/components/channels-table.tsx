@@ -54,8 +54,9 @@ import {
 } from '../constants'
 import {
   channelsQueryKeys,
+  aggregateChannelsByGroup,
   aggregateChannelsByTag,
-  isTagAggregateRow,
+  isChannelAggregateRow,
   getChannelTypeIcon,
   getChannelTypeLabel,
 } from '../lib'
@@ -82,7 +83,7 @@ const CHANNEL_SORTABLE_COLUMNS = new Set<ChannelSortBy>([
 
 function isDisabledChannelRow(channel: Channel) {
   return (
-    !isTagAggregateRow(channel) && channel.status !== CHANNEL_STATUS.ENABLED
+    !isChannelAggregateRow(channel) && channel.status !== CHANNEL_STATUS.ENABLED
   )
 }
 
@@ -90,6 +91,7 @@ export function ChannelsTable() {
   const { t } = useTranslation()
   const {
     enableTagMode,
+    enableGroupMode,
     idSort,
     batchMode,
     sensitiveVisible,
@@ -236,6 +238,7 @@ export function ChannelsTable() {
           ? Number(typeFilter[0])
           : undefined,
       tag_mode: enableTagMode,
+      group_mode: enableGroupMode,
       id_sort: idSort,
       ...sortParams,
       p: pagination.pageIndex + 1,
@@ -259,6 +262,7 @@ export function ChannelsTable() {
               ? Number(typeFilter[0])
               : undefined,
           tag_mode: enableTagMode,
+          group_mode: enableGroupMode,
           id_sort: idSort,
           ...sortParams,
           p: pagination.pageIndex + 1,
@@ -279,6 +283,7 @@ export function ChannelsTable() {
               ? Number(typeFilter[0])
               : undefined,
           tag_mode: enableTagMode,
+          group_mode: enableGroupMode,
           id_sort: idSort,
           ...sortParams,
           p: pagination.pageIndex + 1,
@@ -297,8 +302,12 @@ export function ChannelsTable() {
       return aggregateChannelsByTag(rawChannels)
     }
 
+    if (enableGroupMode && rawChannels.length > 0) {
+      return aggregateChannelsByGroup(rawChannels)
+    }
+
     return rawChannels
-  }, [data, enableTagMode])
+  }, [data, enableGroupMode, enableTagMode])
 
   const totalCount = data?.data?.total || 0
   const typeCounts = data?.data?.type_counts
@@ -324,7 +333,7 @@ export function ChannelsTable() {
     pagination,
     globalFilter,
     enableRowSelection: batchMode
-      ? (row: Row<Channel>) => !isTagAggregateRow(row.original)
+      ? (row: Row<Channel>) => !isChannelAggregateRow(row.original)
       : false,
     onSortingChange: handleSortingChange,
     onColumnFiltersChange: handleColumnFiltersChange,

@@ -61,6 +61,28 @@ func TestBuildRequestBodyKeepsLegacyVideoParameters(t *testing.T) {
 	assert.Equal(t, " 4K ", bodyMap["resolution"])
 }
 
+func TestBuildRequestBodyKeepsSeedance20ProtocolParameters(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	bodyMap := buildValidatedRequestBody(t, `{
+		"model":"seedance2.0",
+		"group":"Seedance2.0",
+		"prompt":"animate the reference image",
+		"seconds":5,
+		"size":"1280x720",
+		"aspect_ratio":"16:9",
+		"images":["https://example.com/reference.png"]
+	}`)
+
+	assert.Equal(t, "upstream-video-model", bodyMap["model"])
+	assert.Equal(t, "5", bodyMap["seconds"])
+	assert.Equal(t, "1280x720", bodyMap["size"])
+	assert.Equal(t, "16:9", bodyMap["aspect_ratio"])
+	assert.Equal(t, []interface{}{"https://example.com/reference.png"}, bodyMap["images"])
+	assert.NotContains(t, bodyMap, "group")
+	assert.NotContains(t, bodyMap, "duration")
+	assert.NotContains(t, bodyMap, "resolution")
+}
+
 func TestEstimateBillingKeepsLegacySoraRatios(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	tests := []struct {

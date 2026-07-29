@@ -28,6 +28,22 @@ export interface MessageVersion {
   content: string
 }
 
+export interface PlaygroundMedia {
+  type: 'image' | 'video'
+  url?: string
+  taskId?: string
+  isTransient?: boolean
+  storageKey?: string
+  filename?: string
+  progress?: number
+}
+
+export interface PlaygroundRequestContext {
+  model: string
+  group: string
+  parameters?: Record<string, string | number | boolean>
+}
+
 export interface Message {
   key: string
   from: MessageRole
@@ -49,6 +65,9 @@ export interface Message {
   isContentComplete?: boolean
   status?: MessageStatus
   errorCode?: string | null
+  mode?: PlaygroundMode
+  media?: PlaygroundMedia[]
+  requestContext?: PlaygroundRequestContext
 }
 
 // API payload types
@@ -119,6 +138,7 @@ export interface ChatCompletionResponse {
 export interface PlaygroundConfig {
   model: string
   group: string
+  mode_selections: Record<PlaygroundMode, PlaygroundModeSelection>
   temperature: number
   top_p: number
   max_tokens: number
@@ -126,6 +146,11 @@ export interface PlaygroundConfig {
   presence_penalty: number
   seed: number | null
   stream: boolean
+}
+
+export interface PlaygroundModeSelection {
+  model: string
+  group: string
 }
 
 export interface ParameterEnabled {
@@ -137,11 +162,58 @@ export interface ParameterEnabled {
   seed: boolean
 }
 
+export interface PlaygroundParameterOption {
+  key: string
+  label?: string
+  type: 'string' | 'number' | 'boolean' | 'enum'
+  request_path?: string
+  required?: boolean
+  default?: string | number | boolean
+  options?: Array<string | number | boolean>
+  min?: number
+  max?: number
+}
+
+export interface PlaygroundIntegrationInterface {
+  key: string
+  title: string
+  description?: string
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
+  path: string
+  request_description?: string
+  curl_template: string
+  response_example?: string
+  notes?: string[]
+}
+
+export interface PlaygroundIntegrationDefinition {
+  overview?: string
+  documentation_url?: string
+  interfaces: PlaygroundIntegrationInterface[]
+  result_note?: string
+  complete_example?: string
+}
+
 // Model and group options
 export interface ModelOption {
   label: string
   value: string
+  supportedEndpointTypes: string[]
+  endpoints: Record<
+    string,
+    {
+      path?: string
+      method?: string
+      playground?: {
+        capabilities?: string[]
+        parameters?: PlaygroundParameterOption[]
+        integration?: PlaygroundIntegrationDefinition
+      }
+    }
+  >
 }
+
+export type PlaygroundMode = 'chat' | 'image' | 'video'
 
 export interface GroupOption {
   label: string

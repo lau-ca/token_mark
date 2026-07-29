@@ -68,6 +68,7 @@ type PaymentMethodDialogProps = {
 
 const PAYMENT_TYPE_ICON_NAMES: Record<string, string> = {
   alipay: 'SiAlipay',
+  infini: 'LuLandmark',
   stripe: 'SiStripe',
   waffo_pancake: 'LuCreditCard',
   wxpay: 'SiWechat',
@@ -102,6 +103,12 @@ export function PaymentMethodDialog({
       label: `${t('Stripe')} (stripe)`,
       name: t('Stripe'),
       value: 'stripe',
+    },
+    {
+      iconName: 'LuLandmark',
+      label: 'Infini (infini)',
+      name: 'Infini',
+      value: 'infini',
     },
     {
       iconName: 'LuCreditCard',

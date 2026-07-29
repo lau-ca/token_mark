@@ -336,7 +336,7 @@ func stripChannelImageURLs(data []byte, info *relaycommon.RelayInfo) []byte {
 	if !shouldStripChannelImageURL(info) || len(data) == 0 {
 		return data
 	}
-	return stripJSONField(data, "url")
+	return stripJSONFields(data, "url", "_provider_image_url")
 }
 
 func shouldStripChannelImageURL(info *relaycommon.RelayInfo) bool {
@@ -346,8 +346,17 @@ func shouldStripChannelImageURL(info *relaycommon.RelayInfo) bool {
 	return info.ChannelOtherSettings.ForceImageB64JSONNoURL
 }
 
-func stripJSONField(data []byte, field string) []byte {
-	quotedField := []byte(`"` + field + `"`)
+func stripJSONFields(data []byte, fields ...string) []byte {
+	quotedFields := make([][]byte, 0, len(fields))
+	for _, field := range fields {
+		if field != "" {
+			quotedFields = append(quotedFields, []byte(`"`+field+`"`))
+		}
+	}
+	if len(quotedFields) == 0 {
+		return data
+	}
+
 	var out []byte
 	lastWrite := 0
 
@@ -357,7 +366,14 @@ func stripJSONField(data []byte, field string) []byte {
 			continue
 		}
 
-		if !matchesJSONField(data, i, quotedField) {
+		matchedFieldLength := 0
+		for _, quotedField := range quotedFields {
+			if matchesJSONField(data, i, quotedField) {
+				matchedFieldLength = len(quotedField)
+				break
+			}
+		}
+		if matchedFieldLength == 0 {
 			next := skipJSONString(data, i)
 			if next <= i {
 				i++
@@ -367,7 +383,7 @@ func stripJSONField(data []byte, field string) []byte {
 			continue
 		}
 
-		fieldEnd := i + len(quotedField)
+		fieldEnd := i + matchedFieldLength
 		colon := skipJSONSpaces(data, fieldEnd)
 		valueStart := skipJSONSpaces(data, colon+1)
 		valueEnd := skipJSONValue(data, valueStart)

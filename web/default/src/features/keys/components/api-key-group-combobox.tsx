@@ -41,7 +41,9 @@ export type ApiKeyGroupOption = {
   value: string
   label: string
   desc?: string
-  ratio?: number | string
+  ratio?: number | string | null
+  composite?: boolean
+  publicModel?: string
 }
 
 type ApiKeyGroupComboboxProps = {
@@ -96,6 +98,53 @@ function GroupRatioBadge({ ratio }: { ratio: ApiKeyGroupOption['ratio'] }) {
   )
 }
 
+function GroupMetaBadge({ option }: { option?: ApiKeyGroupOption }) {
+  const { t } = useTranslation()
+
+  if (!option) return null
+  if (option.composite) {
+    return (
+      <Badge variant='secondary' className='shrink-0 text-[10px] sm:text-xs'>
+        {t('Composite')}
+      </Badge>
+    )
+  }
+
+  return <GroupRatioBadge ratio={option.ratio} />
+}
+
+function GroupOptionItem(props: {
+  option: ApiKeyGroupOption
+  selected: boolean
+  onSelect: (value: string) => void
+}) {
+  return (
+    <CommandItem
+      value={props.option.value}
+      onSelect={() => props.onSelect(props.option.value)}
+      className='data-[selected=true]:bg-muted items-start gap-3 rounded-lg px-3 py-3 transition-colors'
+    >
+      <Check
+        className={cn(
+          'mt-0.5 h-4 w-4',
+          props.selected ? 'opacity-100' : 'opacity-0'
+        )}
+      />
+      <span className='min-w-0 flex-1'>
+        <span className='block truncate font-medium'>{props.option.label}</span>
+        {(props.option.desc || props.option.publicModel) && (
+          <span className='text-muted-foreground block truncate text-xs'>
+            {[props.option.desc, props.option.publicModel]
+              .filter(Boolean)
+              .join(' · ')}
+          </span>
+        )}
+      </span>
+      <GroupMetaBadge option={props.option} />
+    </CommandItem>
+  )
+}
+
 export function ApiKeyGroupCombobox({
   options,
   value,
@@ -118,10 +167,13 @@ export function ApiKeyGroupCombobox({
         option.value.toLowerCase().includes(search) ||
         option.label.toLowerCase().includes(search) ||
         option.desc?.toLowerCase().includes(search) ||
+        option.publicModel?.toLowerCase().includes(search) ||
         ratioText.includes(search)
       )
     })
   }, [options, searchValue])
+  const standardOptions = filteredOptions.filter((option) => !option.composite)
+  const compositeOptions = filteredOptions.filter((option) => option.composite)
 
   const handleSelect = (selectedValue: string) => {
     onValueChange(selectedValue)
@@ -148,14 +200,16 @@ export function ApiKeyGroupCombobox({
             <span className='block truncate font-medium'>
               {selectedOption?.label || placeholder || t('Select a group')}
             </span>
-            {selectedOption?.desc && (
+            {(selectedOption?.desc || selectedOption?.publicModel) && (
               <span className='text-muted-foreground block truncate text-[11px] sm:text-xs'>
-                {selectedOption.desc}
+                {[selectedOption.desc, selectedOption.publicModel]
+                  .filter(Boolean)
+                  .join(' · ')}
               </span>
             )}
           </span>
           <span className='hidden sm:block'>
-            <GroupRatioBadge ratio={selectedOption?.ratio} />
+            <GroupMetaBadge option={selectedOption} />
           </span>
         </span>
         <ChevronsUpDown className='h-4 w-4 shrink-0 opacity-50' />
@@ -174,34 +228,30 @@ export function ApiKeyGroupCombobox({
           />
           <CommandList className='max-h-[360px]'>
             <CommandEmpty>{t('No group found.')}</CommandEmpty>
-            <CommandGroup>
-              {filteredOptions.map((option) => (
-                <CommandItem
-                  key={option.value}
-                  value={option.value}
-                  onSelect={() => handleSelect(option.value)}
-                  className='data-[selected=true]:bg-muted items-start gap-3 rounded-lg px-3 py-3 transition-colors'
-                >
-                  <Check
-                    className={cn(
-                      'mt-0.5 h-4 w-4',
-                      value === option.value ? 'opacity-100' : 'opacity-0'
-                    )}
+            {standardOptions.length > 0 && (
+              <CommandGroup heading={t('Standard')}>
+                {standardOptions.map((option) => (
+                  <GroupOptionItem
+                    key={option.value}
+                    option={option}
+                    selected={value === option.value}
+                    onSelect={handleSelect}
                   />
-                  <span className='min-w-0 flex-1'>
-                    <span className='block truncate font-medium'>
-                      {option.label}
-                    </span>
-                    {option.desc && (
-                      <span className='text-muted-foreground block truncate text-xs'>
-                        {option.desc}
-                      </span>
-                    )}
-                  </span>
-                  <GroupRatioBadge ratio={option.ratio} />
-                </CommandItem>
-              ))}
-            </CommandGroup>
+                ))}
+              </CommandGroup>
+            )}
+            {compositeOptions.length > 0 && (
+              <CommandGroup heading={t('Composite')}>
+                {compositeOptions.map((option) => (
+                  <GroupOptionItem
+                    key={option.value}
+                    option={option}
+                    selected={value === option.value}
+                    onSelect={handleSelect}
+                  />
+                ))}
+              </CommandGroup>
+            )}
           </CommandList>
         </Command>
       </PopoverContent>

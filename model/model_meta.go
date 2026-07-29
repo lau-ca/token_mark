@@ -109,6 +109,48 @@ func GetAllModels(offset int, limit int) ([]*Model, error) {
 	return models, err
 }
 
+func GetModelMetadataByNames(modelNames []string) (map[string]*Model, error) {
+	modelNames = normalizeLookupValues(modelNames)
+	result := make(map[string]*Model, len(modelNames))
+	if len(modelNames) == 0 {
+		return result, nil
+	}
+
+	var metadata []*Model
+	if err := DB.Where("model_name IN ? OR name_rule <> ?", modelNames, NameRuleExact).
+		Order("id ASC").
+		Find(&metadata).Error; err != nil {
+		return nil, err
+	}
+
+	for _, item := range metadata {
+		if item.NameRule == NameRuleExact {
+			result[item.ModelName] = item
+		}
+	}
+	for _, modelName := range modelNames {
+		if _, ok := result[modelName]; ok {
+			continue
+		}
+		for _, item := range metadata {
+			matched := false
+			switch item.NameRule {
+			case NameRulePrefix:
+				matched = strings.HasPrefix(modelName, item.ModelName)
+			case NameRuleContains:
+				matched = strings.Contains(modelName, item.ModelName)
+			case NameRuleSuffix:
+				matched = strings.HasSuffix(modelName, item.ModelName)
+			}
+			if matched {
+				result[modelName] = item
+				break
+			}
+		}
+	}
+	return result, nil
+}
+
 func GetBoundChannelsByModelsMap(modelNames []string) (map[string][]BoundChannel, error) {
 	result := make(map[string][]BoundChannel)
 	if len(modelNames) == 0 {

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel"
@@ -21,15 +22,13 @@ import (
 	"github.com/pkg/errors"
 )
 
-type imageRef struct {
-	URL string `json:"url"`
-}
-
 type submitRequest struct {
-	Model    string    `json:"model"`
-	Prompt   string    `json:"prompt"`
-	Image    *imageRef `json:"image,omitempty"`
-	Duration int       `json:"duration,omitempty"`
+	Model       string    `json:"model"`
+	Prompt      string    `json:"prompt"`
+	Image       *imageRef `json:"image,omitempty"`
+	Duration    int       `json:"duration,omitempty"`
+	AspectRatio string    `json:"aspect_ratio,omitempty"`
+	Resolution  string    `json:"resolution,omitempty"`
 }
 
 type submitResponse struct {
@@ -72,7 +71,22 @@ func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskError {
-	return relaycommon.ValidateMultipartDirect(c, info)
+	if !strings.HasPrefix(strings.ToLower(c.ContentType()), "application/json") {
+		return relaycommon.ValidateMultipartDirect(c, info)
+	}
+
+	req, imageRef, err := parseVideoTaskRequest(c)
+	if err != nil {
+		return service.TaskErrorWrapperLocal(err, "invalid_json", http.StatusBadRequest)
+	}
+	if imageRef != nil {
+		setVideoImageRef(c, imageRef)
+	}
+	taskErr := relaycommon.ValidateParsedTaskRequest(c, info, req)
+	if taskErr == nil && imageRef != nil && imageRef.FileID != "" {
+		info.Action = constant.TaskActionGenerate
+	}
+	return taskErr
 }
 
 func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
@@ -113,17 +127,23 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	}
 
 	payload := submitRequest{
-		Model:    info.UpstreamModelName,
-		Prompt:   req.Prompt,
-		Duration: duration,
+		Model:       info.UpstreamModelName,
+		Prompt:      req.Prompt,
+		Duration:    duration,
+		AspectRatio: resolveAspectRatio(req),
+		Resolution:  strings.TrimSpace(req.Resolution),
 	}
 
-	imageURL, err := a.resolveImageURL(c, req)
-	if err != nil {
-		return nil, err
-	}
-	if imageURL != "" {
-		payload.Image = &imageRef{URL: imageURL}
+	if ref, ok := getVideoImageRef(c); ok {
+		payload.Image = ref
+	} else {
+		imageURL, err := a.resolveImageURL(c, req)
+		if err != nil {
+			return nil, err
+		}
+		if imageURL != "" {
+			payload.Image = &imageRef{URL: imageURL}
+		}
 	}
 
 	data, err := common.Marshal(payload)
@@ -131,6 +151,23 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		return nil, err
 	}
 	return bytes.NewReader(data), nil
+}
+
+func resolveAspectRatio(req relaycommon.TaskSubmitReq) string {
+	if aspectRatio := strings.TrimSpace(req.AspectRatio); aspectRatio != "" {
+		return aspectRatio
+	}
+	if ratio := strings.TrimSpace(req.Ratio); ratio != "" {
+		return ratio
+	}
+	switch strings.TrimSpace(req.Size) {
+	case "720x1280", "1024x1792":
+		return "9:16"
+	case "1280x720", "1792x1024":
+		return "16:9"
+	default:
+		return ""
+	}
 }
 
 func (a *TaskAdaptor) resolveImageURL(c *gin.Context, req relaycommon.TaskSubmitReq) (string, error) {

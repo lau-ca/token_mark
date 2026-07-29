@@ -135,7 +135,7 @@ func CompositeOperationFromPath(path string) (string, bool) {
 	switch path {
 	case "/v1/images/generations":
 		return model.CompositeOperationGeneration, true
-	case "/v1/edits", "/v1/images/edits":
+	case "/v1/images/edits":
 		return model.CompositeOperationEdit, true
 	default:
 		return "", false
@@ -187,9 +187,6 @@ func ValidateCompositeGroup(group model.CompositeGroup, routes []model.Composite
 			requestPath = "/v1/images/edits"
 		}
 		channel, err := model.GetRandomSatisfiedChannel(route.PhysicalGroup, route.InternalModel, 0, requestPath)
-		if err == nil && channel == nil && route.Operation == model.CompositeOperationEdit {
-			channel, err = model.GetRandomSatisfiedChannel(route.PhysicalGroup, route.InternalModel, 0, "/v1/edits")
-		}
 		if err != nil {
 			return fmt.Errorf("validate route %s/%s: %w", route.PhysicalGroup, route.InternalModel, err)
 		}

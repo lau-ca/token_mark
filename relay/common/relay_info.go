@@ -721,6 +721,7 @@ type TaskSubmitReq struct {
 	Size            string                 `json:"size,omitempty"`
 	Duration        int                    `json:"duration,omitempty"`
 	Seconds         string                 `json:"seconds,omitempty"`
+	AspectRatio     string                 `json:"aspect_ratio,omitempty"`
 	Ratio           string                 `json:"ratio,omitempty"`
 	Resolution      string                 `json:"resolution,omitempty"`
 	ReferenceImages []string               `json:"referenceImages,omitempty"`
@@ -746,6 +747,7 @@ func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 	aux := &struct {
 		Metadata json.RawMessage `json:"metadata,omitempty"`
 		Duration json.RawMessage `json:"duration,omitempty"`
+		Seconds  json.RawMessage `json:"seconds,omitempty"`
 		*Alias
 	}{
 		Alias: (*Alias)(t),
@@ -772,6 +774,21 @@ func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 				t.durationParseErr = fmt.Errorf("duration must be an integer")
 			} else {
 				t.Duration = duration
+			}
+		}
+	}
+	if len(aux.Seconds) > 0 {
+		t.Seconds = ""
+		if strings.TrimSpace(string(aux.Seconds)) != "null" {
+			var secondsInt int
+			if err := common.Unmarshal(aux.Seconds, &secondsInt); err == nil {
+				t.Seconds = strconv.Itoa(secondsInt)
+			} else {
+				var secondsStr string
+				if err := common.Unmarshal(aux.Seconds, &secondsStr); err != nil {
+					return fmt.Errorf("seconds must be an integer or string")
+				}
+				t.Seconds = secondsStr
 			}
 		}
 	}

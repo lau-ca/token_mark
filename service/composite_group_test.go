@@ -73,6 +73,23 @@ func TestListSelectableCompositeGroupsHonorsGlobalSwitch(t *testing.T) {
 	assert.Contains(t, ListSelectableCompositeGroups("default"), "image_stable")
 }
 
+func TestRefreshCompositeGroupCacheFailureRetainsSnapshot(t *testing.T) {
+	originalDB := model.DB
+	originalSnapshot := compositePolicySnapshot.Load()
+	expectedSnapshot := &CompositePolicySnapshot{byGroup: map[string]*CompositeGroupPolicy{
+		"image_stable": {Name: "image_stable", Enabled: true},
+	}}
+	t.Cleanup(func() {
+		model.DB = originalDB
+		compositePolicySnapshot.Store(originalSnapshot)
+	})
+	model.DB = nil
+	compositePolicySnapshot.Store(expectedSnapshot)
+
+	require.Error(t, RefreshCompositeGroupCache())
+	assert.Same(t, expectedSnapshot, compositePolicySnapshot.Load())
+}
+
 func TestValidateCompositeGroupStructure(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -141,7 +158,6 @@ func TestCompositePolicyContextAndOperation(t *testing.T) {
 	tests := map[string]string{
 		"/v1/images/generations": model.CompositeOperationGeneration,
 		"/v1/images/edits":       model.CompositeOperationEdit,
-		"/v1/edits":              model.CompositeOperationEdit,
 	}
 	for path, expected := range tests {
 		actual, supported := CompositeOperationFromPath(path)
@@ -149,5 +165,7 @@ func TestCompositePolicyContextAndOperation(t *testing.T) {
 		assert.Equal(t, expected, actual)
 	}
 	_, supported := CompositeOperationFromPath("/v1/chat/completions")
+	assert.False(t, supported)
+	_, supported = CompositeOperationFromPath("/v1/edits")
 	assert.False(t, supported)
 }

@@ -43,6 +43,7 @@ import {
   paySubscriptionCreem,
   paySubscriptionEpay,
   paySubscriptionWaffoPancake,
+  paySubscriptionInfini,
   paySubscriptionBalance,
 } from '../../api'
 import { formatDuration, formatResetPeriod } from '../../lib'
@@ -60,6 +61,7 @@ interface Props {
   enableStripe?: boolean
   enableCreem?: boolean
   enableWaffoPancake?: boolean
+  enableInfini?: boolean
   enableOnlineTopUp?: boolean
   epayMethods?: PaymentMethod[]
   purchaseLimit?: number
@@ -89,9 +91,11 @@ export function SubscriptionPurchaseDialog(props: Props) {
   const hasCreem = props.enableCreem && !!plan.creem_product_id
   const hasWaffoPancake =
     props.enableWaffoPancake && !!plan.waffo_pancake_product_id
+  const hasInfini = props.enableInfini
   const hasEpay =
     props.enableOnlineTopUp && (props.epayMethods || []).length > 0
-  const hasAnyPayment = hasStripe || hasCreem || hasWaffoPancake || hasEpay
+  const hasAnyPayment =
+    hasStripe || hasCreem || hasWaffoPancake || hasInfini || hasEpay
   const selectedEpayMethodLabel =
     (props.epayMethods || []).find((m) => m.type === selectedEpayMethod)
       ?.name ||
@@ -175,6 +179,32 @@ export function SubscriptionPurchaseDialog(props: Props) {
         )
       }
     } catch {
+      toast.error(t('Payment request failed'))
+    } finally {
+      setPaying(false)
+    }
+  }
+
+  const handlePayInfini = async () => {
+    const paymentWindow = window.open('', '_blank')
+    if (paymentWindow) paymentWindow.opener = null
+    setPaying(true)
+    try {
+      const res = await paySubscriptionInfini({ plan_id: plan.id })
+      if (res.success && res.data?.checkout_url) {
+        if (paymentWindow) {
+          paymentWindow.location.href = res.data.checkout_url
+        } else {
+          window.location.href = res.data.checkout_url
+        }
+        toast.success(t('Payment page opened'))
+        props.onOpenChange(false)
+      } else {
+        paymentWindow?.close()
+        toast.error(res.message || t('Payment request failed'))
+      }
+    } catch {
+      paymentWindow?.close()
       toast.error(t('Payment request failed'))
     } finally {
       setPaying(false)
@@ -368,7 +398,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
             <p className='text-muted-foreground text-xs'>
               {t('Select payment method')}
             </p>
-            {(hasStripe || hasCreem || hasWaffoPancake) && (
+            {(hasStripe || hasCreem || hasWaffoPancake || hasInfini) && (
               <div className='grid grid-cols-2 gap-2 sm:flex'>
                 {hasStripe && (
                   <Button
@@ -400,17 +430,25 @@ export function SubscriptionPurchaseDialog(props: Props) {
                     Waffo Pancake
                   </Button>
                 )}
+                {hasInfini && (
+                  <Button
+                    variant='outline'
+                    className='flex-1'
+                    onClick={handlePayInfini}
+                    disabled={paying || limitReached}
+                  >
+                    Infini
+                  </Button>
+                )}
               </div>
             )}
             {hasEpay && (
               <div className='grid grid-cols-[minmax(0,1fr)_auto] gap-2'>
                 <Select
-                  items={[
-                    ...(props.epayMethods || []).map((m) => ({
-                      value: m.type,
-                      label: m.name || m.type,
-                    })),
-                  ]}
+                  items={(props.epayMethods || []).map((m) => ({
+                    value: m.type,
+                    label: m.name || m.type,
+                  }))}
                   value={selectedEpayMethod}
                   onValueChange={(v) => v !== null && setSelectedEpayMethod(v)}
                   disabled={limitReached}

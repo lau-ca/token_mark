@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react'
-import type { UseFormReturn } from 'react-hook-form'
+import { Controller, type UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 import { Badge } from '@/components/ui/badge'
@@ -30,19 +30,24 @@ import {
   FieldLabel,
 } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
-import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
+import { getModelsForPhysicalGroup } from './options'
 import type {
   CompositeGroupFormInput,
   CompositeGroupOptions,
   CompositeRouteFormValue,
 } from './types'
 
-type RouteFieldName = 'generation_routes' | 'edit_routes'
-
 type RouteTargetEditorProps = {
   form: UseFormReturn<CompositeGroupFormInput>
-  name: RouteFieldName
   options: CompositeGroupOptions
   disabled: boolean
 }
@@ -57,9 +62,8 @@ const emptyRoute: CompositeRouteFormValue = {
 
 export function RouteTargetEditor(props: RouteTargetEditorProps) {
   const { t } = useTranslation()
-  const routes = props.form.watch(props.name)
-  const routeErrors = props.form.formState.errors[props.name]
-  const modelListId = `${props.name}-models`
+  const routes = props.form.watch('routes')
+  const routeErrors = props.form.formState.errors.routes
 
   const getBillingLabel = (
     billingMode: CompositeGroupOptions['models'][number]['billingMode']
@@ -70,7 +74,7 @@ export function RouteTargetEditor(props: RouteTargetEditorProps) {
   }
 
   const updateRoutes = (next: CompositeRouteFormValue[]) => {
-    props.form.setValue(props.name, next, {
+    props.form.setValue('routes', next, {
       shouldDirty: true,
       shouldValidate: true,
     })
@@ -89,6 +93,10 @@ export function RouteTargetEditor(props: RouteTargetEditorProps) {
   return (
     <FieldGroup className='gap-3'>
       {routes.map((route, index) => {
+        const availableModels = getModelsForPhysicalGroup(
+          props.options.models,
+          route.physical_group
+        )
         const model = props.options.models.find(
           (item) => item.name === route.internal_model
         )
@@ -150,27 +158,66 @@ export function RouteTargetEditor(props: RouteTargetEditorProps) {
             </div>
             <FieldGroup className='grid gap-3 md:grid-cols-2'>
               <Field data-invalid={Boolean(error?.physical_group)}>
-                <FieldLabel htmlFor={`${props.name}-${index}-group`}>
+                <FieldLabel htmlFor={`routes-${index}-group`}>
                   {t('Physical group')}
                 </FieldLabel>
-                <NativeSelect
-                  id={`${props.name}-${index}-group`}
-                  className='w-full'
-                  aria-invalid={Boolean(error?.physical_group)}
-                  disabled={props.disabled}
-                  {...props.form.register(
-                    `${props.name}.${index}.physical_group`
+                <Controller
+                  control={props.form.control}
+                  name={`routes.${index}.physical_group`}
+                  render={({ field }) => (
+                    <Select
+                      value={field.value || null}
+                      disabled={props.disabled}
+                      onValueChange={(value) => {
+                        if (typeof value !== 'string' || value === '') return
+
+                        props.form.setValue(
+                          `routes.${index}.physical_group`,
+                          value,
+                          {
+                            shouldDirty: true,
+                            shouldTouch: true,
+                            shouldValidate: true,
+                          }
+                        )
+                        const modelStillAvailable = getModelsForPhysicalGroup(
+                          props.options.models,
+                          value
+                        ).some((item) => item.name === route.internal_model)
+                        if (!modelStillAvailable) {
+                          props.form.setValue(
+                            `routes.${index}.internal_model`,
+                            '',
+                            {
+                              shouldDirty: true,
+                              shouldTouch: true,
+                              shouldValidate: true,
+                            }
+                          )
+                        }
+                      }}
+                    >
+                      <SelectTrigger
+                        id={`routes-${index}-group`}
+                        className='w-full'
+                        aria-invalid={Boolean(error?.physical_group)}
+                      >
+                        <SelectValue
+                          placeholder={t('Select a physical group')}
+                        />
+                      </SelectTrigger>
+                      <SelectContent alignItemWithTrigger={false}>
+                        <SelectGroup>
+                          {props.options.groups.map((group) => (
+                            <SelectItem key={group} value={group}>
+                              {group}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
                   )}
-                >
-                  <NativeSelectOption value=''>
-                    {t('Select a physical group')}
-                  </NativeSelectOption>
-                  {props.options.groups.map((group) => (
-                    <NativeSelectOption key={group} value={group}>
-                      {group}
-                    </NativeSelectOption>
-                  ))}
-                </NativeSelect>
+                />
                 <FieldError>
                   {error?.physical_group?.message
                     ? t(error.physical_group.message)
@@ -178,16 +225,57 @@ export function RouteTargetEditor(props: RouteTargetEditorProps) {
                 </FieldError>
               </Field>
               <Field data-invalid={Boolean(error?.internal_model)}>
-                <FieldLabel htmlFor={`${props.name}-${index}-model`}>
+                <FieldLabel htmlFor={`routes-${index}-model`}>
                   {t('Internal model')}
                 </FieldLabel>
-                <Input
-                  id={`${props.name}-${index}-model`}
-                  list={modelListId}
-                  aria-invalid={Boolean(error?.internal_model)}
-                  disabled={props.disabled}
-                  {...props.form.register(
-                    `${props.name}.${index}.internal_model`
+                <Controller
+                  control={props.form.control}
+                  name={`routes.${index}.internal_model`}
+                  render={({ field }) => (
+                    <Select
+                      value={field.value || null}
+                      disabled={
+                        props.disabled ||
+                        !route.physical_group ||
+                        availableModels.length === 0
+                      }
+                      onValueChange={(value) => {
+                        if (typeof value === 'string' && value !== '') {
+                          props.form.setValue(
+                            `routes.${index}.internal_model`,
+                            value,
+                            {
+                              shouldDirty: true,
+                              shouldTouch: true,
+                              shouldValidate: true,
+                            }
+                          )
+                        }
+                      }}
+                    >
+                      <SelectTrigger
+                        id={`routes-${index}-model`}
+                        className='w-full'
+                        aria-invalid={Boolean(error?.internal_model)}
+                      >
+                        <SelectValue
+                          placeholder={t(
+                            route.physical_group && availableModels.length === 0
+                              ? 'No models found'
+                              : 'Select a model'
+                          )}
+                        />
+                      </SelectTrigger>
+                      <SelectContent alignItemWithTrigger={false}>
+                        <SelectGroup>
+                          {availableModels.map((item) => (
+                            <SelectItem key={item.name} value={item.name}>
+                              {item.name}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
                   )}
                 />
                 <FieldError>
@@ -197,22 +285,19 @@ export function RouteTargetEditor(props: RouteTargetEditorProps) {
                 </FieldError>
               </Field>
               <Field data-invalid={Boolean(error?.retry_count)}>
-                <FieldLabel htmlFor={`${props.name}-${index}-retry`}>
+                <FieldLabel htmlFor={`routes-${index}-retry`}>
                   {t('Retry count')}
                 </FieldLabel>
                 <Input
-                  id={`${props.name}-${index}-retry`}
+                  id={`routes-${index}-retry`}
                   type='number'
                   min={0}
                   max={10}
                   aria-invalid={Boolean(error?.retry_count)}
                   disabled={props.disabled}
-                  {...props.form.register(
-                    `${props.name}.${index}.retry_count`,
-                    {
-                      valueAsNumber: true,
-                    }
-                  )}
+                  {...props.form.register(`routes.${index}.retry_count`, {
+                    valueAsNumber: true,
+                  })}
                 />
                 <FieldDescription>
                   {t('Retries exclude the initial request')}
@@ -224,17 +309,15 @@ export function RouteTargetEditor(props: RouteTargetEditorProps) {
                 </FieldError>
               </Field>
               <Field data-invalid={Boolean(error?.retry_status_codes)}>
-                <FieldLabel htmlFor={`${props.name}-${index}-statuses`}>
+                <FieldLabel htmlFor={`routes-${index}-statuses`}>
                   {t('Retry status codes')}
                 </FieldLabel>
                 <Input
-                  id={`${props.name}-${index}-statuses`}
+                  id={`routes-${index}-statuses`}
                   placeholder='429,500-599'
                   aria-invalid={Boolean(error?.retry_status_codes)}
                   disabled={props.disabled}
-                  {...props.form.register(
-                    `${props.name}.${index}.retry_status_codes`
-                  )}
+                  {...props.form.register(`routes.${index}.retry_status_codes`)}
                 />
                 <FieldError>
                   {error?.retry_status_codes?.message
@@ -246,11 +329,6 @@ export function RouteTargetEditor(props: RouteTargetEditorProps) {
           </div>
         )
       })}
-      <datalist id={modelListId}>
-        {props.options.models.map((model) => (
-          <option key={model.name} value={model.name} />
-        ))}
-      </datalist>
       <Button
         type='button'
         variant='outline'

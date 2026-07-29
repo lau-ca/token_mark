@@ -476,6 +476,7 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 		if mf != nil {
 			for key, values := range mf.Value {
 				if key == "model" ||
+					key == "group" ||
 					(key == "size" && request.Size != "") ||
 					(shouldForceChannelImageResponseFormat(info) && key == "response_format") {
 					continue
