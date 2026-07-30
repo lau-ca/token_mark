@@ -102,6 +102,11 @@ export interface ChannelSettings {
   pass_through_body_enabled?: boolean
   system_prompt?: string
   system_prompt_override?: boolean
+  image_prompt_parameter_append?: {
+    enabled?: boolean
+    models?: string[]
+    template?: string
+  }
 }
 
 export interface ChannelOtherSettings {

@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 
 import {
   CHANNEL_FORM_DEFAULT_VALUES,
+  transformChannelToFormDefaults,
   transformFormDataToCreatePayload,
   transformFormDataToUpdatePayload,
 } from './channel-form.ts'
@@ -69,5 +70,53 @@ describe('channel balance form transforms', () => {
       balance_user_id: 0,
     })
     expect(payload).not.toHaveProperty('balance_auth_key')
+  })
+})
+
+describe('image prompt parameter append setting', () => {
+  test('serializes enabled channel configuration', () => {
+    const payload = transformFormDataToCreatePayload({
+      ...CHANNEL_FORM_DEFAULT_VALUES,
+      name: 'image-upstream',
+      key: 'sk-channel',
+      models: 'gpt-image-2',
+      image_prompt_parameter_append_enabled: true,
+      image_prompt_parameter_append_models:
+        'gpt-image-2, gpt-image-2, gpt-image-2-custom',
+      image_prompt_parameter_append_template:
+        'Render size={{size}} quality={{quality}}.',
+    })
+
+    expect(JSON.parse(payload.channel.setting)).toMatchObject({
+      image_prompt_parameter_append: {
+        enabled: true,
+        models: ['gpt-image-2', 'gpt-image-2-custom'],
+        template: 'Render size={{size}} quality={{quality}}.',
+      },
+    })
+  })
+
+  test('hydrates existing channel configuration', () => {
+    const defaults = transformChannelToFormDefaults({
+      id: 12,
+      name: 'image-upstream',
+      type: 1,
+      status: 1,
+      setting: JSON.stringify({
+        image_prompt_parameter_append: {
+          enabled: true,
+          models: ['gpt-image-2', 'gpt-image-2-custom'],
+          template: 'Render size={{size}} quality={{quality}}.',
+        },
+      }),
+      channel_info: {},
+    })
+
+    expect(defaults).toMatchObject({
+      image_prompt_parameter_append_enabled: true,
+      image_prompt_parameter_append_models: 'gpt-image-2, gpt-image-2-custom',
+      image_prompt_parameter_append_template:
+        'Render size={{size}} quality={{quality}}.',
+    })
   })
 })

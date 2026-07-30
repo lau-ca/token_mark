@@ -32,6 +32,10 @@ import {
   validateAdvancedCustomConfig,
 } from './advanced-custom'
 
+export const IMAGE_PROMPT_PARAMETER_APPEND_DEFAULT_MODELS = 'gpt-image-2'
+export const IMAGE_PROMPT_PARAMETER_APPEND_DEFAULT_TEMPLATE =
+  'Output image requirements: size={{size}}; quality={{quality}}.'
+
 // ============================================================================
 // Form Validation Schema
 // ============================================================================
@@ -196,6 +200,9 @@ export const channelFormSchema = z
     pass_through_body_enabled: z.boolean().optional(),
     system_prompt: z.string().optional(),
     system_prompt_override: z.boolean().optional(),
+    image_prompt_parameter_append_enabled: z.boolean().optional(),
+    image_prompt_parameter_append_models: z.string().optional(),
+    image_prompt_parameter_append_template: z.string().optional(),
     // Type-specific settings (stored in settings JSON)
     is_enterprise_account: z.boolean().optional(), // OpenRouter specific
     vertex_key_type: z.enum(['json', 'api_key']).optional(), // Vertex AI specific
@@ -343,6 +350,11 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   pass_through_body_enabled: false,
   system_prompt: '',
   system_prompt_override: false,
+  image_prompt_parameter_append_enabled: false,
+  image_prompt_parameter_append_models:
+    IMAGE_PROMPT_PARAMETER_APPEND_DEFAULT_MODELS,
+  image_prompt_parameter_append_template:
+    IMAGE_PROMPT_PARAMETER_APPEND_DEFAULT_TEMPLATE,
   // Type-specific settings
   is_enterprise_account: false,
   vertex_key_type: 'json',
@@ -383,6 +395,11 @@ export function transformChannelToFormDefaults(
     pass_through_body_enabled: false,
     system_prompt: '',
     system_prompt_override: false,
+    image_prompt_parameter_append_enabled: false,
+    image_prompt_parameter_append_models:
+      IMAGE_PROMPT_PARAMETER_APPEND_DEFAULT_MODELS,
+    image_prompt_parameter_append_template:
+      IMAGE_PROMPT_PARAMETER_APPEND_DEFAULT_TEMPLATE,
   }
 
   if (channel.setting) {
@@ -395,6 +412,16 @@ export function transformChannelToFormDefaults(
         pass_through_body_enabled: parsed.pass_through_body_enabled || false,
         system_prompt: parsed.system_prompt || '',
         system_prompt_override: parsed.system_prompt_override || false,
+        image_prompt_parameter_append_enabled:
+          parsed.image_prompt_parameter_append?.enabled === true,
+        image_prompt_parameter_append_models: Array.isArray(
+          parsed.image_prompt_parameter_append?.models
+        )
+          ? parsed.image_prompt_parameter_append.models.join(', ')
+          : IMAGE_PROMPT_PARAMETER_APPEND_DEFAULT_MODELS,
+        image_prompt_parameter_append_template:
+          parsed.image_prompt_parameter_append?.template ||
+          IMAGE_PROMPT_PARAMETER_APPEND_DEFAULT_TEMPLATE,
       }
     } catch (error) {
       // eslint-disable-next-line no-console
@@ -516,6 +543,26 @@ export function transformChannelToFormDefaults(
  * Build the setting JSON string from form extra settings
  */
 function buildSettingJSON(formData: ChannelFormValues): string {
+  const imagePromptParameterAppend =
+    formData.image_prompt_parameter_append_enabled === true
+      ? {
+          enabled: true,
+          models: [
+            ...new Set(
+              String(
+                formData.image_prompt_parameter_append_models ||
+                  IMAGE_PROMPT_PARAMETER_APPEND_DEFAULT_MODELS
+              )
+                .split(',')
+                .map((model) => model.trim())
+                .filter(Boolean)
+            ),
+          ],
+          template:
+            formData.image_prompt_parameter_append_template?.trim() ||
+            IMAGE_PROMPT_PARAMETER_APPEND_DEFAULT_TEMPLATE,
+        }
+      : undefined
   const settingObj = {
     force_format: formData.force_format || false,
     thinking_to_content: formData.thinking_to_content || false,
@@ -523,6 +570,7 @@ function buildSettingJSON(formData: ChannelFormValues): string {
     pass_through_body_enabled: formData.pass_through_body_enabled || false,
     system_prompt: formData.system_prompt || '',
     system_prompt_override: formData.system_prompt_override || false,
+    image_prompt_parameter_append: imagePromptParameterAppend,
   }
   return JSON.stringify(settingObj)
 }

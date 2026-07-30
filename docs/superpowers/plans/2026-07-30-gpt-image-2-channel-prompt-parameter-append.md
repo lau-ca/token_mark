@@ -6,7 +6,7 @@
 
 **Architecture:** Store a narrow `image_prompt_parameter_append` object in the existing channel `setting` JSON. Keep validation and rendering behavior on the configuration type, apply it after model mapping in `ImageHelper`, and force normal request conversion only when a prompt was modified. Update the OpenAI multipart adaptor to write the normalized prompt and quality values instead of replaying their original form values.
 
-**Tech Stack:** Go 1.22+, Gin, testify, React 19, TypeScript, React Hook Form, Zod, Base UI/Tailwind, React 18/Semi Design, i18next, Bun
+**Tech Stack:** Go 1.22+, Gin, testify, React 19, TypeScript, React Hook Form, Zod, Base UI/Tailwind, i18next, Bun
 
 ---
 
@@ -23,8 +23,6 @@
 - `web/default/src/features/channels/types.ts`: Add the serialized setting type.
 - `web/default/src/features/channels/components/drawers/channel-mutate-drawer.tsx`: Add the switch, models input, and template textarea.
 - `web/default/src/i18n/locales/{en,zh,fr,ru,ja,vi}.json`: Add channel-setting translations.
-- `web/classic/src/components/table/channels/modals/EditChannelModal.jsx`: Add state hydration, serialization, cleanup, and controls.
-- `web/classic/src/i18n/locales/{en,fr,ja,ru,vi,zh-CN,zh-TW,zh}.json`: Add channel-setting translations.
 
 ### Task 1: Backend configuration contract
 
@@ -402,53 +400,7 @@ bun run lint
 
 Expected: all commands exit successfully.
 
-### Task 5: Classic frontend channel configuration
-
-**Files:**
-- Modify: `web/classic/src/components/table/channels/modals/EditChannelModal.jsx`
-
-- [ ] **Step 1: Add defaults and hydration**
-
-Add the same three flat form fields to `originInputs`, the `channelSettings` state, parsed setting hydration, reset paths, and edit-form initialization.
-
-- [ ] **Step 2: Serialize and clean temporary fields**
-
-Build the nested configuration only when enabled:
-
-```js
-image_prompt_parameter_append: localInputs.image_prompt_parameter_append_enabled
-  ? {
-      enabled: true,
-      models: String(localInputs.image_prompt_parameter_append_models || 'gpt-image-2')
-        .split(',')
-        .map((model) => model.trim())
-        .filter(Boolean),
-      template:
-        localInputs.image_prompt_parameter_append_template ||
-        'Output image requirements: size={{size}}; quality={{quality}}.',
-    }
-  : undefined,
-```
-
-Delete the three temporary flat fields before submission.
-
-- [ ] **Step 3: Add Semi Design controls**
-
-Add a switch, model input, and template textarea next to existing channel extra settings. Only show the input and textarea when enabled. Wrap every user-facing string in `t()`.
-
-- [ ] **Step 4: Format and lint the classic frontend change**
-
-Run:
-
-```bash
-cd web/classic
-bunx prettier src/components/table/channels/modals/EditChannelModal.jsx --write
-bunx eslint src/components/table/channels/modals/EditChannelModal.jsx
-```
-
-Expected: both commands exit successfully.
-
-### Task 6: Internationalization and final verification
+### Task 5: Internationalization and final verification
 
 **Files:**
 - Modify: `web/default/src/i18n/locales/en.json`
@@ -457,14 +409,6 @@ Expected: both commands exit successfully.
 - Modify: `web/default/src/i18n/locales/ru.json`
 - Modify: `web/default/src/i18n/locales/ja.json`
 - Modify: `web/default/src/i18n/locales/vi.json`
-- Modify: `web/classic/src/i18n/locales/en.json`
-- Modify: `web/classic/src/i18n/locales/fr.json`
-- Modify: `web/classic/src/i18n/locales/ja.json`
-- Modify: `web/classic/src/i18n/locales/ru.json`
-- Modify: `web/classic/src/i18n/locales/vi.json`
-- Modify: `web/classic/src/i18n/locales/zh-CN.json`
-- Modify: `web/classic/src/i18n/locales/zh-TW.json`
-- Modify: `web/classic/src/i18n/locales/zh.json`
 
 - [ ] **Step 1: Add translations**
 
@@ -486,7 +430,6 @@ Run:
 
 ```bash
 cd web/default && bun run i18n:sync
-cd ../classic && bun run i18n:sync
 ```
 
 Expected: no missing keys for the new strings. Inspect generated reports and keep only changes required by the new keys.
@@ -507,10 +450,9 @@ Run:
 
 ```bash
 cd web/default && bun run build:check
-cd ../classic && bun run build
 ```
 
-Expected: both production builds succeed.
+Expected: the default frontend production build succeeds.
 
 - [ ] **Step 5: Review the final diff**
 
@@ -519,7 +461,7 @@ Run:
 ```bash
 git diff --check
 git status --short
-git diff -- dto/channel_settings.go dto/channel_settings_test.go model/channel.go relay/image_handler.go relay/image_handler_test.go relay/channel/openai/adaptor.go relay/channel/openai/image_edit_test.go web/default/src/features/channels web/default/src/i18n/locales web/classic/src/components/table/channels/modals/EditChannelModal.jsx web/classic/src/i18n/locales
+git diff -- dto/channel_settings.go dto/channel_settings_test.go model/channel.go relay/image_handler.go relay/image_handler_test.go relay/channel/openai/adaptor.go relay/channel/openai/image_edit_test.go web/default/src/features/channels web/default/src/i18n/locales
 ```
 
 Expected: no whitespace errors, no unrelated files included, and every design acceptance criterion represented in code or tests.

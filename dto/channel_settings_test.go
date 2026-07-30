@@ -389,3 +389,112 @@ func TestAdvancedCustomSupportedEndpointTypesForModel(t *testing.T) {
 		constant.EndpointTypeAnthropic,
 	}, config.SupportedEndpointTypesForModel("other-model"))
 }
+
+func TestImagePromptParameterAppendConfig(t *testing.T) {
+	tests := []struct {
+		name       string
+		config     ImagePromptParameterAppendConfig
+		model      string
+		prompt     string
+		size       string
+		quality    string
+		wantPrompt string
+		wantApply  bool
+		wantErr    string
+	}{
+		{
+			name:       "renders configured values",
+			config:     ImagePromptParameterAppendConfig{Enabled: true, Models: []string{"gpt-image-2"}},
+			model:      "gpt-image-2",
+			prompt:     "draw a cat",
+			size:       "2048x1152",
+			quality:    "high",
+			wantPrompt: "draw a cat\n\nOutput image requirements: size=2048x1152; quality=high.",
+			wantApply:  true,
+		},
+		{
+			name:       "uses auto for one missing value",
+			config:     ImagePromptParameterAppendConfig{Enabled: true, Models: []string{" "}},
+			model:      "gpt-image-2",
+			prompt:     "draw a cat",
+			size:       "1024x1024",
+			wantPrompt: "draw a cat\n\nOutput image requirements: size=1024x1024; quality=auto.",
+			wantApply:  true,
+		},
+		{
+			name:       "trims model names and custom template",
+			config:     ImagePromptParameterAppendConfig{Enabled: true, Models: []string{" gpt-image-2 "}, Template: " Final size {{size}}, quality {{quality}}. "},
+			model:      "gpt-image-2",
+			prompt:     "draw a cat",
+			size:       "1024x1536",
+			quality:    "medium",
+			wantPrompt: "draw a cat\n\nFinal size 1024x1536, quality medium.",
+			wantApply:  true,
+		},
+		{
+			name:       "disabled",
+			config:     ImagePromptParameterAppendConfig{},
+			model:      "gpt-image-2",
+			prompt:     "draw a cat",
+			size:       "1024x1024",
+			quality:    "high",
+			wantPrompt: "draw a cat",
+		},
+		{
+			name:       "unmatched model",
+			config:     ImagePromptParameterAppendConfig{Enabled: true, Models: []string{"gpt-image-2"}},
+			model:      "gpt-image-1",
+			prompt:     "draw a cat",
+			size:       "1024x1024",
+			quality:    "high",
+			wantPrompt: "draw a cat",
+		},
+		{
+			name:       "both parameters absent",
+			config:     ImagePromptParameterAppendConfig{Enabled: true},
+			model:      "gpt-image-2",
+			prompt:     "draw a cat",
+			wantPrompt: "draw a cat",
+		},
+		{
+			name:       "does not append duplicate suffix",
+			config:     ImagePromptParameterAppendConfig{Enabled: true},
+			model:      "gpt-image-2",
+			prompt:     "draw a cat\n\nOutput image requirements: size=1024x1024; quality=high.",
+			size:       "1024x1024",
+			quality:    "high",
+			wantPrompt: "draw a cat\n\nOutput image requirements: size=1024x1024; quality=high.",
+		},
+		{
+			name:    "rejects unknown placeholder",
+			config:  ImagePromptParameterAppendConfig{Enabled: true, Template: "size={{size}} style={{style}}"},
+			model:   "gpt-image-2",
+			prompt:  "draw a cat",
+			size:    "1024x1024",
+			wantErr: "unsupported placeholder: style",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.config.Validate()
+			if tt.wantErr != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+
+			if !tt.config.MatchesModel(tt.model) {
+				assert.Equal(t, tt.wantPrompt, tt.prompt)
+				assert.False(t, tt.wantApply)
+				return
+			}
+
+			prompt, applied, err := tt.config.Append(tt.prompt, tt.size, tt.quality)
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantPrompt, prompt)
+			assert.Equal(t, tt.wantApply, applied)
+		})
+	}
+}

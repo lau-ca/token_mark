@@ -460,6 +460,7 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 		forceChannelImageResponseFormat(info, &request)
 
 		writer.WriteField("model", request.Model)
+		writer.WriteField("prompt", request.Prompt)
 		// 使用已解析的 multipart 表单，避免重复解析
 		mf := c.Request.MultipartForm
 		if mf == nil {
@@ -477,7 +478,9 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 			for key, values := range mf.Value {
 				if key == "model" ||
 					key == "group" ||
-					(key == "size" && request.Size != "") ||
+					key == "prompt" ||
+					key == "size" ||
+					key == "quality" ||
 					(shouldForceChannelImageResponseFormat(info) && key == "response_format") {
 					continue
 				}
@@ -488,6 +491,9 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 		}
 		if request.Size != "" {
 			writer.WriteField("size", request.Size)
+		}
+		if request.Quality != "" {
+			writer.WriteField("quality", request.Quality)
 		}
 		if shouldForceChannelImageResponseFormat(info) {
 			writer.WriteField("response_format", request.ResponseFormat)

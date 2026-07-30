@@ -9,7 +9,7 @@ Add an opt-in channel capability that appends the requested image `size` and `qu
 - Add a dedicated per-channel configuration instead of extending the generic parameter override language.
 - Match configured models after channel model mapping so aliases mapped to `gpt-image-2` are supported.
 - Support JSON image-generation requests and multipart image-edit requests.
-- Expose the configuration in both channel-management frontends.
+- Expose the configuration in the default channel-management frontend.
 - Preserve billing inputs, files, masks, and unrelated request fields.
 
 The change does not attempt to make an upstream provider honor `size` or `quality` as structured parameters. It adds a prompt-based compatibility fallback while continuing to forward the structured parameters.
@@ -99,7 +99,7 @@ The channel-management UI must explain this precedence next to the new setting.
 
 ## Frontend
 
-Add the configuration to both `web/default` and `web/classic` channel editors:
+Add the configuration to the `web/default` channel editor:
 
 - Switch: `Append image parameters to prompt`
 - Model list input, defaulting to `gpt-image-2`
@@ -140,7 +140,7 @@ Backend regression tests must cover:
 - Matched requests use normal conversion instead of raw pass-through.
 - Unknown template placeholders are rejected.
 
-Frontend verification must cover configuration serialization, existing-channel hydration, validation, and production builds for both frontends. Browser end-to-end testing is outside this task unless requested separately.
+Frontend verification must cover configuration serialization, existing-channel hydration, validation, and the default frontend production build. Browser end-to-end testing is outside this task unless requested separately.
 
 ## Acceptance Criteria
 

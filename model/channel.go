@@ -1015,6 +1015,11 @@ func (channel *Channel) ValidateSettings() error {
 			return err
 		}
 	}
+	if channelParams.ImagePromptParameterAppend != nil {
+		if err := channelParams.ImagePromptParameterAppend.Validate(); err != nil {
+			return fmt.Errorf("image_prompt_parameter_append: %w", err)
+		}
+	}
 	channelOtherSettings := &dto.ChannelOtherSettings{}
 	if channel.OtherSettings != "" {
 		err := common.UnmarshalJsonStr(channel.OtherSettings, channelOtherSettings)

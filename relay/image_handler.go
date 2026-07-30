@@ -37,6 +37,10 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
 	}
+	promptParametersAppended, err := applyImagePromptParameterAppend(info, request)
+	if err != nil {
+		return types.NewError(err, types.ErrorCodeChannelParamOverrideInvalid, types.ErrOptionWithSkipRetry())
+	}
 
 	adaptor := GetAdaptor(info.ApiType)
 	if adaptor == nil {
@@ -46,7 +50,7 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 
 	var requestBody io.Reader
 
-	if shouldPassThroughImageRequest(c, info.ChannelSetting.PassThroughBodyEnabled) {
+	if shouldPassThroughImageRequest(c, info.ChannelSetting.PassThroughBodyEnabled, promptParametersAppended) {
 		storage, err := common.GetBodyStorage(c)
 		if err != nil {
 			return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
@@ -151,8 +155,26 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 	return nil
 }
 
-func shouldPassThroughImageRequest(c *gin.Context, channelPassThroughEnabled bool) bool {
-	if common.GetContextKeyBool(c, constant.ContextKeyCompositeDisableRequestBodyPassthrough) {
+func applyImagePromptParameterAppend(info *relaycommon.RelayInfo, request *dto.ImageRequest) (bool, error) {
+	if info == nil || info.ChannelMeta == nil || request == nil || info.ChannelSetting.ImagePromptParameterAppend == nil {
+		return false, nil
+	}
+	config := info.ChannelSetting.ImagePromptParameterAppend
+	if !config.MatchesModel(request.Model) {
+		return false, nil
+	}
+	prompt, applied, err := config.Append(request.Prompt, request.Size, request.Quality)
+	if err != nil {
+		return false, err
+	}
+	if applied {
+		request.Prompt = prompt
+	}
+	return applied, nil
+}
+
+func shouldPassThroughImageRequest(c *gin.Context, channelPassThroughEnabled, requestModified bool) bool {
+	if requestModified || common.GetContextKeyBool(c, constant.ContextKeyCompositeDisableRequestBodyPassthrough) {
 		return false
 	}
 	return model_setting.GetGlobalSettings().PassThroughRequestEnabled || channelPassThroughEnabled

@@ -11,12 +11,110 @@ import (
 )
 
 type ChannelSettings struct {
-	ForceFormat            bool   `json:"force_format,omitempty"`
-	ThinkingToContent      bool   `json:"thinking_to_content,omitempty"`
-	Proxy                  string `json:"proxy"`
-	PassThroughBodyEnabled bool   `json:"pass_through_body_enabled,omitempty"`
-	SystemPrompt           string `json:"system_prompt,omitempty"`
-	SystemPromptOverride   bool   `json:"system_prompt_override,omitempty"`
+	ForceFormat                bool                              `json:"force_format,omitempty"`
+	ThinkingToContent          bool                              `json:"thinking_to_content,omitempty"`
+	Proxy                      string                            `json:"proxy"`
+	PassThroughBodyEnabled     bool                              `json:"pass_through_body_enabled,omitempty"`
+	SystemPrompt               string                            `json:"system_prompt,omitempty"`
+	SystemPromptOverride       bool                              `json:"system_prompt_override,omitempty"`
+	ImagePromptParameterAppend *ImagePromptParameterAppendConfig `json:"image_prompt_parameter_append,omitempty"`
+}
+
+const DefaultImagePromptParameterAppendTemplate = "Output image requirements: size={{size}}; quality={{quality}}."
+
+var imagePromptParameterPlaceholderRegex = regexp.MustCompile(`\{\{\s*([^{}]+?)\s*\}\}`)
+
+type ImagePromptParameterAppendConfig struct {
+	Enabled  bool     `json:"enabled,omitempty"`
+	Models   []string `json:"models,omitempty"`
+	Template string   `json:"template,omitempty"`
+}
+
+func (c *ImagePromptParameterAppendConfig) Validate() error {
+	if c == nil {
+		return nil
+	}
+	template := strings.TrimSpace(c.Template)
+	if template == "" {
+		template = DefaultImagePromptParameterAppendTemplate
+	}
+	for _, match := range imagePromptParameterPlaceholderRegex.FindAllStringSubmatch(template, -1) {
+		placeholder := strings.TrimSpace(match[1])
+		if placeholder != "size" && placeholder != "quality" {
+			return fmt.Errorf("unsupported placeholder: %s", placeholder)
+		}
+	}
+	remaining := imagePromptParameterPlaceholderRegex.ReplaceAllString(template, "")
+	if strings.Contains(remaining, "{{") || strings.Contains(remaining, "}}") {
+		return fmt.Errorf("invalid template placeholder")
+	}
+	return nil
+}
+
+func (c *ImagePromptParameterAppendConfig) MatchesModel(model string) bool {
+	if c == nil || !c.Enabled {
+		return false
+	}
+	model = strings.TrimSpace(model)
+	hasConfiguredModel := false
+	for _, configuredModel := range c.Models {
+		configuredModel = strings.TrimSpace(configuredModel)
+		if configuredModel == "" {
+			continue
+		}
+		hasConfiguredModel = true
+		if configuredModel == model {
+			return true
+		}
+	}
+	return !hasConfiguredModel && model == "gpt-image-2"
+}
+
+func (c *ImagePromptParameterAppendConfig) Append(prompt, size, quality string) (string, bool, error) {
+	if c == nil || !c.Enabled {
+		return prompt, false, nil
+	}
+	if err := c.Validate(); err != nil {
+		return prompt, false, err
+	}
+	size = strings.TrimSpace(size)
+	quality = strings.TrimSpace(quality)
+	if size == "" && quality == "" {
+		return prompt, false, nil
+	}
+	if size == "" {
+		size = "auto"
+	}
+	if quality == "" {
+		quality = "auto"
+	}
+	template := strings.TrimSpace(c.Template)
+	if template == "" {
+		template = DefaultImagePromptParameterAppendTemplate
+	}
+	rendered := strings.NewReplacer(
+		"{{size}}", size,
+		"{{quality}}", quality,
+	).Replace(template)
+	rendered = imagePromptParameterPlaceholderRegex.ReplaceAllStringFunc(rendered, func(placeholder string) string {
+		match := imagePromptParameterPlaceholderRegex.FindStringSubmatch(placeholder)
+		if len(match) != 2 {
+			return placeholder
+		}
+		switch strings.TrimSpace(match[1]) {
+		case "size":
+			return size
+		case "quality":
+			return quality
+		default:
+			return placeholder
+		}
+	})
+	trimmedPrompt := strings.TrimRight(prompt, " \t\r\n")
+	if strings.HasSuffix(trimmedPrompt, rendered) {
+		return prompt, false, nil
+	}
+	return trimmedPrompt + "\n\n" + rendered, true, nil
 }
 
 type VertexKeyType string

@@ -6,10 +6,64 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+func TestApplyImagePromptParameterAppend(t *testing.T) {
+	tests := []struct {
+		name        string
+		config      *dto.ImagePromptParameterAppendConfig
+		model       string
+		wantPrompt  string
+		wantApplied bool
+	}{
+		{
+			name:        "applies to matched model",
+			config:      &dto.ImagePromptParameterAppendConfig{Enabled: true},
+			model:       "gpt-image-2",
+			wantPrompt:  "draw a cat\n\nOutput image requirements: size=2048x1152; quality=high.",
+			wantApplied: true,
+		},
+		{
+			name:       "skips unmatched model",
+			config:     &dto.ImagePromptParameterAppendConfig{Enabled: true},
+			model:      "gpt-image-1",
+			wantPrompt: "draw a cat",
+		},
+		{
+			name:       "skips disabled configuration",
+			config:     &dto.ImagePromptParameterAppendConfig{},
+			model:      "gpt-image-2",
+			wantPrompt: "draw a cat",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			request := &dto.ImageRequest{
+				Model:   tt.model,
+				Prompt:  "draw a cat",
+				Size:    "2048x1152",
+				Quality: "high",
+			}
+			info := &relaycommon.RelayInfo{
+				ChannelMeta: &relaycommon.ChannelMeta{
+					ChannelSetting: dto.ChannelSettings{ImagePromptParameterAppend: tt.config},
+				},
+			}
+
+			applied, err := applyImagePromptParameterAppend(info, request)
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantApplied, applied)
+			assert.Equal(t, tt.wantPrompt, request.Prompt)
+		})
+	}
+}
 
 func TestCompositeImageRequestDisablesBodyPassthrough(t *testing.T) {
 	gin.SetMode(gin.TestMode)
@@ -21,12 +75,14 @@ func TestCompositeImageRequestDisablesBodyPassthrough(t *testing.T) {
 	})
 
 	globalSettings.PassThroughRequestEnabled = false
-	assert.True(t, shouldPassThroughImageRequest(c, true))
+	assert.True(t, shouldPassThroughImageRequest(c, true, false))
+	assert.False(t, shouldPassThroughImageRequest(c, true, true))
 
 	globalSettings.PassThroughRequestEnabled = true
-	assert.True(t, shouldPassThroughImageRequest(c, false))
+	assert.True(t, shouldPassThroughImageRequest(c, false, false))
+	assert.False(t, shouldPassThroughImageRequest(c, false, true))
 
 	common.SetContextKey(c, constant.ContextKeyCompositeDisableRequestBodyPassthrough, true)
-	assert.False(t, shouldPassThroughImageRequest(c, true))
-	assert.False(t, shouldPassThroughImageRequest(c, false))
+	assert.False(t, shouldPassThroughImageRequest(c, true, false))
+	assert.False(t, shouldPassThroughImageRequest(c, false, false))
 }
