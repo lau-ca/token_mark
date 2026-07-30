@@ -32,9 +32,15 @@ import {
   validateAdvancedCustomConfig,
 } from './advanced-custom'
 
-export const IMAGE_PROMPT_PARAMETER_APPEND_DEFAULT_MODELS = 'gpt-image-2'
-export const IMAGE_PROMPT_PARAMETER_APPEND_DEFAULT_TEMPLATE =
+const DEFAULT_IMAGE_PROMPT_PARAMETER_APPEND_MODELS = ['gpt-image-2']
+const DEFAULT_IMAGE_PROMPT_PARAMETER_APPEND_TEMPLATE =
   'Output image requirements: size={{size}}; quality={{quality}}.'
+
+type LegacyImagePromptParameterAppend = {
+  enabled?: boolean
+  models?: string[]
+  template?: string
+}
 
 // ============================================================================
 // Form Validation Schema
@@ -89,6 +95,70 @@ function isOptionalStatusCodeMapping(value: string | undefined): boolean {
   } catch {
     return false
   }
+}
+
+function migrateLegacyImagePromptParameterAppend(
+  paramOverride: string | null | undefined,
+  legacyConfig: LegacyImagePromptParameterAppend | undefined
+): string {
+  if (legacyConfig?.enabled !== true) return paramOverride || ''
+
+  let parsed: Record<string, unknown> = {}
+  if (paramOverride?.trim()) {
+    try {
+      const candidate = JSON.parse(paramOverride)
+      if (!isJsonObjectValue(candidate)) return paramOverride
+      parsed = candidate
+    } catch {
+      return paramOverride
+    }
+  }
+
+  const existingOperations = Array.isArray(parsed.operations)
+    ? [...parsed.operations]
+    : []
+  const alreadyMigrated = existingOperations.some(
+    (operation) =>
+      isJsonObjectValue(operation) &&
+      operation.mode === 'append_template' &&
+      operation.path === 'prompt' &&
+      typeof operation.value === 'string' &&
+      operation.value.includes('${body.size}') &&
+      operation.value.includes('${body.quality}')
+  )
+  if (alreadyMigrated) return JSON.stringify(parsed, null, 2)
+
+  const models = Array.isArray(legacyConfig.models)
+    ? [
+        ...new Set(
+          legacyConfig.models.map((model) => model.trim()).filter(Boolean)
+        ),
+      ]
+    : DEFAULT_IMAGE_PROMPT_PARAMETER_APPEND_MODELS
+  const effectiveModels =
+    models.length > 0 ? models : DEFAULT_IMAGE_PROMPT_PARAMETER_APPEND_MODELS
+  const template = (
+    legacyConfig.template?.trim() ||
+    DEFAULT_IMAGE_PROMPT_PARAMETER_APPEND_TEMPLATE
+  )
+    .replaceAll(/\{\{\s*size\s*\}\}/g, '${body.size}')
+    .replaceAll(/\{\{\s*quality\s*\}\}/g, '${body.quality}')
+
+  existingOperations.push({
+    description: 'Append GPT Image size and quality to prompt',
+    phase: 'request',
+    path: 'prompt',
+    mode: 'append_template',
+    value: `\n\n${template}`,
+    conditions: effectiveModels.map((model) => ({
+      path: 'model',
+      mode: 'full',
+      value: model,
+    })),
+    logic: 'OR',
+  })
+  parsed.operations = existingOperations
+  return JSON.stringify(parsed, null, 2)
 }
 
 function isCodexCredential(value: string | undefined): boolean {
@@ -200,9 +270,6 @@ export const channelFormSchema = z
     pass_through_body_enabled: z.boolean().optional(),
     system_prompt: z.string().optional(),
     system_prompt_override: z.boolean().optional(),
-    image_prompt_parameter_append_enabled: z.boolean().optional(),
-    image_prompt_parameter_append_models: z.string().optional(),
-    image_prompt_parameter_append_template: z.string().optional(),
     // Type-specific settings (stored in settings JSON)
     is_enterprise_account: z.boolean().optional(), // OpenRouter specific
     vertex_key_type: z.enum(['json', 'api_key']).optional(), // Vertex AI specific
@@ -350,11 +417,6 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   pass_through_body_enabled: false,
   system_prompt: '',
   system_prompt_override: false,
-  image_prompt_parameter_append_enabled: false,
-  image_prompt_parameter_append_models:
-    IMAGE_PROMPT_PARAMETER_APPEND_DEFAULT_MODELS,
-  image_prompt_parameter_append_template:
-    IMAGE_PROMPT_PARAMETER_APPEND_DEFAULT_TEMPLATE,
   // Type-specific settings
   is_enterprise_account: false,
   vertex_key_type: 'json',
@@ -395,12 +457,10 @@ export function transformChannelToFormDefaults(
     pass_through_body_enabled: false,
     system_prompt: '',
     system_prompt_override: false,
-    image_prompt_parameter_append_enabled: false,
-    image_prompt_parameter_append_models:
-      IMAGE_PROMPT_PARAMETER_APPEND_DEFAULT_MODELS,
-    image_prompt_parameter_append_template:
-      IMAGE_PROMPT_PARAMETER_APPEND_DEFAULT_TEMPLATE,
   }
+  let legacyImagePromptParameterAppend:
+    | LegacyImagePromptParameterAppend
+    | undefined
 
   if (channel.setting) {
     try {
@@ -412,16 +472,10 @@ export function transformChannelToFormDefaults(
         pass_through_body_enabled: parsed.pass_through_body_enabled || false,
         system_prompt: parsed.system_prompt || '',
         system_prompt_override: parsed.system_prompt_override || false,
-        image_prompt_parameter_append_enabled:
-          parsed.image_prompt_parameter_append?.enabled === true,
-        image_prompt_parameter_append_models: Array.isArray(
-          parsed.image_prompt_parameter_append?.models
-        )
-          ? parsed.image_prompt_parameter_append.models.join(', ')
-          : IMAGE_PROMPT_PARAMETER_APPEND_DEFAULT_MODELS,
-        image_prompt_parameter_append_template:
-          parsed.image_prompt_parameter_append?.template ||
-          IMAGE_PROMPT_PARAMETER_APPEND_DEFAULT_TEMPLATE,
+      }
+      if (isJsonObjectValue(parsed.image_prompt_parameter_append)) {
+        legacyImagePromptParameterAppend =
+          parsed.image_prompt_parameter_append as LegacyImagePromptParameterAppend
       }
     } catch (error) {
       // eslint-disable-next-line no-console
@@ -507,7 +561,10 @@ export function transformChannelToFormDefaults(
     tag: channel.tag || '',
     remark: channel.remark || '',
     setting: channel.setting || '',
-    param_override: channel.param_override || '',
+    param_override: migrateLegacyImagePromptParameterAppend(
+      channel.param_override,
+      legacyImagePromptParameterAppend
+    ),
     header_override: channel.header_override || '',
     settings: channel.settings || '{}',
     other: channel.other || '',
@@ -543,26 +600,6 @@ export function transformChannelToFormDefaults(
  * Build the setting JSON string from form extra settings
  */
 function buildSettingJSON(formData: ChannelFormValues): string {
-  const imagePromptParameterAppend =
-    formData.image_prompt_parameter_append_enabled === true
-      ? {
-          enabled: true,
-          models: [
-            ...new Set(
-              String(
-                formData.image_prompt_parameter_append_models ||
-                  IMAGE_PROMPT_PARAMETER_APPEND_DEFAULT_MODELS
-              )
-                .split(',')
-                .map((model) => model.trim())
-                .filter(Boolean)
-            ),
-          ],
-          template:
-            formData.image_prompt_parameter_append_template?.trim() ||
-            IMAGE_PROMPT_PARAMETER_APPEND_DEFAULT_TEMPLATE,
-        }
-      : undefined
   const settingObj = {
     force_format: formData.force_format || false,
     thinking_to_content: formData.thinking_to_content || false,
@@ -570,7 +607,6 @@ function buildSettingJSON(formData: ChannelFormValues): string {
     pass_through_body_enabled: formData.pass_through_body_enabled || false,
     system_prompt: formData.system_prompt || '',
     system_prompt_override: formData.system_prompt_override || false,
-    image_prompt_parameter_append: imagePromptParameterAppend,
   }
   return JSON.stringify(settingObj)
 }

@@ -2,6 +2,7 @@ package openai
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -414,6 +415,59 @@ func TestOpenaiImageHandlerKeepsOtherChannelImageURL(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, 7, usage.TotalTokens)
 	require.Contains(t, recorder.Body.String(), `"url":"https://upstream.example/image.png"`)
+}
+
+func TestOpenaiImageHandlerCopiesRequestedQualityToTopLevel(t *testing.T) {
+	oldMode := gin.Mode()
+	gin.SetMode(gin.TestMode)
+	t.Cleanup(func() { gin.SetMode(oldMode) })
+
+	longImage := strings.Repeat("a", 4096)
+	responseOverride := map[string]interface{}{
+		"operations": []interface{}{
+			map[string]interface{}{
+				"phase": "response",
+				"path":  "quality",
+				"mode":  "set_from_request",
+				"from":  "quality",
+				"conditions": []interface{}{
+					map[string]interface{}{
+						"path":  "model",
+						"mode":  "full",
+						"value": "gpt-image-2",
+					},
+				},
+				"logic": "AND",
+			},
+		},
+	}
+
+	for _, relayMode := range []int{relayconstant.RelayModeImagesGenerations, relayconstant.RelayModeImagesEdits} {
+		t.Run(fmt.Sprintf("relay mode %d", relayMode), func(t *testing.T) {
+			body := `{"created":1785384134,"data":[{"b64_json":"` + longImage + `"}],"output_format":"png","quality":"high","size":"1254x1254","usage":{"total_tokens":279}}`
+			c, recorder, resp, info := newImageTestContext(t, body, "application/json", false)
+			info.RelayMode = relayMode
+			info.ChannelMeta.ParamOverride = responseOverride
+			info.ChannelMeta.UpstreamModelName = "gpt-image-2"
+			info.Request = &dto.ImageRequest{Model: "client-alias", Quality: "low"}
+
+			usage, apiErr := OpenaiImageHandler(c, info, resp)
+			require.Nil(t, apiErr)
+			require.Equal(t, 279, usage.TotalTokens)
+			require.JSONEq(t, `{"created":1785384134,"data":[{"b64_json":"`+longImage+`"}],"output_format":"png","quality":"low","size":"1254x1254","usage":{"total_tokens":279}}`, recorder.Body.String())
+		})
+	}
+}
+
+func TestOpenaiImageHandlerLeavesQualityWithoutResponseOperation(t *testing.T) {
+	body := `{"data":[],"quality":"high"}`
+	c, recorder, resp, info := newImageTestContext(t, body, "application/json", false)
+	info.ChannelMeta.UpstreamModelName = "gpt-image-2"
+	info.Request = &dto.ImageRequest{Model: "gpt-image-2", Quality: "low"}
+
+	_, apiErr := OpenaiImageHandler(c, info, resp)
+	require.Nil(t, apiErr)
+	require.JSONEq(t, body, recorder.Body.String())
 }
 
 func TestOpenaiImageStreamHandlerStripsChannelJSONFallbackURL(t *testing.T) {

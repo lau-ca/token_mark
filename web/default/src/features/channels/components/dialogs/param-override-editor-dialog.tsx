@@ -74,6 +74,7 @@ type ParamOverrideCondition = {
 type ParamOverrideOperation = {
   id: string
   description: string
+  phase: 'request' | 'response'
   path: string
   mode: string
   from: string
@@ -99,6 +100,7 @@ const OPERATION_MODE_OPTIONS = [
   { label: 'Set Field', value: 'set' },
   { label: 'Delete Field', value: 'delete' },
   { label: 'Append to End', value: 'append' },
+  { label: 'Append Request Template', value: 'append_template' },
   { label: 'Prepend to Start', value: 'prepend' },
   { label: 'Copy Field', value: 'copy' },
   { label: 'Move Field', value: 'move' },
@@ -115,6 +117,7 @@ const OPERATION_MODE_OPTIONS = [
   { label: 'Prune Object Items', value: 'prune_objects' },
   { label: 'Pass Through Headers', value: 'pass_headers' },
   { label: 'Sync Fields', value: 'sync_fields' },
+  { label: 'Set Response from Request', value: 'set_from_request' },
   { label: 'Set Request Header', value: 'set_header' },
   { label: 'Delete Request Header', value: 'delete_header' },
   { label: 'Copy Request Header', value: 'copy_header' },
@@ -162,6 +165,7 @@ const MODE_META: Record<
   delete: { path: true },
   set: { path: true, value: true, keepOrigin: true },
   append: { path: true, value: true, keepOrigin: true },
+  append_template: { path: true, value: true },
   prepend: { path: true, value: true, keepOrigin: true },
   copy: { from: true, to: true },
   move: { from: true, to: true },
@@ -178,6 +182,7 @@ const MODE_META: Record<
   prune_objects: { pathOptional: true, value: true },
   pass_headers: { value: true, keepOrigin: true },
   sync_fields: { from: true, to: true },
+  set_from_request: { path: true, from: true },
   set_header: { path: true, value: true, keepOrigin: true },
   delete_header: { path: true },
   copy_header: { from: true, to: true, keepOrigin: true, pathAlias: true },
@@ -193,6 +198,7 @@ const VALUE_REQUIRED_MODES = new Set([
   'return_error',
   'prune_objects',
   'pass_headers',
+  'append_template',
 ])
 
 const FROM_REQUIRED_MODES = new Set([
@@ -203,6 +209,7 @@ const FROM_REQUIRED_MODES = new Set([
   'copy_header',
   'move_header',
   'sync_fields',
+  'set_from_request',
 ])
 
 const TO_REQUIRED_MODES = new Set([
@@ -217,6 +224,8 @@ const MODE_DESCRIPTIONS: Record<string, string> = {
   set: 'Write value to the target field',
   delete: 'Remove the target field',
   append: 'Append value to array / string / object end',
+  append_template:
+    'Append a template rendered from normalized request body fields',
   prepend: 'Prepend value to array / string / object start',
   copy: 'Copy source field to target field',
   move: 'Move source field to target field',
@@ -233,6 +242,8 @@ const MODE_DESCRIPTIONS: Record<string, string> = {
   prune_objects: 'Prune object items by conditions',
   pass_headers: 'Pass specified request headers to upstream',
   sync_fields: 'Auto-fill when one field exists and another is missing',
+  set_from_request:
+    'Write an original request field into the downstream response',
   set_header:
     'Set runtime request header: override entire value, or manipulate comma-separated tokens',
   delete_header: 'Delete a runtime request header',
@@ -286,6 +297,30 @@ const GEMINI_IMAGE_4K_TEMPLATE = {
         { path: 'original_model', mode: 'contains', value: 'image' },
         { path: 'original_model', mode: 'suffix', value: '4k' },
       ],
+      logic: 'AND',
+    },
+  ],
+}
+
+const GPT_IMAGE_2_COMPAT_TEMPLATE = {
+  operations: [
+    {
+      description: 'Append GPT Image size and quality to prompt',
+      phase: 'request',
+      path: 'prompt',
+      mode: 'append_template',
+      value:
+        '\n\nOutput image requirements: size=${body.size}; quality=${body.quality}.',
+      conditions: [{ path: 'model', mode: 'full', value: 'gpt-image-2' }],
+      logic: 'AND',
+    },
+    {
+      description: 'Copy requested image quality to response',
+      phase: 'response',
+      path: 'quality',
+      mode: 'set_from_request',
+      from: 'quality',
+      conditions: [{ path: 'model', mode: 'full', value: 'gpt-image-2' }],
       logic: 'AND',
     },
   ],
@@ -426,6 +461,11 @@ const TEMPLATE_PRESET_CONFIG: Record<string, TemplatePresetConfig> = {
     kind: 'operations',
     payload: GEMINI_IMAGE_4K_TEMPLATE,
   },
+  gpt_image_2_compat: {
+    label: 'GPT-image-2 Size/Quality Compatibility',
+    kind: 'operations',
+    payload: GPT_IMAGE_2_COMPAT_TEMPLATE,
+  },
   claude_cli_headers_passthrough: {
     label: 'Claude CLI Header Passthrough',
     kind: 'operations',
@@ -501,6 +541,10 @@ const normalizeOperation = (
   id: nextLocalId(),
   description:
     typeof operation.description === 'string' ? operation.description : '',
+  phase:
+    operation.phase === 'response' || operation.mode === 'set_from_request'
+      ? 'response'
+      : 'request',
   path: typeof operation.path === 'string' ? operation.path : '',
   mode: OPERATION_MODE_VALUES.has(operation.mode as string)
     ? (operation.mode as string)
@@ -599,6 +643,8 @@ const getModePathPlaceholder = (mode: string): string => {
   if (mode === 'set_header') return 'Authorization'
   if (mode === 'delete_header') return 'X-Debug-Mode'
   if (mode === 'prune_objects') return 'messages'
+  if (mode === 'append_template') return 'prompt'
+  if (mode === 'set_from_request') return 'quality'
   return 'temperature'
 }
 
@@ -606,6 +652,7 @@ const getModeFromLabel = (mode: string): string => {
   if (mode === 'replace') return 'Match Text'
   if (mode === 'regex_replace') return 'Regex Pattern'
   if (mode === 'copy_header' || mode === 'move_header') return 'Source Header'
+  if (mode === 'set_from_request') return 'Request Field'
   return 'Source Field'
 }
 
@@ -613,6 +660,7 @@ const getModeFromPlaceholder = (mode: string): string => {
   if (mode === 'replace') return 'openai/'
   if (mode === 'regex_replace') return '^gpt-'
   if (mode === 'copy_header' || mode === 'move_header') return 'Authorization'
+  if (mode === 'set_from_request') return 'quality'
   return 'model'
 }
 
@@ -642,6 +690,7 @@ const getModeValueLabel = (mode: string): string => {
   )
     return 'Prefix/Suffix Text'
   if (mode === 'prune_objects') return 'Prune Rule (string or JSON object)'
+  if (mode === 'append_template') return 'Request Template'
   return 'Value (supports JSON or plain text)'
 }
 
@@ -656,6 +705,8 @@ const getModeValuePlaceholder = (mode: string): string => {
   )
     return 'openai/'
   if (mode === 'prune_objects') return '{"type":"redacted_thinking"}'
+  if (mode === 'append_template')
+    return 'size=${body.size}; quality=${body.quality}'
   return '0.7'
 }
 
@@ -970,7 +1021,6 @@ const validateOperations = (
       if (headers.length === 0)
         return t('Rule {{line}} pass_headers format is invalid', { line })
     }
-
   }
   return ''
 }
@@ -1079,6 +1129,11 @@ const buildOperationsJson = (
     const fromValue = operation.from.trim()
     const toValue = operation.to.trim()
     const payload: Record<string, unknown> = { mode }
+    if (mode === 'set_from_request' || operation.phase === 'response') {
+      payload.phase = 'response'
+    } else if (mode === 'append_template') {
+      payload.phase = 'request'
+    }
     if (descriptionValue) payload.description = descriptionValue
     if (meta.path) payload.path = pathValue
     if (meta.pathOptional && pathValue) payload.path = pathValue
@@ -2189,6 +2244,8 @@ function RuleEditor(ruleEditorProps: RuleEditorProps) {
                 nextMode !== null &&
                 ruleEditorProps.updateOperation(operation.id, {
                   mode: nextMode,
+                  phase:
+                    nextMode === 'set_from_request' ? 'response' : 'request',
                 })
               }
             >

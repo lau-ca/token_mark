@@ -291,9 +291,6 @@ const SENSITIVE_FORM_FIELDS = [
   'pass_through_body_enabled',
   'system_prompt',
   'system_prompt_override',
-  'image_prompt_parameter_append_enabled',
-  'image_prompt_parameter_append_models',
-  'image_prompt_parameter_append_template',
   'allow_service_tier',
   'disable_store',
   'allow_safety_identifier',
@@ -348,7 +345,6 @@ function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
     values.thinking_to_content ||
     values.pass_through_body_enabled ||
     values.system_prompt_override ||
-    values.image_prompt_parameter_append_enabled ||
     values.claude_beta_query ||
     values.force_image_b64_json_no_url ||
     values.replace_video_urls_with_proxy ||
@@ -763,9 +759,6 @@ export function ChannelMutateDrawer({
   const currentProxy = form.watch('proxy')
   const currentSystemPrompt = form.watch('system_prompt')
   const currentSystemPromptOverride = form.watch('system_prompt_override')
-  const currentImagePromptParameterAppendEnabled = form.watch(
-    'image_prompt_parameter_append_enabled'
-  )
   const currentAllowServiceTier = form.watch('allow_service_tier')
   const currentDisableStore = form.watch('disable_store')
   const currentAllowSafetyIdentifier = form.watch('allow_safety_identifier')
@@ -1033,8 +1026,7 @@ export function ChannelMutateDrawer({
     currentDisableTaskPollingSleep ||
     currentProxy?.trim() ||
     currentSystemPrompt?.trim() ||
-    currentSystemPromptOverride ||
-    currentImagePromptParameterAppendEnabled
+    currentSystemPromptOverride
   )
   let fieldPassthroughConfigured = false
   if (currentType === 1 || currentType === 57) {
@@ -4328,31 +4320,6 @@ export function ChannelMutateDrawer({
 
                               <FormField
                                 control={form.control}
-                                name='image_prompt_parameter_append_enabled'
-                                render={({ field }) => (
-                                  <FormItem className='flex items-center justify-between px-4 py-3'>
-                                    <div className='space-y-0.5'>
-                                      <FormLabel>
-                                        {t('Append image parameters to prompt')}
-                                      </FormLabel>
-                                      <FormDescription>
-                                        {t(
-                                          'Use size and quality as a prompt fallback for selected image models'
-                                        )}
-                                      </FormDescription>
-                                    </div>
-                                    <FormControl>
-                                      <Switch
-                                        checked={field.value}
-                                        onCheckedChange={field.onChange}
-                                      />
-                                    </FormControl>
-                                  </FormItem>
-                                )}
-                              />
-
-                              <FormField
-                                control={form.control}
                                 name='disable_task_polling_sleep'
                                 render={({ field }) => (
                                   <FormItem className='flex items-center justify-between px-4 py-3'>
@@ -4376,59 +4343,6 @@ export function ChannelMutateDrawer({
                                 )}
                               />
                             </div>
-
-                            {currentImagePromptParameterAppendEnabled && (
-                              <div className='space-y-4'>
-                                <FormField
-                                  control={form.control}
-                                  name='image_prompt_parameter_append_models'
-                                  render={({ field }) => (
-                                    <FormItem>
-                                      <FormLabel>
-                                        {t('Applicable upstream models')}
-                                      </FormLabel>
-                                      <FormControl>
-                                        <Input
-                                          placeholder='gpt-image-2'
-                                          {...field}
-                                        />
-                                      </FormControl>
-                                      <FormDescription>
-                                        {t(
-                                          'Separate multiple models with commas'
-                                        )}
-                                      </FormDescription>
-                                      <FormMessage />
-                                    </FormItem>
-                                  )}
-                                />
-
-                                <FormField
-                                  control={form.control}
-                                  name='image_prompt_parameter_append_template'
-                                  render={({ field }) => (
-                                    <FormItem>
-                                      <FormLabel>
-                                        {t('Prompt append template')}
-                                      </FormLabel>
-                                      <FormControl>
-                                        <Textarea rows={3} {...field} />
-                                      </FormControl>
-                                      <FormDescription>
-                                        {t(
-                                          'Available variables: {{size}} and {{quality}}'
-                                        )}
-                                        <br />
-                                        {t(
-                                          'Structured parameters remain unchanged; matched image requests use normal conversion instead of raw request-body pass-through'
-                                        )}
-                                      </FormDescription>
-                                      <FormMessage />
-                                    </FormItem>
-                                  )}
-                                />
-                              </div>
-                            )}
 
                             <FormField
                               control={form.control}

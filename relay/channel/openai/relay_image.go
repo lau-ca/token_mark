@@ -52,6 +52,10 @@ func OpenaiImageHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 
 	updateOpenAIImageCount(info, gjson.GetBytes(responseBody, "data.#").Int())
 	responseBody = stripChannelImageURLs(responseBody, info)
+	responseBody, err = relaycommon.ApplyResponseParamOverrideWithRelayInfo(responseBody, info)
+	if err != nil {
+		return nil, types.NewError(err, types.ErrorCodeChannelParamOverrideInvalid, types.ErrOptionWithSkipRetry())
+	}
 
 	// 写入新的 response body
 	service.IOCopyBytesGracefully(c, resp, responseBody)

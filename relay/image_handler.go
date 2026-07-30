@@ -37,10 +37,15 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
 	}
-	promptParametersAppended, err := applyImagePromptParameterAppend(info, request)
+	requestTemplateApplied, err := applyImageRequestTemplateOverride(info, request)
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeChannelParamOverrideInvalid, types.ErrOptionWithSkipRetry())
 	}
+	legacyPromptParametersAppended, err := applyImagePromptParameterAppend(info, request)
+	if err != nil {
+		return types.NewError(err, types.ErrorCodeChannelParamOverrideInvalid, types.ErrOptionWithSkipRetry())
+	}
+	requestModified := requestTemplateApplied || legacyPromptParametersAppended
 
 	adaptor := GetAdaptor(info.ApiType)
 	if adaptor == nil {
@@ -50,7 +55,7 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 
 	var requestBody io.Reader
 
-	if shouldPassThroughImageRequest(c, info.ChannelSetting.PassThroughBodyEnabled, promptParametersAppended) {
+	if shouldPassThroughImageRequest(c, info.ChannelSetting.PassThroughBodyEnabled, requestModified) {
 		storage, err := common.GetBodyStorage(c)
 		if err != nil {
 			return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
@@ -153,6 +158,26 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 
 	service.PostTextConsumeQuota(c, info, usage.(*dto.Usage), logContent)
 	return nil
+}
+
+func applyImageRequestTemplateOverride(info *relaycommon.RelayInfo, request *dto.ImageRequest) (bool, error) {
+	if info == nil || request == nil || len(info.ParamOverride) == 0 {
+		return false, nil
+	}
+	requestJSON, err := common.Marshal(request)
+	if err != nil {
+		return false, err
+	}
+	requestJSON, applied, err := relaycommon.ApplyRequestTemplateParamOverrideWithRelayInfo(requestJSON, info)
+	if err != nil || !applied {
+		return applied, err
+	}
+	extra := request.Extra
+	if err = common.Unmarshal(requestJSON, request); err != nil {
+		return false, err
+	}
+	request.Extra = extra
+	return true, nil
 }
 
 func applyImagePromptParameterAppend(info *relaycommon.RelayInfo, request *dto.ImageRequest) (bool, error) {

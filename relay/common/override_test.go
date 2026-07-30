@@ -2322,6 +2322,135 @@ func TestShouldAuditParamPathUsesFieldBoundaryPrefixMatching(t *testing.T) {
 	require.False(t, shouldAuditParamPath("message"))
 }
 
+func TestApplyParamOverrideAppendTemplate(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		value   string
+		want    string
+		wantErr string
+	}{
+		{
+			name:  "renders size and quality",
+			input: `{"model":"gpt-image-2","prompt":"draw a cat","size":"1254x1254","quality":"low"}`,
+			value: "\n\nOutput image requirements: size=${body.size}; quality=${body.quality}.",
+			want:  `{"model":"gpt-image-2","prompt":"draw a cat\n\nOutput image requirements: size=1254x1254; quality=low.","size":"1254x1254","quality":"low"}`,
+		},
+		{
+			name:  "renders missing quality as auto",
+			input: `{"prompt":"draw a cat","size":"1254x1254"}`,
+			value: "\n\nOutput image requirements: size=${body.size}; quality=${body.quality}.",
+			want:  `{"prompt":"draw a cat\n\nOutput image requirements: size=1254x1254; quality=auto.","size":"1254x1254"}`,
+		},
+		{
+			name:  "skips when every variable is missing",
+			input: `{"prompt":"draw a cat"}`,
+			value: "\n\nOutput image requirements: size=${body.size}; quality=${body.quality}.",
+			want:  `{"prompt":"draw a cat"}`,
+		},
+		{
+			name:  "does not append duplicate suffix",
+			input: `{"prompt":"draw a cat\n\nOutput image requirements: size=1254x1254; quality=low.","size":"1254x1254","quality":"low"}`,
+			value: "\n\nOutput image requirements: size=${body.size}; quality=${body.quality}.",
+			want:  `{"prompt":"draw a cat\n\nOutput image requirements: size=1254x1254; quality=low.","size":"1254x1254","quality":"low"}`,
+		},
+		{
+			name:    "rejects malformed variable",
+			input:   `{"prompt":"draw a cat","size":"1254x1254"}`,
+			value:   "size=${request.size}",
+			wantErr: "invalid request template variable",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			override := map[string]interface{}{
+				"operations": []interface{}{
+					map[string]interface{}{
+						"phase": "request",
+						"path":  "prompt",
+						"mode":  "append_template",
+						"value": tt.value,
+					},
+				},
+			}
+
+			out, err := ApplyParamOverride([]byte(tt.input), override, nil)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			assertJSONEqual(t, tt.want, string(out))
+		})
+	}
+}
+
+func TestApplyResponseParamOverrideWithRelayInfo(t *testing.T) {
+	responseOverride := func() map[string]interface{} {
+		return map[string]interface{}{
+			"operations": []interface{}{
+				map[string]interface{}{
+					"phase": "response",
+					"path":  "quality",
+					"mode":  "set_from_request",
+					"from":  "quality",
+					"conditions": []interface{}{
+						map[string]interface{}{
+							"path":  "model",
+							"mode":  "full",
+							"value": "gpt-image-2",
+						},
+					},
+					"logic": "AND",
+				},
+			},
+		}
+	}
+
+	t.Run("copies original quality and uses mapped model for conditions", func(t *testing.T) {
+		info := &RelayInfo{
+			ChannelMeta: &ChannelMeta{
+				ParamOverride:     responseOverride(),
+				UpstreamModelName: "gpt-image-2",
+			},
+			Request: &dto.ImageRequest{Model: "client-alias", Quality: "low"},
+		}
+
+		out, err := ApplyResponseParamOverrideWithRelayInfo([]byte(`{"quality":"high","data":[]}`), info)
+		require.NoError(t, err)
+		assertJSONEqual(t, `{"quality":"low","data":[]}`, string(out))
+	})
+
+	t.Run("leaves response unchanged when source is absent", func(t *testing.T) {
+		info := &RelayInfo{
+			ChannelMeta: &ChannelMeta{
+				ParamOverride:     responseOverride(),
+				UpstreamModelName: "gpt-image-2",
+			},
+			Request: &dto.ImageRequest{Model: "client-alias"},
+		}
+
+		out, err := ApplyResponseParamOverrideWithRelayInfo([]byte(`{"quality":"high","data":[]}`), info)
+		require.NoError(t, err)
+		assertJSONEqual(t, `{"quality":"high","data":[]}`, string(out))
+	})
+
+	t.Run("leaves response unchanged when mapped model does not match", func(t *testing.T) {
+		info := &RelayInfo{
+			ChannelMeta: &ChannelMeta{
+				ParamOverride:     responseOverride(),
+				UpstreamModelName: "gpt-image-1",
+			},
+			Request: &dto.ImageRequest{Model: "client-alias", Quality: "low"},
+		}
+
+		out, err := ApplyResponseParamOverrideWithRelayInfo([]byte(`{"data":[]}`), info)
+		require.NoError(t, err)
+		assertJSONEqual(t, `{"data":[]}`, string(out))
+	})
+}
+
 func assertJSONEqual(t *testing.T, want, got string) {
 	t.Helper()
 

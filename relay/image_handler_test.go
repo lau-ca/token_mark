@@ -65,6 +65,42 @@ func TestApplyImagePromptParameterAppend(t *testing.T) {
 	}
 }
 
+func TestApplyImageRequestTemplateOverride(t *testing.T) {
+	request := &dto.ImageRequest{
+		Model:   "gpt-image-2",
+		Prompt:  "draw a cat",
+		Size:    "1254x1254",
+		Quality: "low",
+	}
+	info := &relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ParamOverride: map[string]interface{}{
+				"operations": []interface{}{
+					map[string]interface{}{
+						"phase": "request",
+						"path":  "prompt",
+						"mode":  "append_template",
+						"value": "\n\nOutput image requirements: size=${body.size}; quality=${body.quality}.",
+						"conditions": []interface{}{
+							map[string]interface{}{
+								"path":  "model",
+								"mode":  "full",
+								"value": "gpt-image-2",
+							},
+						},
+						"logic": "AND",
+					},
+				},
+			},
+		},
+	}
+
+	applied, err := applyImageRequestTemplateOverride(info, request)
+	require.NoError(t, err)
+	require.True(t, applied)
+	assert.Equal(t, "draw a cat\n\nOutput image requirements: size=1254x1254; quality=low.", request.Prompt)
+}
+
 func TestCompositeImageRequestDisablesBodyPassthrough(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())

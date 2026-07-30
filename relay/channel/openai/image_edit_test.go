@@ -148,9 +148,10 @@ func TestConvertImageEditRequestMultipartAppliesParamOverride(t *testing.T) {
 						"mode": "normalize_image_size_1k",
 					},
 					map[string]interface{}{
+						"phase": "request",
 						"path":  "prompt",
-						"mode":  "append",
-						"value": "\n\nOutput image requirements: size=2048x1152; quality=high.",
+						"mode":  "append_template",
+						"value": "\n\nOutput image requirements: size=${body.size}; quality=${body.quality}.",
 					},
 					map[string]interface{}{
 						"path":  "quality",
@@ -178,7 +179,7 @@ func TestConvertImageEditRequestMultipartAppliesParamOverride(t *testing.T) {
 	require.NoError(t, replayedRequest.ParseMultipartForm(32<<20))
 
 	require.Equal(t, "gpt-image-2-low", replayedRequest.PostForm.Get("model"))
-	require.Equal(t, "edit this image\n\nOutput image requirements: size=2048x1152; quality=high.", replayedRequest.PostForm.Get("prompt"))
+	require.Equal(t, "edit this image\n\nOutput image requirements: size=2048x1152; quality=low.", replayedRequest.PostForm.Get("prompt"))
 	require.Equal(t, "high", replayedRequest.PostForm.Get("quality"))
 	require.Equal(t, "1024x640", replayedRequest.PostForm.Get("size"))
 	require.Equal(t, "preserved", replayedRequest.PostForm.Get("custom_option"))

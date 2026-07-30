@@ -1,6 +1,7 @@
 package common
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"net/http"
@@ -16,7 +17,10 @@ import (
 	"github.com/tidwall/sjson"
 )
 
-var negativeIndexRegexp = regexp.MustCompile(`\.(-\d+)`)
+var (
+	negativeIndexRegexp           = regexp.MustCompile(`\.(-\d+)`)
+	requestTemplateVariableRegexp = regexp.MustCompile(`\$\{body\.([^{}]+)\}`)
+)
 
 const (
 	paramOverrideContextRequestHeaders = "request_headers"
@@ -56,7 +60,8 @@ type ConditionOperation struct {
 
 type ParamOperation struct {
 	Path       string               `json:"path"`
-	Mode       string               `json:"mode"` // delete, set, move, copy, prepend, append, trim_prefix, trim_suffix, ensure_prefix, ensure_suffix, trim_space, to_lower, to_upper, replace, regex_replace, return_error, prune_objects, set_header, delete_header, copy_header, move_header, pass_headers, sync_fields
+	Mode       string               `json:"mode"` // delete, set, move, copy, prepend, append, append_template, trim_prefix, trim_suffix, ensure_prefix, ensure_suffix, trim_space, to_lower, to_upper, replace, regex_replace, return_error, prune_objects, set_header, delete_header, copy_header, move_header, pass_headers, sync_fields, set_from_request
+	Phase      string               `json:"phase,omitempty"`
 	Value      interface{}          `json:"value"`
 	KeepOrigin bool                 `json:"keep_origin"`
 	From       string               `json:"from,omitempty"`
@@ -200,6 +205,104 @@ func ApplyParamOverrideWithRelayInfo(jsonData []byte, info *RelayInfo) ([]byte, 
 		}
 	}
 	return result, nil
+}
+
+func ApplyResponseParamOverrideWithRelayInfo(responseBody []byte, info *RelayInfo) ([]byte, error) {
+	paramOverride := getParamOverrideMap(info)
+	if len(paramOverride) == 0 || info == nil || info.Request == nil {
+		return responseBody, nil
+	}
+
+	operations, ok := tryParseOperations(paramOverride)
+	if !ok {
+		if _, exists := paramOverride["operations"]; exists {
+			return nil, fmt.Errorf("invalid parameter override operations")
+		}
+		return responseBody, nil
+	}
+
+	requestJSON, err := common.Marshal(info.Request)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal original request: %w", err)
+	}
+	if model := strings.TrimSpace(info.UpstreamModelName); model != "" {
+		requestJSON, err = sjson.SetBytes(requestJSON, "model", model)
+		if err != nil {
+			return nil, fmt.Errorf("failed to set upstream request model: %w", err)
+		}
+	}
+
+	result := responseBody
+	for _, operation := range operations {
+		phase, err := normalizeParamOperationPhase(operation.Phase)
+		if err != nil {
+			return nil, err
+		}
+		if phase != "response" {
+			continue
+		}
+
+		matches, err := checkConditions(requestJSON, "", operation.Conditions, operation.Logic)
+		if err != nil {
+			return nil, err
+		}
+		if !matches {
+			continue
+		}
+		if operation.Mode != "set_from_request" {
+			return nil, fmt.Errorf("unsupported response operation: %s", operation.Mode)
+		}
+
+		from := strings.TrimSpace(operation.From)
+		path := strings.TrimSpace(operation.Path)
+		if from == "" || path == "" {
+			return nil, fmt.Errorf("set_from_request from/path is required")
+		}
+		source := gjson.GetBytes(requestJSON, from)
+		if !source.Exists() || (source.Type == gjson.String && strings.TrimSpace(source.String()) == "") {
+			continue
+		}
+		result, err = sjson.SetBytes(result, path, source.Value())
+		if err != nil {
+			return nil, fmt.Errorf("operation set_from_request failed: %w", err)
+		}
+	}
+	return result, nil
+}
+
+func ApplyRequestTemplateParamOverrideWithRelayInfo(requestBody []byte, info *RelayInfo) ([]byte, bool, error) {
+	paramOverride := getParamOverrideMap(info)
+	if len(paramOverride) == 0 {
+		return requestBody, false, nil
+	}
+
+	operations, ok := tryParseOperations(paramOverride)
+	if !ok {
+		if _, exists := paramOverride["operations"]; exists {
+			return nil, false, fmt.Errorf("invalid parameter override operations")
+		}
+		return requestBody, false, nil
+	}
+
+	templateOperations := make([]ParamOperation, 0, len(operations))
+	for _, operation := range operations {
+		phase, err := normalizeParamOperationPhase(operation.Phase)
+		if err != nil {
+			return nil, false, err
+		}
+		if phase == "request" && operation.Mode == "append_template" {
+			templateOperations = append(templateOperations, operation)
+		}
+	}
+	if len(templateOperations) == 0 {
+		return requestBody, false, nil
+	}
+
+	result, err := applyOperations(requestBody, templateOperations, BuildParamOverrideContext(info))
+	if err != nil {
+		return nil, false, err
+	}
+	return result, !bytes.Equal(result, requestBody), nil
 }
 
 func shouldEnableParamOverrideAudit(paramOverride map[string]interface{}) bool {
@@ -480,6 +583,9 @@ func tryParseOperations(paramOverride map[string]interface{}) ([]ParamOperation,
 		if value, exists := opMap["value"]; exists {
 			operation.Value = value
 		}
+		if phase, ok := opMap["phase"].(string); ok {
+			operation.Phase = phase
+		}
 		if keepOrigin, ok := opMap["keep_origin"].(bool); ok {
 			operation.KeepOrigin = keepOrigin
 		}
@@ -731,7 +837,15 @@ func applyOperations(jsonData []byte, operations []ParamOperation, conditionCont
 	}
 
 	result := jsonData
+	templateSource := jsonData
 	for _, op := range operations {
+		phase, err := normalizeParamOperationPhase(op.Phase)
+		if err != nil {
+			return nil, err
+		}
+		if phase == "response" {
+			continue
+		}
 		// 检查条件是否满足
 		ok, err := checkConditions(result, contextJSON, op.Conditions, op.Logic)
 		if err != nil {
@@ -814,6 +928,32 @@ func applyOperations(jsonData []byte, operations []ParamOperation, conditionCont
 					break
 				}
 				auditRecorder.recordOperation("append", path, "", "", op.Value)
+			}
+		case "append_template":
+			template, ok := op.Value.(string)
+			if !ok {
+				return nil, fmt.Errorf("append_template value must be a string")
+			}
+			rendered, hasValue, renderErr := renderRequestTemplate(template, templateSource)
+			if renderErr != nil {
+				return nil, renderErr
+			}
+			if !hasValue {
+				continue
+			}
+			for _, path := range opPaths {
+				current := gjson.GetBytes(result, path)
+				if !current.Exists() || current.Type != gjson.String {
+					return nil, fmt.Errorf("append_template target must be a string: %s", path)
+				}
+				if strings.HasSuffix(current.String(), rendered) {
+					continue
+				}
+				result, err = sjson.SetBytes(result, path, current.String()+rendered)
+				if err != nil {
+					break
+				}
+				auditRecorder.recordOperation("append_template", path, "", "", rendered)
 			}
 		case "trim_prefix":
 			for _, path := range opPaths {
@@ -1599,11 +1739,59 @@ func normalizeImageSize1K(size string) string {
 
 func isPathBasedOperation(mode string) bool {
 	switch mode {
-	case "delete", "set", "normalize_image_size_1k", "prepend", "append", "trim_prefix", "trim_suffix", "ensure_prefix", "ensure_suffix", "trim_space", "to_lower", "to_upper", "replace", "regex_replace", "prune_objects":
+	case "delete", "set", "normalize_image_size_1k", "prepend", "append", "append_template", "trim_prefix", "trim_suffix", "ensure_prefix", "ensure_suffix", "trim_space", "to_lower", "to_upper", "replace", "regex_replace", "prune_objects":
 		return true
 	default:
 		return false
 	}
+}
+
+func normalizeParamOperationPhase(phase string) (string, error) {
+	phase = strings.ToLower(strings.TrimSpace(phase))
+	if phase == "" {
+		return "request", nil
+	}
+	if phase != "request" && phase != "response" {
+		return "", fmt.Errorf("unsupported parameter override phase: %s", phase)
+	}
+	return phase, nil
+}
+
+func renderRequestTemplate(template string, requestBody []byte) (string, bool, error) {
+	matches := requestTemplateVariableRegexp.FindAllStringSubmatchIndex(template, -1)
+	if len(matches) == 0 {
+		if strings.Contains(template, "${") {
+			return "", false, fmt.Errorf("invalid request template variable")
+		}
+		return "", false, fmt.Errorf("append_template requires at least one body variable")
+	}
+
+	var rendered strings.Builder
+	last := 0
+	hasValue := false
+	for _, match := range matches {
+		rendered.WriteString(template[last:match[0]])
+		path := strings.TrimSpace(template[match[2]:match[3]])
+		if path == "" {
+			return "", false, fmt.Errorf("invalid request template variable")
+		}
+		value := gjson.GetBytes(requestBody, path)
+		if value.Exists() && (value.IsArray() || value.IsObject()) {
+			return "", false, fmt.Errorf("request template variable must be a scalar: %s", path)
+		}
+		text := "auto"
+		if value.Exists() && strings.TrimSpace(value.String()) != "" {
+			text = value.String()
+			hasValue = true
+		}
+		rendered.WriteString(text)
+		last = match[1]
+	}
+	rendered.WriteString(template[last:])
+	if strings.Contains(rendered.String(), "${") {
+		return "", false, fmt.Errorf("invalid request template variable")
+	}
+	return rendered.String(), hasValue, nil
 }
 
 func resolveOperationPaths(data []byte, path string) ([]string, error) {

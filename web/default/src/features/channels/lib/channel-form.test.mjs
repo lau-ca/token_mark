@@ -73,30 +73,8 @@ describe('channel balance form transforms', () => {
   })
 })
 
-describe('image prompt parameter append setting', () => {
-  test('serializes enabled channel configuration', () => {
-    const payload = transformFormDataToCreatePayload({
-      ...CHANNEL_FORM_DEFAULT_VALUES,
-      name: 'image-upstream',
-      key: 'sk-channel',
-      models: 'gpt-image-2',
-      image_prompt_parameter_append_enabled: true,
-      image_prompt_parameter_append_models:
-        'gpt-image-2, gpt-image-2, gpt-image-2-custom',
-      image_prompt_parameter_append_template:
-        'Render size={{size}} quality={{quality}}.',
-    })
-
-    expect(JSON.parse(payload.channel.setting)).toMatchObject({
-      image_prompt_parameter_append: {
-        enabled: true,
-        models: ['gpt-image-2', 'gpt-image-2-custom'],
-        template: 'Render size={{size}} quality={{quality}}.',
-      },
-    })
-  })
-
-  test('hydrates existing channel configuration', () => {
+describe('image prompt parameter override migration', () => {
+  test('migrates existing channel configuration into parameter operations', () => {
     const defaults = transformChannelToFormDefaults({
       id: 12,
       name: 'image-upstream',
@@ -109,14 +87,63 @@ describe('image prompt parameter append setting', () => {
           template: 'Render size={{size}} quality={{quality}}.',
         },
       }),
+      param_override: JSON.stringify({
+        operations: [{ path: 'temperature', mode: 'set', value: 0.7 }],
+      }),
       channel_info: {},
     })
 
-    expect(defaults).toMatchObject({
-      image_prompt_parameter_append_enabled: true,
-      image_prompt_parameter_append_models: 'gpt-image-2, gpt-image-2-custom',
-      image_prompt_parameter_append_template:
-        'Render size={{size}} quality={{quality}}.',
+    expect(JSON.parse(defaults.param_override)).toEqual({
+      operations: [
+        { path: 'temperature', mode: 'set', value: 0.7 },
+        {
+          description: 'Append GPT Image size and quality to prompt',
+          phase: 'request',
+          path: 'prompt',
+          mode: 'append_template',
+          value: '\n\nRender size=${body.size} quality=${body.quality}.',
+          conditions: [
+            { path: 'model', mode: 'full', value: 'gpt-image-2' },
+            {
+              path: 'model',
+              mode: 'full',
+              value: 'gpt-image-2-custom',
+            },
+          ],
+          logic: 'OR',
+        },
+      ],
     })
+
+    const payload = transformFormDataToUpdatePayload(defaults, 12)
+    expect(JSON.parse(payload.setting)).not.toHaveProperty(
+      'image_prompt_parameter_append'
+    )
+    expect(JSON.parse(payload.param_override).operations).toHaveLength(2)
+  })
+
+  test('does not duplicate an existing request template operation', () => {
+    const existingOperation = {
+      phase: 'request',
+      path: 'prompt',
+      mode: 'append_template',
+      value:
+        '\n\nOutput image requirements: size=${body.size}; quality=${body.quality}.',
+    }
+    const defaults = transformChannelToFormDefaults({
+      id: 13,
+      name: 'image-upstream',
+      type: 1,
+      status: 1,
+      setting: JSON.stringify({
+        image_prompt_parameter_append: { enabled: true },
+      }),
+      param_override: JSON.stringify({ operations: [existingOperation] }),
+      channel_info: {},
+    })
+
+    expect(JSON.parse(defaults.param_override).operations).toEqual([
+      existingOperation,
+    ])
   })
 })
