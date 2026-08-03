@@ -5490,6 +5490,17 @@
     "Zero retention": "Без хранения данных",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Deleted Key ({{id}})": "Удалённый ключ ({{id}})",
+    "Failed to load Key usage": "Не удалось загрузить использование ключей",
+    "Filter Key usage analytics by time range.": "Фильтровать аналитику использования ключей по периоду.",
+    "Key Usage Analytics": "Аналитика использования ключей",
+    "Key Usage Details": "Детализация использования ключей",
+    "Key Usage Filters": "Фильтры использования ключей",
+    "No API keys": "Нет API-ключей",
+    "No matching API keys": "Подходящие API-ключи не найдены",
+    "Search key name or masked key": "Поиск по имени или маске ключа",
+    "Try another key name or masked key.": "Попробуйте другое имя или маску ключа.",
+    "{{count}} keys": "Ключей: {{count}}"
   }
 }

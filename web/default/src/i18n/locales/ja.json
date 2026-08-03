@@ -5490,6 +5490,17 @@
     "Zero retention": "データ保持なし",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V 4",
-    "Zoom": "ズーム"
+    "Zoom": "ズーム",
+    "Deleted Key ({{id}})": "削除済み Key（{{id}}）",
+    "Failed to load Key usage": "Key 使用量の読み込みに失敗しました",
+    "Filter Key usage analytics by time range.": "期間で Key 使用量分析を絞り込みます。",
+    "Key Usage Analytics": "Key 使用量分析",
+    "Key Usage Details": "Key 使用量の詳細",
+    "Key Usage Filters": "Key 使用量フィルター",
+    "No API keys": "API Key がありません",
+    "No matching API keys": "一致する API Key がありません",
+    "Search key name or masked key": "Key 名またはマスク済み Key を検索",
+    "Try another key name or masked key.": "別の Key 名またはマスク済み Key をお試しください。",
+    "{{count}} keys": "{{count}} 個の Key"
   }
 }

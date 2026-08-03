@@ -5490,6 +5490,17 @@
     "Zero retention": "Không lưu dữ liệu",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Deleted Key ({{id}})": "Key đã xóa ({{id}})",
+    "Failed to load Key usage": "Không thể tải mức sử dụng Key",
+    "Filter Key usage analytics by time range.": "Lọc phân tích mức sử dụng Key theo khoảng thời gian.",
+    "Key Usage Analytics": "Phân tích mức sử dụng Key",
+    "Key Usage Details": "Chi tiết mức sử dụng Key",
+    "Key Usage Filters": "Bộ lọc mức sử dụng Key",
+    "No API keys": "Không có API Key",
+    "No matching API keys": "Không tìm thấy API Key phù hợp",
+    "Search key name or masked key": "Tìm theo tên hoặc Key đã che",
+    "Try another key name or masked key.": "Hãy thử tên hoặc Key đã che khác.",
+    "{{count}} keys": "{{count}} Key"
   }
 }

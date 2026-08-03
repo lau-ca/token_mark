@@ -41,4 +41,5 @@ export {
   getFlowStages,
 } from './flow'
 export { safeDivide, calculateDashboardStats } from './stats'
+export { aggregateKeyUsage, buildKeyChartData } from './key-usage'
 export { getPreviewText } from './text'

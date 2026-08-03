@@ -40,6 +40,12 @@ const DASHBOARD_SECTIONS = [
     build: () => null,
   },
   {
+    id: 'keys',
+    titleKey: 'Key Usage Analytics',
+    userOnly: true,
+    build: () => null,
+  },
+  {
     id: 'users',
     titleKey: 'User Analytics',
     adminOnly: true,
@@ -50,6 +56,7 @@ const DASHBOARD_SECTIONS = [
 export type DashboardSectionId = (typeof DASHBOARD_SECTIONS)[number]['id']
 
 const ADMIN_ONLY_SECTIONS = new Set<string>(['users'])
+const USER_ONLY_SECTIONS = new Set<string>(['keys'])
 
 const dashboardRegistry = createSectionRegistry<
   DashboardSectionId,
@@ -67,11 +74,13 @@ export const DASHBOARD_DEFAULT_SECTION = dashboardRegistry.defaultSection
 
 export function getDashboardSectionNavItems(
   t: TFunction,
-  options?: { isAdmin?: boolean }
+  options?: { isAdmin?: boolean; isUser?: boolean }
 ) {
   const all = dashboardRegistry.getSectionNavItems(t)
-  if (options?.isAdmin) return all
-  return all.filter(
-    (_, idx) => !ADMIN_ONLY_SECTIONS.has(DASHBOARD_SECTIONS[idx].id)
-  )
+  return all.filter((_, idx) => {
+    const sectionId = DASHBOARD_SECTIONS[idx].id
+    if (ADMIN_ONLY_SECTIONS.has(sectionId)) return Boolean(options?.isAdmin)
+    if (USER_ONLY_SECTIONS.has(sectionId)) return Boolean(options?.isUser)
+    return true
+  })
 }

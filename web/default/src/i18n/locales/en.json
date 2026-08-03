@@ -5490,6 +5490,17 @@
     "Zero retention": "Zero retention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Deleted Key ({{id}})": "Deleted Key ({{id}})",
+    "Failed to load Key usage": "Failed to load Key usage",
+    "Filter Key usage analytics by time range.": "Filter Key usage analytics by time range.",
+    "Key Usage Analytics": "Key Usage Analytics",
+    "Key Usage Details": "Key Usage Details",
+    "Key Usage Filters": "Key Usage Filters",
+    "No API keys": "No API keys",
+    "No matching API keys": "No matching API keys",
+    "Search key name or masked key": "Search key name or masked key",
+    "Try another key name or masked key.": "Try another key name or masked key.",
+    "{{count}} keys": "{{count}} keys"
   }
 }

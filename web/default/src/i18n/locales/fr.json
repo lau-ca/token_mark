@@ -5490,6 +5490,17 @@
     "Zero retention": "Aucune rétention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Deleted Key ({{id}})": "Clé supprimée ({{id}})",
+    "Failed to load Key usage": "Échec du chargement de l’utilisation des clés",
+    "Filter Key usage analytics by time range.": "Filtrer l’analyse d’utilisation des clés par période.",
+    "Key Usage Analytics": "Analyse d’utilisation des clés",
+    "Key Usage Details": "Détails d’utilisation des clés",
+    "Key Usage Filters": "Filtres d’utilisation des clés",
+    "No API keys": "Aucune clé API",
+    "No matching API keys": "Aucune clé API correspondante",
+    "Search key name or masked key": "Rechercher un nom ou une clé masquée",
+    "Try another key name or masked key.": "Essayez un autre nom ou une autre clé masquée.",
+    "{{count}} keys": "{{count}} clés"
   }
 }

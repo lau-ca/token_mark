@@ -20,6 +20,7 @@ import { api } from '@/lib/api'
 
 import type {
   FlowQuotaDataItem,
+  KeyQuotaDataItem,
   QuotaDataItem,
   UptimeGroupResult,
 } from './types'
@@ -48,6 +49,18 @@ export async function getUserQuotaDates(
     endpoint,
     { params }
   )
+  return res.data
+}
+
+export async function getUserKeyQuotaDates(params: {
+  start_timestamp: number
+  end_timestamp: number
+}) {
+  const res = await api.get<{
+    success: boolean
+    data?: KeyQuotaDataItem[]
+    message?: string
+  }>('/api/data/keys/self', { params })
   return res.data
 }
 

@@ -336,6 +336,7 @@ func SetApiRouter(router *gin.Engine) {
 		dataRoute.POST("/sync", middleware.AdminAuth(), controller.SyncQuotaData)
 		dataRoute.GET("/users", middleware.AdminAuth(), controller.GetQuotaDatesByUser)
 		dataRoute.GET("/self", middleware.UserAuth(), controller.GetUserQuotaDates)
+		dataRoute.GET("/keys/self", middleware.UserAuth(), controller.GetUserKeyQuotaDates)
 		dataRoute.GET("/flow", middleware.AdminAuth(), controller.GetAllFlowQuotaDates)
 		dataRoute.GET("/flow/self", middleware.UserAuth(), controller.GetUserFlowQuotaDates)
 

@@ -54,6 +54,7 @@ interface ModelChartsProps {
   loading?: boolean
   timeGranularity?: TimeGranularity
   defaultChartTab?: ModelAnalyticsChartTab
+  titleKey?: string
 }
 
 export function ModelCharts(props: ModelChartsProps) {
@@ -126,7 +127,7 @@ export function ModelCharts(props: ModelChartsProps) {
             <PieChartIcon />
           </IconBadge>
           <div className='text-sm font-semibold'>
-            {t('Model Call Analytics')}
+            {t(props.titleKey ?? 'Model Call Analytics')}
           </div>
           <span className='text-muted-foreground text-xs'>
             {t('Total:')} {chartData.totalCountDisplay}

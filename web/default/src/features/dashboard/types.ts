@@ -48,6 +48,28 @@ export interface FlowQuotaDataItem {
   quota?: number
 }
 
+export interface KeyQuotaDataItem extends QuotaDataItem {
+  token_id: number
+  token_name?: string
+  masked_key?: string
+  token_status?: number
+  accessed_time?: number
+  deleted?: boolean
+}
+
+export interface AggregatedKeyUsage {
+  token_id: number
+  token_name: string
+  masked_key: string
+  token_status: number
+  accessed_time: number
+  deleted: boolean
+  count: number
+  token_used: number
+  quota: number
+  share: number
+}
+
 export type FlowMetric = 'quota' | 'tokens' | 'requests'
 
 export type FlowOverflowMode = 'aggregate' | 'hide'

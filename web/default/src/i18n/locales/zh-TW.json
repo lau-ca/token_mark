@@ -5476,6 +5476,17 @@
     "Zero retention": "零數據保留",
     "Zhipu": "智譜",
     "Zhipu V4": "智譜 V4",
-    "Zoom": "縮放"
+    "Zoom": "縮放",
+    "Deleted Key ({{id}})": "已刪除 Key（{{id}}）",
+    "Failed to load Key usage": "Key 消耗載入失敗",
+    "Filter Key usage analytics by time range.": "依時間範圍篩選 Key 消耗分析。",
+    "Key Usage Analytics": "Key 消耗分析",
+    "Key Usage Details": "Key 消耗明細",
+    "Key Usage Filters": "Key 消耗篩選",
+    "No API keys": "暫無 API Key",
+    "No matching API keys": "沒有符合的 API Key",
+    "Search key name or masked key": "搜尋 Key 名稱或遮罩 Key",
+    "Try another key name or masked key.": "請嘗試其他 Key 名稱或遮罩 Key。",
+    "{{count}} keys": "{{count}} 個 Key"
   }
 }

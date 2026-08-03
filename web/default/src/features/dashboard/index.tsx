@@ -18,7 +18,14 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { getRouteApi, useNavigate } from '@tanstack/react-router'
 import { Eye, EyeOff, RefreshCw } from 'lucide-react'
-import { useState, useCallback, useMemo, lazy, Suspense } from 'react'
+import {
+  useState,
+  useCallback,
+  useEffect,
+  useMemo,
+  lazy,
+  Suspense,
+} from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -115,6 +122,12 @@ const LazyFlowCharts = lazy(() =>
   }))
 )
 
+const LazyKeyUsageAnalytics = lazy(() =>
+  import('./components/keys/key-usage-analytics').then((m) => ({
+    default: m.KeyUsageAnalytics,
+  }))
+)
+
 function LogStatCardsFallback() {
   return (
     <div className='overflow-hidden rounded-lg border'>
@@ -187,6 +200,9 @@ const SECTION_META: Record<DashboardSectionId, { titleKey: string }> = {
   },
   flow: {
     titleKey: 'Flow',
+  },
+  keys: {
+    titleKey: 'Key Usage Analytics',
   },
   users: {
     titleKey: 'User Analytics',
@@ -266,13 +282,26 @@ export function Dashboard() {
 
   const meta = SECTION_META[activeSection] ?? SECTION_META.overview
   const isAdmin = Boolean(userRole && userRole >= ROLE.ADMIN)
+  const isUser = userRole === ROLE.USER
   const visibleSections = useMemo(
     () =>
       DASHBOARD_SECTION_IDS.filter(
-        (section) => section !== 'overview' && (section !== 'users' || isAdmin)
+        (section) =>
+          section !== 'overview' &&
+          (section !== 'users' || isAdmin) &&
+          (section !== 'keys' || isUser)
       ),
-    [isAdmin]
+    [isAdmin, isUser]
   )
+
+  useEffect(() => {
+    if (activeSection !== 'keys' || isUser || userRole == null) return
+    void navigate({
+      to: '/dashboard/$section',
+      params: { section: 'models' },
+      replace: true,
+    })
+  }, [activeSection, isUser, navigate, userRole])
   const handleSectionChange = useCallback(
     (section: string) => {
       void navigate({
@@ -355,7 +384,18 @@ export function Dashboard() {
         />
       </>
     ) : null
-  const sectionActions = modelActions ?? flowActions
+  const keyActions =
+    activeSection === 'keys' && isUser ? (
+      <ModelsFilter
+        preferences={chartPreferences}
+        currentFilters={modelFilters}
+        onFilterChange={handleFilterChange}
+        onReset={handleResetFilters}
+        titleKey='Key Usage Filters'
+        descriptionKey='Filter Key usage analytics by time range.'
+      />
+    ) : null
+  const sectionActions = modelActions ?? flowActions ?? keyActions
 
   return (
     <SectionPageLayout>
@@ -447,6 +487,16 @@ export function Dashboard() {
                 <LazyFlowCharts
                   filters={modelFilters}
                   sensitiveVisible={flowSensitiveVisible}
+                />
+              </Suspense>
+            </FadeIn>
+          )}
+          {activeSection === 'keys' && isUser && (
+            <FadeIn>
+              <Suspense fallback={<ModelChartsFallback />}>
+                <LazyKeyUsageAnalytics
+                  filters={modelFilters}
+                  preferences={chartPreferences}
                 />
               </Suspense>
             </FadeIn>
