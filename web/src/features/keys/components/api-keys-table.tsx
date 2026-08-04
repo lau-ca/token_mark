@@ -131,7 +131,9 @@ function ApiKeysMobileList({
       {rows.map((row) => {
         const apiKey = row.original;
         const statusConfig = API_KEY_STATUSES[apiKey.status];
-        const total = apiKey.used_quota + apiKey.remain_quota;
+        const total = apiKey.daily_quota_enabled
+          ? apiKey.daily_quota
+          : apiKey.used_quota + apiKey.remain_quota;
 
         return (
           <div
@@ -171,11 +173,20 @@ function ApiKeysMobileList({
               {apiKey.unlimited_quota ? (
                 <UnlimitedQuotaBadge used={apiKey.used_quota} />
               ) : (
-                <span className="font-medium tabular-nums">
-                  {formatQuota(apiKey.remain_quota)}
-                  <span className="text-muted-foreground font-normal">
-                    {" / "}
-                    {formatQuota(total)}
+                <span className="flex items-center gap-1.5 font-medium tabular-nums">
+                  {apiKey.daily_quota_enabled && (
+                    <StatusBadge
+                      label={t("Daily")}
+                      variant="info"
+                      copyable={false}
+                    />
+                  )}
+                  <span>
+                    {formatQuota(apiKey.remain_quota)}
+                    <span className="text-muted-foreground font-normal">
+                      {" / "}
+                      {formatQuota(total)}
+                    </span>
                   </span>
                 </span>
               )}

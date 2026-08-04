@@ -5597,6 +5597,9 @@
     "No matching API keys": "Aucune clé API correspondante",
     "Search key name or masked key": "Rechercher un nom ou une clé masquée",
     "Try another key name or masked key.": "Essayez un autre nom ou une autre clé masquée.",
-    "{{count}} keys": "{{count}} clés"
+    "{{count}} keys": "{{count}} clés",
+    "Daily Quota": "Quota quotidien",
+    "Quota Mode": "Mode de quota",
+    "Restores to the configured quota every day at 00:00; unused quota does not roll over": "Rétabli au quota configuré chaque jour à 00:00 ; le quota non utilisé n'est pas reporté"
   }
 }

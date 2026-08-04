@@ -5597,6 +5597,9 @@
     "No matching API keys": "没有匹配的 API Key",
     "Search key name or masked key": "搜索 Key 名称或脱敏 Key",
     "Try another key name or masked key.": "请尝试其他 Key 名称或脱敏 Key。",
-    "{{count}} keys": "{{count}} 个 Key"
+    "{{count}} keys": "{{count}} 个 Key",
+    "Daily Quota": "每日额度",
+    "Quota Mode": "额度模式",
+    "Restores to the configured quota every day at 00:00; unused quota does not roll over": "每天 00:00 恢复为设定额度，未使用额度不结转"
   }
 }

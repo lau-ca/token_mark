@@ -164,32 +164,39 @@ func IsSeedanceVideoModel(model string) bool {
 }
 
 func ResolveSeedanceVideoDuration(req TaskSubmitReq) (int, error) {
-	if req.durationParseErr != nil {
-		return 0, req.durationParseErr
+	duration, err := ResolveTaskDuration(req)
+	if err != nil {
+		return 0, err
 	}
-
-	duration := minSeedanceVideoDurationSeconds
-	hasDuration := req.durationProvided || req.Duration != 0
-	if hasDuration {
-		duration = req.Duration
-	}
-	if req.Seconds != "" {
-		parsedSeconds, err := strconv.Atoi(req.Seconds)
-		if err != nil {
-			return 0, fmt.Errorf("seconds must be an integer")
-		}
-		if hasDuration && parsedSeconds != duration {
-			return 0, fmt.Errorf("duration and seconds must match when both are provided")
-		}
-		if !hasDuration {
-			duration = parsedSeconds
-		}
+	if !req.durationProvided && req.Duration == 0 && req.Seconds == "" {
+		duration = minSeedanceVideoDurationSeconds
 	}
 
 	if duration < minSeedanceVideoDurationSeconds || duration > maxSeedanceVideoDurationSeconds {
 		return 0, fmt.Errorf("seconds must be between %d and %d", minSeedanceVideoDurationSeconds, maxSeedanceVideoDurationSeconds)
 	}
 	return duration, nil
+}
+
+func ResolveTaskDuration(req TaskSubmitReq) (int, error) {
+	if req.durationParseErr != nil {
+		return 0, req.durationParseErr
+	}
+
+	duration := req.Duration
+	hasDuration := req.durationProvided || req.Duration != 0
+	if req.Seconds == "" {
+		return duration, nil
+	}
+
+	seconds, err := strconv.Atoi(req.Seconds)
+	if err != nil {
+		return 0, fmt.Errorf("seconds must be an integer")
+	}
+	if hasDuration && seconds != duration {
+		return 0, fmt.Errorf("duration and seconds must match when both are provided")
+	}
+	return seconds, nil
 }
 
 func validateTaskDurationBounds(req TaskSubmitReq) *dto.TaskError {

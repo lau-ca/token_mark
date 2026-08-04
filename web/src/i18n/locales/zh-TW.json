@@ -5583,6 +5583,16 @@
     "No matching API keys": "沒有符合的 API Key",
     "Search key name or masked key": "搜尋 Key 名稱或遮罩 Key",
     "Try another key name or masked key.": "請嘗試其他 Key 名稱或遮罩 Key。",
-    "{{count}} keys": "{{count}} 個 Key"
+    "{{count}} keys": "{{count}} 個 Key",
+    "Append image parameters to prompt": "Append image parameters to prompt",
+    "Applicable upstream models": "Applicable upstream models",
+    "Available variables: {{size}} and {{quality}}": "Available variables: {{size}} and {{quality}}",
+    "Daily Quota": "每日額度",
+    "Prompt append template": "Prompt append template",
+    "Quota Mode": "額度模式",
+    "Restores to the configured quota every day at 00:00; unused quota does not roll over": "每天 00:00 恢復為設定額度，未使用額度不結轉",
+    "Separate multiple models with commas": "Separate multiple models with commas",
+    "Structured parameters remain unchanged; matched image requests use normal conversion instead of raw request-body pass-through": "Structured parameters remain unchanged; matched image requests use normal conversion instead of raw request-body pass-through",
+    "Use size and quality as a prompt fallback for selected image models": "Use size and quality as a prompt fallback for selected image models"
   }
 }

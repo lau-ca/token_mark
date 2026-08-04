@@ -5597,6 +5597,9 @@
     "No matching API keys": "一致する API Key がありません",
     "Search key name or masked key": "Key 名またはマスク済み Key を検索",
     "Try another key name or masked key.": "別の Key 名またはマスク済み Key をお試しください。",
-    "{{count}} keys": "{{count}} 個の Key"
+    "{{count}} keys": "{{count}} 個の Key",
+    "Daily Quota": "1日あたりのクォータ",
+    "Quota Mode": "クォータモード",
+    "Restores to the configured quota every day at 00:00; unused quota does not roll over": "毎日00:00に設定されたクォータへ戻り、未使用分は翌日に繰り越されません"
   }
 }

@@ -610,6 +610,7 @@ func RelayTask(c *gin.Context) {
 		task.PrivateData.BillingSource = relayInfo.BillingSource
 		task.PrivateData.SubscriptionId = relayInfo.SubscriptionId
 		task.PrivateData.TokenId = relayInfo.TokenId
+		task.PrivateData.TokenDailyQuotaNextResetTime = relayInfo.TokenDailyQuotaNextResetTime
 		task.PrivateData.NodeName = common.NodeName
 		taskRequest, _ := relaycommon.GetTaskRequest(c)
 		task.PrivateData.BillingContext = buildTaskBillingContext(relayInfo, taskRequest)

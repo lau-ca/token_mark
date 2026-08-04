@@ -51,6 +51,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Sheet,
   SheetClose,
@@ -361,7 +362,18 @@ export function ApiKeysMutateDrawer({
     ? t("Enter quota in tokens")
     : t("Enter quota in {{currency}}", { currency: currencyLabel });
   const autoGroupsMode = form.watch("auto_groups_mode");
-  const unlimitedQuota = form.watch("unlimited_quota");
+  const quotaMode = form.watch("quota_mode");
+  let quotaDescription = t("Enter the quota amount in {{currency}}", {
+    currency: currencyLabel,
+  });
+  if (tokensOnly) {
+    quotaDescription = t("Enter the quota amount in tokens");
+  }
+  if (quotaMode === "daily") {
+    quotaDescription = t(
+      "Restores to the configured quota every day at 00:00; unused quota does not roll over",
+    );
+  }
 
   return (
     <Sheet
@@ -611,10 +623,48 @@ export function ApiKeysMutateDrawer({
                 icon={<WalletCards className="size-4" />}
                 iconTone="success"
               />
-              {!unlimitedQuota && (
+              <FormField
+                control={form.control}
+                name="quota_mode"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("Quota Mode")}</FormLabel>
+                    <FormControl>
+                      <RadioGroup
+                        value={field.value}
+                        onValueChange={field.onChange}
+                        className="grid gap-2 sm:grid-cols-3"
+                      >
+                        {(
+                          [
+                            ["total", t("Total Quota")],
+                            ["daily", t("Daily Quota")],
+                            ["unlimited", t("Unlimited")],
+                          ] as const
+                        ).map(([value, label]) => (
+                          <label
+                            key={value}
+                            htmlFor={`quota-mode-${value}`}
+                            className="border-input hover:bg-muted/40 flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2.5 text-sm transition-colors"
+                          >
+                            <RadioGroupItem
+                              id={`quota-mode-${value}`}
+                              value={value}
+                            />
+                            <span>{label}</span>
+                          </label>
+                        ))}
+                      </RadioGroup>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {quotaMode !== "unlimited" && (
                 <FormField
                   control={form.control}
-                  name="remain_quota_dollars"
+                  name="quota_dollars"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>{quotaLabel}</FormLabel>
@@ -631,41 +681,12 @@ export function ApiKeysMutateDrawer({
                           }
                         />
                       </FormControl>
-                      <FormDescription>
-                        {tokensOnly
-                          ? t("Enter the quota amount in tokens")
-                          : t("Enter the quota amount in {{currency}}", {
-                              currency: currencyLabel,
-                            })}
-                      </FormDescription>
+                      <FormDescription>{quotaDescription}</FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
               )}
-
-              <FormField
-                control={form.control}
-                name="unlimited_quota"
-                render={({ field }) => (
-                  <FormItem className={sideDrawerSwitchItemClassName()}>
-                    <div className="flex flex-col gap-0.5">
-                      <FormLabel className="text-sm">
-                        {t("Unlimited Quota")}
-                      </FormLabel>
-                      <FormDescription className="text-xs">
-                        {t("Enable unlimited quota for this API key")}
-                      </FormDescription>
-                    </div>
-                    <FormControl>
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
             </SideDrawerSection>
 
             <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>

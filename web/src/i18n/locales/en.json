@@ -5597,6 +5597,9 @@
     "No matching API keys": "No matching API keys",
     "Search key name or masked key": "Search key name or masked key",
     "Try another key name or masked key.": "Try another key name or masked key.",
-    "{{count}} keys": "{{count}} keys"
+    "{{count}} keys": "{{count}} keys",
+    "Daily Quota": "Daily Quota",
+    "Quota Mode": "Quota Mode",
+    "Restores to the configured quota every day at 00:00; unused quota does not roll over": "Restores to the configured quota every day at 00:00; unused quota does not roll over"
   }
 }

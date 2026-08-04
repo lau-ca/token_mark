@@ -35,9 +35,9 @@ export function getApiKeyFormSchema(t: TFunction, maxAutoGroups = 5) {
   return z
     .object({
       name: z.string().min(1, t('Please enter a name')),
-      remain_quota_dollars: z.number().optional(),
+      quota_mode: z.enum(['total', 'daily', 'unlimited']),
+      quota_dollars: z.number().optional(),
       expired_time: z.date().optional(),
-      unlimited_quota: z.boolean(),
       model_limits: z.array(z.string()),
       allow_ips: z.string().optional(),
       group: z.string().optional(),
@@ -80,17 +80,14 @@ export function getApiKeyFormSchema(t: TFunction, maxAutoGroups = 5) {
         }
       }
 
-      if (data.unlimited_quota) {
+      if (data.quota_mode === 'unlimited') {
         return
       }
 
-      if (
-        data.remain_quota_dollars === undefined ||
-        data.remain_quota_dollars < 0
-      ) {
+      if (data.quota_dollars === undefined || data.quota_dollars < 0) {
         ctx.addIssue({
           code: 'custom',
-          path: ['remain_quota_dollars'],
+          path: ['quota_dollars'],
           message: t('Quota must be zero or greater'),
         })
       }
@@ -105,9 +102,9 @@ export type ApiKeyFormValues = z.infer<ReturnType<typeof getApiKeyFormSchema>>
 
 export const API_KEY_FORM_DEFAULT_VALUES: ApiKeyFormValues = {
   name: '',
-  remain_quota_dollars: 10,
+  quota_mode: 'unlimited',
+  quota_dollars: 10,
   expired_time: undefined,
-  unlimited_quota: true,
   model_limits: [],
   allow_ips: '',
   group: DEFAULT_GROUP,
@@ -139,15 +136,20 @@ export function getApiKeyFormDefaultValues(
 export function transformFormDataToPayload(
   data: ApiKeyFormValues
 ): ApiKeyFormData {
+  const quota =
+    data.quota_mode === 'unlimited'
+      ? 0
+      : parseQuotaFromDollars(data.quota_dollars || 0)
+  const dailyQuotaEnabled = data.quota_mode === 'daily'
   return {
     name: data.name,
-    remain_quota: data.unlimited_quota
-      ? 0
-      : parseQuotaFromDollars(data.remain_quota_dollars || 0),
+    remain_quota: quota,
     expired_time: data.expired_time
       ? Math.floor(data.expired_time.getTime() / 1000)
       : -1,
-    unlimited_quota: data.unlimited_quota,
+    unlimited_quota: data.quota_mode === 'unlimited',
+    daily_quota_enabled: dailyQuotaEnabled,
+    daily_quota: dailyQuotaEnabled ? quota : 0,
     model_limits_enabled: data.model_limits.length > 0,
     model_limits: data.model_limits.join(','),
     allow_ips: data.allow_ips || '',
@@ -175,16 +177,23 @@ export function transformApiKeyToFormDefaults(
     .slice(0, Math.max(0, maxAutoGroups))
   const autoGroupsMode = storedAutoGroups.length > 0 ? 'custom' : 'inherit'
 
+  let quotaMode: ApiKeyFormValues['quota_mode'] = 'total'
+  if (apiKey.unlimited_quota) {
+    quotaMode = 'unlimited'
+  } else if (apiKey.daily_quota_enabled) {
+    quotaMode = 'daily'
+  }
+  const quota = apiKey.daily_quota_enabled
+    ? apiKey.daily_quota
+    : apiKey.remain_quota
   return {
     name: apiKey.name,
-    remain_quota_dollars: apiKey.unlimited_quota
-      ? 0
-      : quotaUnitsToDollars(apiKey.remain_quota),
+    quota_mode: quotaMode,
+    quota_dollars: apiKey.unlimited_quota ? 0 : quotaUnitsToDollars(quota),
     expired_time:
       apiKey.expired_time > 0
         ? new Date(apiKey.expired_time * 1000)
         : undefined,
-    unlimited_quota: apiKey.unlimited_quota,
     model_limits: apiKey.model_limits
       ? apiKey.model_limits.split(',').filter(Boolean)
       : [],

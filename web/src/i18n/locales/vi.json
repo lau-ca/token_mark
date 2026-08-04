@@ -5597,6 +5597,9 @@
     "No matching API keys": "Không tìm thấy API Key phù hợp",
     "Search key name or masked key": "Tìm theo tên hoặc Key đã che",
     "Try another key name or masked key.": "Hãy thử tên hoặc Key đã che khác.",
-    "{{count}} keys": "{{count}} Key"
+    "{{count}} keys": "{{count}} Key",
+    "Daily Quota": "Hạn mức hàng ngày",
+    "Quota Mode": "Chế độ hạn mức",
+    "Restores to the configured quota every day at 00:00; unused quota does not roll over": "Khôi phục về hạn mức đã đặt vào 00:00 mỗi ngày; hạn mức chưa dùng không được chuyển sang ngày hôm sau"
   }
 }

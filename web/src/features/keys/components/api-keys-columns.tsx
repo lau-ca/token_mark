@@ -152,7 +152,9 @@ export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
 
         const used = apiKey.used_quota
         const remaining = apiKey.remain_quota
-        const total = used + remaining
+        const total = apiKey.daily_quota_enabled
+          ? apiKey.daily_quota
+          : used + remaining
         const percentage = total > 0 ? (remaining / total) * 100 : 0
 
         return (
@@ -162,8 +164,18 @@ export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
                 <span className='font-medium tabular-nums'>
                   {formatQuota(remaining)}
                 </span>
-                <span className='text-muted-foreground tabular-nums'>
-                  {formatQuota(total)}
+                <span className='flex items-center gap-1.5'>
+                  {apiKey.daily_quota_enabled && (
+                    <StatusBadge
+                      label={t('Daily')}
+                      variant='info'
+                      copyable={false}
+                      className='h-4 px-1.5 text-[10px]'
+                    />
+                  )}
+                  <span className='text-muted-foreground tabular-nums'>
+                    {formatQuota(total)}
+                  </span>
                 </span>
               </div>
               <Progress

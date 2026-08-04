@@ -12,24 +12,27 @@ import (
 )
 
 type Token struct {
-	Id                 int            `json:"id"`
-	UserId             int            `json:"user_id" gorm:"index"`
-	Key                string         `json:"key" gorm:"type:varchar(128);uniqueIndex"`
-	Status             int            `json:"status" gorm:"default:1"`
-	Name               string         `json:"name" gorm:"index" `
-	CreatedTime        int64          `json:"created_time" gorm:"bigint"`
-	AccessedTime       int64          `json:"accessed_time" gorm:"bigint"`
-	ExpiredTime        int64          `json:"expired_time" gorm:"bigint;default:-1"` // -1 means never expired
-	RemainQuota        int            `json:"remain_quota" gorm:"default:0"`
-	UnlimitedQuota     bool           `json:"unlimited_quota"`
-	ModelLimitsEnabled bool           `json:"model_limits_enabled"`
-	ModelLimits        string         `json:"model_limits" gorm:"type:text"`
-	AllowIps           *string        `json:"allow_ips" gorm:"default:''"`
-	UsedQuota          int            `json:"used_quota" gorm:"default:0"` // used quota
-	Group              string         `json:"group" gorm:"default:''"`
-	CrossGroupRetry    bool           `json:"cross_group_retry"` // 跨分组重试，仅auto分组有效
-	AutoGroups         string         `json:"-" gorm:"type:text"`
-	DeletedAt          gorm.DeletedAt `gorm:"index"`
+	Id                      int            `json:"id"`
+	UserId                  int            `json:"user_id" gorm:"index"`
+	Key                     string         `json:"key" gorm:"type:varchar(128);uniqueIndex"`
+	Status                  int            `json:"status" gorm:"default:1"`
+	Name                    string         `json:"name" gorm:"index" `
+	CreatedTime             int64          `json:"created_time" gorm:"bigint"`
+	AccessedTime            int64          `json:"accessed_time" gorm:"bigint"`
+	ExpiredTime             int64          `json:"expired_time" gorm:"bigint;default:-1"` // -1 means never expired
+	RemainQuota             int            `json:"remain_quota" gorm:"default:0"`
+	UnlimitedQuota          bool           `json:"unlimited_quota"`
+	DailyQuotaEnabled       bool           `json:"daily_quota_enabled"`
+	DailyQuota              int            `json:"daily_quota" gorm:"default:0"`
+	DailyQuotaNextResetTime int64          `json:"daily_quota_next_reset_time" gorm:"bigint;default:0"`
+	ModelLimitsEnabled      bool           `json:"model_limits_enabled"`
+	ModelLimits             string         `json:"model_limits" gorm:"type:text"`
+	AllowIps                *string        `json:"allow_ips" gorm:"default:''"`
+	UsedQuota               int            `json:"used_quota" gorm:"default:0"` // used quota
+	Group                   string         `json:"group" gorm:"default:''"`
+	CrossGroupRetry         bool           `json:"cross_group_retry"` // 跨分组重试，仅auto分组有效
+	AutoGroups              string         `json:"-" gorm:"type:text"`
+	DeletedAt               gorm.DeletedAt `gorm:"index"`
 }
 
 func (token *Token) GetAutoGroups() ([]string, error) {
@@ -223,6 +226,9 @@ func ValidateUserToken(key string) (token *Token, err error) {
 	}
 	token, err = GetTokenByKey(key, false)
 	if err == nil {
+		if err = EnsureTokenDailyQuota(token); err != nil {
+			return token, err
+		}
 		if token.Status == common.TokenStatusExhausted ||
 			token.Status == common.TokenStatusExpired ||
 			token.Status != common.TokenStatusEnabled {
@@ -286,13 +292,17 @@ func GetTokenById(id int) (*Token, error) {
 
 func GetTokenByKey(key string, fromDB bool) (token *Token, err error) {
 	defer func() {
-		// Update Redis cache asynchronously on successful DB read
 		if shouldUpdateRedis(fromDB, err) && token != nil {
-			gopool.Go(func() {
+			updateCache := func() {
 				if err := cacheSetToken(*token); err != nil {
 					common.SysLog("failed to update user status cache: " + err.Error())
 				}
-			})
+			}
+			if token.DailyQuotaEnabled {
+				updateCache()
+			} else {
+				gopool.Go(updateCache)
+			}
 		}
 	}()
 	if !fromDB && common.RedisEnabled {
@@ -316,7 +326,8 @@ func (token *Token) Insert() error {
 
 // Update Make sure your token's fields is completed, because this will update non-zero values
 func (token *Token) Update() (err error) {
-	err = DB.Model(token).Select("name", "status", "expired_time", "remain_quota", "unlimited_quota",
+	err = DB.Model(token).Select("name", "status", "expired_time", "remain_quota", "used_quota", "unlimited_quota",
+		"daily_quota_enabled", "daily_quota", "daily_quota_next_reset_time",
 		"model_limits_enabled", "model_limits", "allow_ips", "group", "cross_group_retry", "auto_groups").Updates(token).Error
 	if shouldUpdateRedis(true, err) {
 		if cacheErr := cacheSetToken(*token); cacheErr != nil {
@@ -332,12 +343,16 @@ func (token *Token) Update() (err error) {
 func (token *Token) SelectUpdate() (err error) {
 	defer func() {
 		if shouldUpdateRedis(true, err) {
-			gopool.Go(func() {
-				err := cacheSetToken(*token)
-				if err != nil {
-					common.SysLog("failed to update token cache: " + err.Error())
+			updateCache := func() {
+				if cacheErr := cacheSetToken(*token); cacheErr != nil {
+					common.SysLog("failed to update token cache: " + cacheErr.Error())
 				}
-			})
+			}
+			if token.DailyQuotaEnabled {
+				updateCache()
+			} else {
+				gopool.Go(updateCache)
+			}
 		}
 	}()
 	// This can update zero values

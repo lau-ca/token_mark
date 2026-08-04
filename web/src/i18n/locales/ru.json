@@ -5597,6 +5597,9 @@
     "No matching API keys": "Подходящие API-ключи не найдены",
     "Search key name or masked key": "Поиск по имени или маске ключа",
     "Try another key name or masked key.": "Попробуйте другое имя или маску ключа.",
-    "{{count}} keys": "Ключей: {{count}}"
+    "{{count}} keys": "Ключей: {{count}}",
+    "Daily Quota": "Ежедневная квота",
+    "Quota Mode": "Режим квоты",
+    "Restores to the configured quota every day at 00:00; unused quota does not roll over": "Каждый день в 00:00 квота восстанавливается до заданного значения; неиспользованный остаток не переносится"
   }
 }

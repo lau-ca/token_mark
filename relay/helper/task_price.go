@@ -49,16 +49,43 @@ func modelPriceHelperTaskTiered(c *gin.Context, info *relaycommon.RelayInfo, exp
 	if err != nil {
 		return types.PriceData{}, fmt.Errorf("resolve normalized task billing request: %w", err)
 	}
+	duration, err := relaycommon.ResolveTaskDuration(taskRequest)
+	if err != nil {
+		return types.PriceData{}, fmt.Errorf("resolve normalized task billing duration: %w", err)
+	}
 
-	requestInput, err := BuildBillingExprRequestInputFromRequest(struct {
-		Model      string `json:"model"`
-		Resolution string `json:"resolution,omitempty"`
-		Duration   int    `json:"duration,omitempty"`
-	}{
+	type normalizedTaskBillingRequest struct {
+		Model             string `json:"model"`
+		Operation         string `json:"operation,omitempty"`
+		Resolution        string `json:"resolution,omitempty"`
+		Duration          int    `json:"duration,omitempty"`
+		Mode              string `json:"mode,omitempty"`
+		Sound             *bool  `json:"sound,omitempty"`
+		HasReferenceVideo *bool  `json:"has_reference_video,omitempty"`
+		HasVoice          *bool  `json:"has_voice,omitempty"`
+	}
+	normalizedRequest := normalizedTaskBillingRequest{
 		Model:      info.OriginModelName,
 		Resolution: taskRequest.Resolution,
-		Duration:   taskRequest.Duration,
-	}, info.RequestHeaders)
+		Duration:   duration,
+		Mode:       taskRequest.Mode,
+	}
+	if info.ChannelType == constant.ChannelTypeBaiduV2 && taskRequest.Metadata != nil {
+		if operation, ok := taskRequest.Metadata["qianfan_operation"].(string); ok {
+			normalizedRequest.Operation = operation
+		}
+		if sound, ok := taskRequest.Metadata["qianfan_sound"].(bool); ok {
+			normalizedRequest.Sound = &sound
+		}
+		if hasReferenceVideo, ok := taskRequest.Metadata["qianfan_has_reference_video"].(bool); ok {
+			normalizedRequest.HasReferenceVideo = &hasReferenceVideo
+		}
+		if hasVoice, ok := taskRequest.Metadata["qianfan_has_voice"].(bool); ok {
+			normalizedRequest.HasVoice = &hasVoice
+		}
+	}
+
+	requestInput, err := BuildBillingExprRequestInputFromRequest(normalizedRequest, info.RequestHeaders)
 	if err != nil {
 		return types.PriceData{}, fmt.Errorf("build normalized task billing request: %w", err)
 	}

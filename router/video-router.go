@@ -8,6 +8,20 @@ import (
 )
 
 func SetVideoRouter(router *gin.Engine) {
+	qianfanVideoRouter := router.Group("/qianfan/v1")
+	qianfanVideoRouter.Use(middleware.RouteTag("relay"))
+	qianfanVideoRouter.Use(middleware.TokenAuth(), middleware.Distribute())
+	{
+		qianfanVideoRouter.POST("/videos", controller.RelayTask)
+	}
+
+	seedanceAssetRouter := router.Group("/volc")
+	seedanceAssetRouter.Use(middleware.RouteTag("relay"))
+	seedanceAssetRouter.Use(middleware.TokenAuth())
+	{
+		seedanceAssetRouter.POST("/ark", controller.SeedanceAssetProxy)
+	}
+
 	// Video proxy: accepts either session auth (dashboard) or token auth (API clients)
 	videoProxyRouter := router.Group("/v1")
 	videoProxyRouter.Use(middleware.RouteTag("relay"))
