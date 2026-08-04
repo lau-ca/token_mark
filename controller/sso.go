@@ -3,7 +3,6 @@ package controller
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"net/url"
 	"sync"
@@ -12,7 +11,6 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
-	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
 )
@@ -79,9 +77,8 @@ func IssueSSOCode(c *gin.Context) {
 		return
 	}
 
-	session := sessions.Default(c)
-	userID, ok := session.Get("id").(int)
-	if !ok || userID == 0 {
+	userID := c.GetInt("id")
+	if userID == 0 {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"success": false,
 			"message": common.TranslateMessage(c, i18n.MsgAuthNotLoggedIn),
@@ -106,120 +103,6 @@ func IssueSSOCode(c *gin.Context) {
 			"expires_at":   result.ExpiresAt,
 		},
 	})
-}
-
-func StartSSO(c *gin.Context) {
-	client := c.Query("client")
-	if client == "" {
-		client = "image"
-	}
-	returnTo := c.Query("return_to")
-	if client != "image" || returnTo == "" {
-		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
-		return
-	}
-	if err := common.ValidateRedirectURL(returnTo); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
-		return
-	}
-
-	session := sessions.Default(c)
-	userID, ok := session.Get("id").(int)
-	if !ok || userID == 0 {
-		renderSSOStartBridge(c, client, returnTo)
-		return
-	}
-
-	result, err := issueSSORedirectURL(userID, client, returnTo)
-	if err != nil {
-		if errors.Is(err, errSSOUserDisabled) {
-			common.ApiErrorI18n(c, i18n.MsgAuthUserBanned)
-			return
-		}
-		common.ApiError(c, err)
-		return
-	}
-	c.Redirect(http.StatusFound, result.RedirectURL)
-}
-
-func renderSSOStartBridge(c *gin.Context, client string, returnTo string) {
-	clientJSON, err := common.Marshal(client)
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
-	returnToJSON, err := common.Marshal(returnTo)
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
-	redirectPath := "/sso/start?client=" + url.QueryEscape(client) + "&return_to=" + url.QueryEscape(returnTo)
-	loginURLJSON, err := common.Marshal("/login?redirect=" + url.QueryEscape(redirectPath))
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
-
-	html := fmt.Sprintf(`<!doctype html>
-<html lang="zh">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>XoModel</title>
-</head>
-<body>
-  <script>
-    (async function () {
-      const client = %s;
-      const returnTo = %s;
-      const loginUrl = %s;
-
-      function goLogin() {
-        window.location.replace(loginUrl);
-      }
-
-      let userId = "";
-      try {
-        const rawUser = window.localStorage.getItem("user");
-        const user = rawUser ? JSON.parse(rawUser) : null;
-        if (user && user.id) userId = String(user.id);
-      } catch (_) {}
-
-      if (!userId) {
-        goLogin();
-        return;
-      }
-
-      try {
-        const response = await fetch("/api/sso/issue", {
-          method: "POST",
-          credentials: "same-origin",
-          headers: {
-            "Content-Type": "application/json",
-            "New-Api-User": userId,
-            "New-API-User": userId
-          },
-          body: JSON.stringify({ client, return_to: returnTo })
-        });
-        const payload = await response.json().catch(function () { return null; });
-        const redirectUrl = payload && payload.success && payload.data && payload.data.redirect_url;
-        if (redirectUrl) {
-          window.location.replace(redirectUrl);
-          return;
-        }
-      } catch (_) {}
-
-      goLogin();
-    })();
-  </script>
-</body>
-</html>`, clientJSON, returnToJSON, loginURLJSON)
-
-	c.Header("Cache-Control", "no-store")
-	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(html))
 }
 
 func ExchangeSSOCode(c *gin.Context) {
@@ -277,9 +160,8 @@ func ExchangeSSOCode(c *gin.Context) {
 }
 
 func GetSSOSession(c *gin.Context) {
-	session := sessions.Default(c)
-	userID, ok := session.Get("id").(int)
-	if !ok || userID == 0 {
+	userID := c.GetInt("id")
+	if userID == 0 {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"success": false,
 			"message": common.TranslateMessage(c, i18n.MsgAuthNotLoggedIn),

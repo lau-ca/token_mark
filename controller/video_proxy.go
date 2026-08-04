@@ -14,7 +14,6 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
@@ -69,14 +68,14 @@ func VideoProxy(c *gin.Context) {
 		return
 	}
 	replaceVideoURLsWithProxy := false
-	if dto.SupportsVideoURLProxyReplacement(channel.Type) {
+	if constant.SupportsVideoURLProxyReplacement(channel.Type) {
 		channelOtherSettings, settingsErr := channel.ParseOtherSettings()
 		if settingsErr != nil {
 			logger.LogError(c.Request.Context(), fmt.Sprintf("Failed to parse channel settings for task %s: %s", taskID, settingsErr.Error()))
 			videoProxyError(c, http.StatusInternalServerError, "server_error", "Failed to retrieve channel information")
 			return
 		}
-		replaceVideoURLsWithProxy = channelOtherSettings.ShouldReplaceVideoURLs(channel.Type)
+		replaceVideoURLsWithProxy = channelOtherSettings.ReplaceVideoURLsWithProxy
 	}
 	if replaceVideoURLsWithProxy {
 		c.Writer.Header().Set("Cache-Control", "private, no-store")

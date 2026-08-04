@@ -6,9 +6,11 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/constant"
+	taskdto "github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 )
 
 var videoURLInTextPattern = regexp.MustCompile(`(?i)(?:(?:https?|s3|gs|oss|tos)://|//|data:)[^\s"'<>]+`)
@@ -17,14 +19,14 @@ func resolveVideoResponsePrivacy(channel *model.Channel) (bool, error) {
 	if channel == nil {
 		return false, nil
 	}
-	if !dto.SupportsVideoURLProxyReplacement(channel.Type) {
+	if !constant.SupportsVideoURLProxyReplacement(channel.Type) {
 		return false, nil
 	}
 	settings, err := channel.ParseOtherSettings()
 	if err != nil {
 		return false, err
 	}
-	return settings.ShouldReplaceVideoURLs(channel.Type), nil
+	return settings.ReplaceVideoURLsWithProxy, nil
 }
 
 func ShouldResolveVideoPrivacyChannel(task *model.Task) bool {
@@ -35,7 +37,7 @@ func ShouldResolveVideoPrivacyChannel(task *model.Task) bool {
 		return true
 	}
 	channelType, err := strconv.Atoi(string(task.Platform))
-	return err == nil && dto.SupportsVideoURLProxyReplacement(channelType)
+	return err == nil && constant.SupportsVideoURLProxyReplacement(channelType)
 }
 
 func ApplyVideoResponsePrivacy(response []byte, task *model.Task, channel *model.Channel) ([]byte, error) {
@@ -78,7 +80,7 @@ func applyOpenAIVideoPrivacy(video *dto.OpenAIVideo, task *model.Task, proxyURL 
 	}
 }
 
-func TaskModel2UserDto(task *model.Task, channel *model.Channel) *dto.TaskDto {
+func TaskModel2UserDto(task *model.Task, channel *model.Channel) *taskdto.TaskDto {
 	taskDto := TaskModel2Dto(task)
 	enabled, settingsErr := resolveVideoResponsePrivacy(channel)
 	if channel != nil && settingsErr == nil && !enabled {

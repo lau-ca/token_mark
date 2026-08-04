@@ -3,15 +3,13 @@ package helper
 import (
 	"bytes"
 	"io"
-	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
-	"github.com/QuantumNous/new-api/types"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/require"
@@ -62,75 +60,4 @@ func TestBuildBillingExprRequestInputFromRequest(t *testing.T) {
 	require.True(t, gjson.GetBytes(input.Body, "stream").Bool())
 	require.Equal(t, "user", gjson.GetBytes(input.Body, "messages.0.role").String())
 	require.Equal(t, float64(3000), gjson.GetBytes(input.Body, "max_tokens").Float())
-}
-
-func TestBuildBillingExprRequestInputFromTask(t *testing.T) {
-	request := &relaycommon.TaskSubmitReq{
-		Model:      "videos-standard",
-		Resolution: "4k",
-		Duration:   15,
-	}
-
-	input, err := BuildBillingExprRequestInputFromRequest(request, map[string]string{
-		"X-Test": "value",
-	})
-	require.NoError(t, err)
-	require.Equal(t, "videos-standard", gjson.GetBytes(input.Body, "model").String())
-	require.Equal(t, "4k", gjson.GetBytes(input.Body, "resolution").String())
-	require.Equal(t, int64(15), gjson.GetBytes(input.Body, "duration").Int())
-	require.Equal(t, "value", input.Headers["X-Test"])
-}
-
-func TestBuildBillingExprRequestInputFromImageGenerationRequest(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	c, _ := gin.CreateTestContext(httptest.NewRecorder())
-	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader([]byte(`{
-		"model": "gpt-image-2",
-		"prompt": "draw a cat",
-		"size": "1536x864",
-		"n": 2
-	}`)))
-	c.Request.Header.Set("Content-Type", "application/json")
-	body, err := io.ReadAll(c.Request.Body)
-	require.NoError(t, err)
-	c.Set(common.KeyRequestBody, body)
-
-	request, err := GetAndValidateRequest(c, types.RelayFormatOpenAIImage)
-	require.NoError(t, err)
-	input, err := BuildBillingExprRequestInputFromRequest(request, map[string]string{
-		"Content-Type": "application/json",
-	})
-	require.NoError(t, err)
-	require.Equal(t, "1536x864", gjson.GetBytes(input.Body, "size").String())
-	require.Equal(t, float64(2), gjson.GetBytes(input.Body, "n").Float())
-}
-
-func TestBuildBillingExprRequestInputFromImageEditMultipartRequest(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	var body bytes.Buffer
-	writer := multipart.NewWriter(&body)
-	require.NoError(t, writer.WriteField("model", "gpt-image-2"))
-	require.NoError(t, writer.WriteField("prompt", "edit this image"))
-	require.NoError(t, writer.WriteField("size", "2560x1600"))
-	require.NoError(t, writer.WriteField("n", "3"))
-	part, err := writer.CreateFormFile("image", "input.png")
-	require.NoError(t, err)
-	_, err = part.Write([]byte("fake image"))
-	require.NoError(t, err)
-	require.NoError(t, writer.Close())
-
-	c, _ := gin.CreateTestContext(httptest.NewRecorder())
-	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/edits", &body)
-	c.Request.Header.Set("Content-Type", writer.FormDataContentType())
-
-	request, err := GetAndValidateRequest(c, types.RelayFormatOpenAIImage)
-	require.NoError(t, err)
-	input, err := BuildBillingExprRequestInputFromRequest(request, map[string]string{
-		"Content-Type": c.Request.Header.Get("Content-Type"),
-	})
-	require.NoError(t, err)
-	require.Equal(t, "2560x1600", gjson.GetBytes(input.Body, "size").String())
-	require.Equal(t, float64(3), gjson.GetBytes(input.Body, "n").Float())
 }

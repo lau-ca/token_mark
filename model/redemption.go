@@ -193,7 +193,7 @@ func Redeem(key string, userId int) (result *RedemptionRedeemResult, err error) 
 		return nil, ErrRedeemFailed
 	}
 	if result.subscriptionUpgradeGroup != "" {
-		_ = UpdateUserGroupCache(userId, result.subscriptionUpgradeGroup)
+		_ = InvalidateUserCache(userId)
 	}
 	if msg := result.LogMessage(redemption.Id); msg != "" {
 		RecordLog(userId, LogTypeTopup, msg)
