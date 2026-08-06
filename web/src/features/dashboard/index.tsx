@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { getRouteApi, useNavigate } from '@tanstack/react-router'
-import { Eye, EyeOff, RefreshCw } from 'lucide-react'
+import { Download, Eye, EyeOff, LoaderCircle, RefreshCw } from 'lucide-react'
 import {
   useState,
   useCallback,
@@ -40,21 +40,28 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { ROLE } from '@/lib/roles'
+import { computeTimeRange } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth-store'
 
-import { syncQuotaData } from './api'
+import { getUserKeyUsageExport, syncQuotaData } from './api'
 import { ModelsChartPreferences } from './components/models/models-chart-preferences'
 import { ModelsFilter } from './components/models/models-filter-dialog'
 import { OverviewDashboard } from './components/overview/overview-dashboard'
 import { DEFAULT_TIME_GRANULARITY } from './constants'
 import {
   buildDefaultDashboardFilters,
+  buildQueryParams,
   getDefaultDays,
   getSavedChartPreferences,
   getSavedGranularity,
   saveChartPreferences,
 } from './lib'
+import {
+  buildKeyUsageExportFileName,
+  buildKeyUsageExportReport,
+} from './lib/key-usage-export'
+import { downloadKeyUsageWorkbook } from './lib/key-usage-workbook'
 import {
   type DashboardSectionId,
   DASHBOARD_DEFAULT_SECTION,
@@ -213,7 +220,8 @@ export function Dashboard() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const params = route.useParams()
-  const userRole = useAuthStore((state) => state.auth.user?.role)
+  const authUser = useAuthStore((state) => state.auth.user)
+  const userRole = authUser?.role
   const activeSection = (params.section ??
     DASHBOARD_DEFAULT_SECTION) as DashboardSectionId
 
@@ -236,6 +244,7 @@ export function Dashboard() {
   )
   const [flowSensitiveVisible, setFlowSensitiveVisible] = useState(true)
   const [syncing, setSyncing] = useState(false)
+  const [exportingKeyUsage, setExportingKeyUsage] = useState(false)
   const [modelRefreshKey, setModelRefreshKey] = useState(0)
 
   const handleSyncQuotaData = useCallback(async () => {
@@ -262,6 +271,47 @@ export function Dashboard() {
   const handleResetFilters = useCallback(() => {
     setModelFilters(buildDefaultDashboardFilters(chartPreferences))
   }, [chartPreferences])
+
+  const handleExportKeyUsage = useCallback(async () => {
+    if (!authUser) return
+    setExportingKeyUsage(true)
+    try {
+      const timeRange = computeTimeRange(
+        getDefaultDays(modelFilters.time_granularity),
+        modelFilters.start_timestamp,
+        modelFilters.end_timestamp
+      )
+      const queryParams = buildQueryParams(timeRange, modelFilters)
+      const response = await getUserKeyUsageExport({
+        start_timestamp: queryParams.start_timestamp,
+        end_timestamp: queryParams.end_timestamp,
+      })
+      if (!response.success || !response.data) {
+        toast.error(response.message || t('Failed to export Key usage report'))
+        return
+      }
+      const report = buildKeyUsageExportReport(response.data, {
+        deletedKey: (tokenId) => t('Deleted Key ({{id}})', { id: tokenId }),
+        unnamedKey: (tokenId) => t('Key {{id}}', { id: tokenId }),
+        unknownModel: t('Unknown model'),
+      })
+      await downloadKeyUsageWorkbook({
+        report,
+        username: authUser.username,
+        fileName: buildKeyUsageExportFileName(
+          t('Key Usage Report'),
+          authUser.username,
+          report.start_timestamp,
+          report.end_timestamp
+        ),
+      })
+      toast.success(t('Key usage report exported'))
+    } catch {
+      toast.error(t('Failed to export Key usage report'))
+    } finally {
+      setExportingKeyUsage(false)
+    }
+  }, [authUser, modelFilters, t])
 
   const handleDataUpdate = useCallback(
     (data: QuotaDataItem[], loading: boolean) => {
@@ -386,14 +436,30 @@ export function Dashboard() {
     ) : null
   const keyActions =
     activeSection === 'keys' && isUser ? (
-      <ModelsFilter
-        preferences={chartPreferences}
-        currentFilters={modelFilters}
-        onFilterChange={handleFilterChange}
-        onReset={handleResetFilters}
-        titleKey='Key Usage Filters'
-        descriptionKey='Filter Key usage analytics by time range.'
-      />
+      <>
+        <Button
+          variant='outline'
+          size='sm'
+          onClick={handleExportKeyUsage}
+          disabled={exportingKeyUsage}
+          aria-label={t('Export Report')}
+        >
+          {exportingKeyUsage ? (
+            <LoaderCircle className='animate-spin' />
+          ) : (
+            <Download />
+          )}
+          {exportingKeyUsage ? t('Exporting...') : t('Export Report')}
+        </Button>
+        <ModelsFilter
+          preferences={chartPreferences}
+          currentFilters={modelFilters}
+          onFilterChange={handleFilterChange}
+          onReset={handleResetFilters}
+          titleKey='Key Usage Filters'
+          descriptionKey='Filter Key usage analytics by time range.'
+        />
+      </>
     ) : null
   const sectionActions = modelActions ?? flowActions ?? keyActions
 

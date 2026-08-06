@@ -165,3 +165,34 @@ func GetUserKeyQuotaDates(c *gin.Context) {
 		"data":    data,
 	})
 }
+
+func GetUserKeyUsageExport(c *gin.Context) {
+	userId := c.GetInt("id")
+	startTimestamp, endTimestamp, ok := parseQuotaTimeRange(c)
+	if !ok {
+		return
+	}
+	if endTimestamp-startTimestamp > 2592000 {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "时间跨度不能超过 1 个月",
+		})
+		return
+	}
+	data, err := model.GetUserKeyUsageExport(userId, startTimestamp, endTimestamp)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data": gin.H{
+			"generated_at":    common.GetTimestamp(),
+			"start_timestamp": startTimestamp,
+			"end_timestamp":   endTimestamp,
+			"keys":            data.Keys,
+			"models":          data.Models,
+		},
+	})
+}

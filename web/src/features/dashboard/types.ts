@@ -70,6 +70,43 @@ export interface AggregatedKeyUsage {
   share: number
 }
 
+export interface KeyUsageExportKey {
+  token_id: number
+  token_name: string
+  masked_key: string
+  token_status: number
+  request_count: number
+  prompt_tokens: number
+  completion_tokens: number
+  total_tokens: number
+  quota: number
+  model_count: number
+  last_used_at: number
+  deleted: boolean
+}
+
+export interface KeyUsageExportModel {
+  token_id: number
+  token_name: string
+  masked_key: string
+  model_name: string
+  request_count: number
+  prompt_tokens: number
+  completion_tokens: number
+  total_tokens: number
+  quota: number
+  last_used_at: number
+  deleted: boolean
+}
+
+export interface KeyUsageExportData {
+  generated_at: number
+  start_timestamp: number
+  end_timestamp: number
+  keys: KeyUsageExportKey[]
+  models: KeyUsageExportModel[]
+}
+
 export type FlowMetric = 'quota' | 'tokens' | 'requests'
 
 export type FlowOverflowMode = 'aggregate' | 'hide'
