@@ -46,7 +46,7 @@ func GetUserKeyUsageExport(userID int, startTime int64, endTime int64) (*KeyUsag
 
 	var tokens []Token
 	if err := DB.Model(&Token{}).
-		Select("id, user_id, key, name, status").
+		Select("id, user_id, key, name, status, accessed_time").
 		Where("user_id = ?", userID).
 		Find(&tokens).Error; err != nil {
 		return nil, err
@@ -78,6 +78,9 @@ func GetUserKeyUsageExport(userID int, startTime int64, endTime int64) (*KeyUsag
 			}
 			if token, exists := tokenByID[row.TokenID]; exists {
 				key.TokenStatus = token.Status
+				if token.AccessedTime >= startTime && token.AccessedTime <= endTime {
+					key.LastUsedAt = token.AccessedTime
+				}
 			}
 			keyByID[row.TokenID] = key
 		}

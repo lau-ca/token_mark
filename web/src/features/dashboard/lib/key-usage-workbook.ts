@@ -49,6 +49,20 @@ const INTEGER_FORMAT = '#,##0;[Red](#,##0);-'
 const PERCENT_FORMAT = '0.0%;[Red](0.0%);-'
 const DATE_FORMAT = 'yyyy-mm-dd hh:mm:ss'
 
+function toExcelLocalDate(timestamp: number) {
+  const date = new Date(timestamp * 1000)
+  return new Date(
+    Date.UTC(
+      date.getFullYear(),
+      date.getMonth(),
+      date.getDate(),
+      date.getHours(),
+      date.getMinutes(),
+      date.getSeconds()
+    )
+  )
+}
+
 function applyTableHeader(row: import('exceljs').Row) {
   row.height = 25
   row.eachCell((cell) => {
@@ -205,7 +219,7 @@ function addKeySummarySheet(
         result: item.share,
       },
       item.model_count,
-      item.last_used_at > 0 ? new Date(item.last_used_at * 1000) : null,
+      item.last_used_at > 0 ? toExcelLocalDate(item.last_used_at) : null,
       item.quota,
     ]
     applyDataRow(row, index % 2 === 1)
@@ -310,7 +324,7 @@ function addModelDetailsSheet(
         formula: `IFERROR(G${rowNumber}/SUMIF($A$${firstDataRow}:$A$${lastDataRow},A${rowNumber},$G$${firstDataRow}:$G$${lastDataRow}),0)`,
         result: item.key_share,
       },
-      item.last_used_at > 0 ? new Date(item.last_used_at * 1000) : null,
+      item.last_used_at > 0 ? toExcelLocalDate(item.last_used_at) : null,
       item.quota,
     ]
     applyDataRow(row, index % 2 === 1)

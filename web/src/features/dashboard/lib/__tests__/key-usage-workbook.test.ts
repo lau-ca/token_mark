@@ -99,6 +99,18 @@ describe('Key usage workbook', () => {
       formula: 'IFERROR(G6/SUM($G$6:$G$6),0)',
       result: 1,
     })
+    const expectedLastUsed = new Date(report.keys[0].last_used_at * 1000)
+    assert.equal(
+      (keySummary.getCell('J6').value as Date).getTime(),
+      Date.UTC(
+        expectedLastUsed.getFullYear(),
+        expectedLastUsed.getMonth(),
+        expectedLastUsed.getDate(),
+        expectedLastUsed.getHours(),
+        expectedLastUsed.getMinutes(),
+        expectedLastUsed.getSeconds()
+      )
+    )
     assert.equal(modelDetails.getCell('F6').value, 200)
     assert.equal(keySummary.getCell('A5').font.bold, true)
     assert.equal(overview.getCell('A1').value, 'Key Usage Report')
