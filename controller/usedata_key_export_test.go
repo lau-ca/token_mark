@@ -41,7 +41,7 @@ func setupKeyUsageExportControllerTestDB(t *testing.T) {
 	require.NoError(t, err)
 	model.DB = db
 	model.LOG_DB = db
-	require.NoError(t, db.AutoMigrate(&model.Token{}, &model.Log{}))
+	require.NoError(t, db.AutoMigrate(&model.Token{}, &model.QuotaData{}))
 	t.Cleanup(func() {
 		model.DB = originalDB
 		model.LOG_DB = originalLogDB
@@ -65,27 +65,23 @@ func setupKeyUsageExportControllerTestDB(t *testing.T) {
 		Name:   "other",
 		Status: common.TokenStatusEnabled,
 	}).Error)
-	require.NoError(t, model.LOG_DB.Create(&model.Log{
-		UserId:           1,
-		Type:             model.LogTypeConsume,
-		TokenId:          11,
-		TokenName:        "primary",
-		ModelName:        "gpt-5",
-		PromptTokens:     100,
-		CompletionTokens: 20,
-		Quota:            300,
-		CreatedAt:        1200,
+	require.NoError(t, model.DB.Create(&model.QuotaData{
+		UserID:    1,
+		TokenID:   11,
+		ModelName: "gpt-5",
+		Count:     1,
+		TokenUsed: 120,
+		Quota:     300,
+		CreatedAt: 1200,
 	}).Error)
-	require.NoError(t, model.LOG_DB.Create(&model.Log{
-		UserId:           2,
-		Type:             model.LogTypeConsume,
-		TokenId:          22,
-		TokenName:        "other",
-		ModelName:        "gpt-5",
-		PromptTokens:     900,
-		CompletionTokens: 90,
-		Quota:            900,
-		CreatedAt:        1300,
+	require.NoError(t, model.DB.Create(&model.QuotaData{
+		UserID:    2,
+		TokenID:   22,
+		ModelName: "gpt-5",
+		Count:     1,
+		TokenUsed: 990,
+		Quota:     900,
+		CreatedAt: 1300,
 	}).Error)
 }
 

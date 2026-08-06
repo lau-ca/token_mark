@@ -76,8 +76,6 @@ export interface KeyUsageExportKey {
   masked_key: string
   token_status: number
   request_count: number
-  prompt_tokens: number
-  completion_tokens: number
   total_tokens: number
   quota: number
   model_count: number
@@ -91,8 +89,6 @@ export interface KeyUsageExportModel {
   masked_key: string
   model_name: string
   request_count: number
-  prompt_tokens: number
-  completion_tokens: number
   total_tokens: number
   quota: number
   last_used_at: number

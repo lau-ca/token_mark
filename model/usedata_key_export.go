@@ -3,32 +3,28 @@ package model
 import "sort"
 
 type KeyUsageExportKey struct {
-	TokenID          int    `json:"token_id"`
-	TokenName        string `json:"token_name"`
-	MaskedKey        string `json:"masked_key"`
-	TokenStatus      int    `json:"token_status"`
-	RequestCount     int    `json:"request_count"`
-	PromptTokens     int    `json:"prompt_tokens"`
-	CompletionTokens int    `json:"completion_tokens"`
-	TotalTokens      int    `json:"total_tokens"`
-	Quota            int    `json:"quota"`
-	ModelCount       int    `json:"model_count"`
-	LastUsedAt       int64  `json:"last_used_at"`
-	Deleted          bool   `json:"deleted"`
+	TokenID      int    `json:"token_id"`
+	TokenName    string `json:"token_name"`
+	MaskedKey    string `json:"masked_key"`
+	TokenStatus  int    `json:"token_status"`
+	RequestCount int    `json:"request_count"`
+	TotalTokens  int    `json:"total_tokens"`
+	Quota        int    `json:"quota"`
+	ModelCount   int    `json:"model_count"`
+	LastUsedAt   int64  `json:"last_used_at"`
+	Deleted      bool   `json:"deleted"`
 }
 
 type KeyUsageExportModel struct {
-	TokenID          int    `json:"token_id" gorm:"column:token_id"`
-	TokenName        string `json:"token_name" gorm:"column:token_name"`
-	MaskedKey        string `json:"masked_key" gorm:"-"`
-	ModelName        string `json:"model_name" gorm:"column:model_name"`
-	RequestCount     int    `json:"request_count" gorm:"column:request_count"`
-	PromptTokens     int    `json:"prompt_tokens" gorm:"column:prompt_tokens"`
-	CompletionTokens int    `json:"completion_tokens" gorm:"column:completion_tokens"`
-	TotalTokens      int    `json:"total_tokens" gorm:"-"`
-	Quota            int    `json:"quota" gorm:"column:quota"`
-	LastUsedAt       int64  `json:"last_used_at" gorm:"column:last_used_at"`
-	Deleted          bool   `json:"deleted" gorm:"-"`
+	TokenID      int    `json:"token_id" gorm:"column:token_id"`
+	TokenName    string `json:"token_name" gorm:"-"`
+	MaskedKey    string `json:"masked_key" gorm:"-"`
+	ModelName    string `json:"model_name" gorm:"column:model_name"`
+	RequestCount int    `json:"request_count" gorm:"column:request_count"`
+	TotalTokens  int    `json:"total_tokens" gorm:"column:total_tokens"`
+	Quota        int    `json:"quota" gorm:"column:quota"`
+	LastUsedAt   int64  `json:"last_used_at" gorm:"column:last_used_at"`
+	Deleted      bool   `json:"deleted" gorm:"-"`
 }
 
 type KeyUsageExportData struct {
@@ -38,9 +34,9 @@ type KeyUsageExportData struct {
 
 func GetUserKeyUsageExport(userID int, startTime int64, endTime int64) (*KeyUsageExportData, error) {
 	models := make([]KeyUsageExportModel, 0)
-	err := LOG_DB.Model(&Log{}).
-		Select("token_id, MAX(token_name) AS token_name, model_name, COUNT(*) AS request_count, COALESCE(SUM(prompt_tokens), 0) AS prompt_tokens, COALESCE(SUM(completion_tokens), 0) AS completion_tokens, COALESCE(SUM(quota), 0) AS quota, MAX(created_at) AS last_used_at").
-		Where("user_id = ? AND type = ? AND token_id > 0", userID, LogTypeConsume).
+	err := DB.Table("quota_data").
+		Select("token_id, model_name, COALESCE(SUM(count), 0) AS request_count, COALESCE(SUM(token_used), 0) AS total_tokens, COALESCE(SUM(quota), 0) AS quota, MAX(created_at) AS last_used_at").
+		Where("user_id = ? AND token_id > 0", userID).
 		Where("created_at >= ? AND created_at <= ?", startTime, endTime).
 		Group("token_id, model_name").
 		Find(&models).Error
@@ -64,7 +60,6 @@ func GetUserKeyUsageExport(userID int, startTime int64, endTime int64) (*KeyUsag
 	keyByID := make(map[int]*KeyUsageExportKey, len(tokens)+len(models))
 	for index := range models {
 		row := &models[index]
-		row.TotalTokens = row.PromptTokens + row.CompletionTokens
 		if token, exists := tokenByID[row.TokenID]; exists {
 			row.TokenName = token.Name
 			row.MaskedKey = token.GetMaskedKey()
@@ -87,8 +82,6 @@ func GetUserKeyUsageExport(userID int, startTime int64, endTime int64) (*KeyUsag
 			keyByID[row.TokenID] = key
 		}
 		key.RequestCount += row.RequestCount
-		key.PromptTokens += row.PromptTokens
-		key.CompletionTokens += row.CompletionTokens
 		key.TotalTokens += row.TotalTokens
 		key.Quota += row.Quota
 		if row.ModelName != "" {

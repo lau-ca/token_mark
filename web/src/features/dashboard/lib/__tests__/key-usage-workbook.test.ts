@@ -36,8 +36,6 @@ const report: KeyUsageExportReport = {
       masked_key: 'prim****key',
       token_status: 1,
       request_count: 2,
-      prompt_tokens: 150,
-      completion_tokens: 50,
       total_tokens: 200,
       quota: 500_000,
       model_count: 1,
@@ -53,8 +51,6 @@ const report: KeyUsageExportReport = {
       masked_key: 'prim****key',
       model_name: 'gpt-5',
       request_count: 2,
-      prompt_tokens: 150,
-      completion_tokens: 50,
       total_tokens: 200,
       quota: 500_000,
       last_used_at: 1_785_700_000,
@@ -66,8 +62,6 @@ const report: KeyUsageExportReport = {
     active_keys: 1,
     model_count: 1,
     request_count: 2,
-    prompt_tokens: 150,
-    completion_tokens: 50,
     total_tokens: 200,
     quota: 500_000,
   },
@@ -82,7 +76,9 @@ describe('Key usage workbook', () => {
       fileName: 'report.xlsx',
     })
     const workbook = new Workbook()
-    await workbook.xlsx.load(bytes)
+    await workbook.xlsx.load(
+      bytes as unknown as Parameters<typeof workbook.xlsx.load>[0]
+    )
 
     assert.deepEqual(
       workbook.worksheets.map((sheet) => sheet.name),
@@ -94,20 +90,16 @@ describe('Key usage workbook', () => {
     assert.ok(overview)
     assert.ok(keySummary)
     assert.ok(modelDetails)
-    assert.equal(keySummary.views[0]?.ySplit, 5)
-    assert.equal(keySummary.autoFilter?.toString(), 'A5:M6')
+    const [keySummaryView] = keySummary.views
+    assert.ok(keySummaryView && keySummaryView.state === 'frozen')
+    assert.equal(keySummaryView.ySplit, 5)
+    assert.equal(keySummary.autoFilter?.toString(), 'A5:K6')
+    assert.equal(keySummary.getCell('F6').value, 200)
     assert.deepEqual(keySummary.getCell('H6').value, {
-      formula: 'SUM(F6:G6)',
-      result: 200,
-    })
-    assert.deepEqual(keySummary.getCell('J6').value, {
-      formula: 'IFERROR(I6/SUM($I$6:$I$6),0)',
+      formula: 'IFERROR(G6/SUM($G$6:$G$6),0)',
       result: 1,
     })
-    assert.deepEqual(modelDetails.getCell('H6').value, {
-      formula: 'SUM(F6:G6)',
-      result: 200,
-    })
+    assert.equal(modelDetails.getCell('F6').value, 200)
     assert.equal(keySummary.getCell('A5').font.bold, true)
     assert.equal(overview.getCell('A1').value, 'Key Usage Report')
   })

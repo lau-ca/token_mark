@@ -36,8 +36,6 @@ export interface KeyUsageExportTotals {
   active_keys: number
   model_count: number
   request_count: number
-  prompt_tokens: number
-  completion_tokens: number
   total_tokens: number
   quota: number
 }
@@ -80,8 +78,6 @@ export function buildKeyUsageExportReport(
         ...item,
         token_name: tokenName,
         request_count: Number(item.request_count) || 0,
-        prompt_tokens: Number(item.prompt_tokens) || 0,
-        completion_tokens: Number(item.completion_tokens) || 0,
         total_tokens: Number(item.total_tokens) || 0,
         quota,
         model_count: Number(item.model_count) || 0,
@@ -106,8 +102,6 @@ export function buildKeyUsageExportReport(
         token_name: tokenName,
         model_name: item.model_name || labels.unknownModel,
         request_count: Number(item.request_count) || 0,
-        prompt_tokens: Number(item.prompt_tokens) || 0,
-        completion_tokens: Number(item.completion_tokens) || 0,
         total_tokens: Number(item.total_tokens) || 0,
         quota: Number(item.quota) || 0,
         last_used_at: Number(item.last_used_at) || 0,
@@ -132,11 +126,6 @@ export function buildKeyUsageExportReport(
       active_keys: keys.filter((item) => item.request_count > 0).length,
       model_count: new Set(models.map((item) => item.model_name)).size,
       request_count: keys.reduce((sum, item) => sum + item.request_count, 0),
-      prompt_tokens: keys.reduce((sum, item) => sum + item.prompt_tokens, 0),
-      completion_tokens: keys.reduce(
-        (sum, item) => sum + item.completion_tokens,
-        0
-      ),
       total_tokens: keys.reduce((sum, item) => sum + item.total_tokens, 0),
       quota: totalQuota,
     },

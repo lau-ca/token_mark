@@ -167,7 +167,7 @@ function addKeySummarySheet(
     sheet,
     t('Key Usage Summary'),
     t('All API keys in the selected period, including keys with zero usage.'),
-    13
+    11
   )
   sheet.getRow(5).values = [
     t('Key ID'),
@@ -175,8 +175,6 @@ function addKeySummarySheet(
     t('Masked Key'),
     t('Status'),
     t('Requests'),
-    t('Input Tokens'),
-    t('Output Tokens'),
     t('Total Tokens'),
     amountLabel,
     t('Share'),
@@ -200,15 +198,10 @@ function addKeySummarySheet(
       item.masked_key || `ID ${item.token_id}`,
       getTokenStatusLabel(item.token_status, item.deleted),
       item.request_count,
-      item.prompt_tokens,
-      item.completion_tokens,
-      {
-        formula: `SUM(F${rowNumber}:G${rowNumber})`,
-        result: item.total_tokens,
-      },
+      item.total_tokens,
       quotaUnitsToDollars(item.quota),
       {
-        formula: `IFERROR(I${rowNumber}/SUM($I$${firstDataRow}:$I$${lastDataRow}),0)`,
+        formula: `IFERROR(G${rowNumber}/SUM($G$${firstDataRow}:$G$${lastDataRow}),0)`,
         result: item.share,
       },
       item.model_count,
@@ -217,22 +210,22 @@ function addKeySummarySheet(
     ]
     applyDataRow(row, index % 2 === 1)
     styleStatusCell(row.getCell(4), item.token_status, item.deleted)
-    for (const column of [1, 5, 6, 7, 8, 11, 13]) {
+    for (const column of [1, 5, 6, 9, 11]) {
       row.getCell(column).numFmt = INTEGER_FORMAT
       row.getCell(column).alignment = {
         vertical: 'middle',
         horizontal: 'right',
       }
     }
-    row.getCell(9).numFmt = getAmountFormat()
-    row.getCell(9).alignment = { vertical: 'middle', horizontal: 'right' }
-    row.getCell(10).numFmt = PERCENT_FORMAT
-    row.getCell(10).alignment = { vertical: 'middle', horizontal: 'right' }
-    row.getCell(12).numFmt = DATE_FORMAT
+    row.getCell(7).numFmt = getAmountFormat()
+    row.getCell(7).alignment = { vertical: 'middle', horizontal: 'right' }
+    row.getCell(8).numFmt = PERCENT_FORMAT
+    row.getCell(8).alignment = { vertical: 'middle', horizontal: 'right' }
+    row.getCell(10).numFmt = DATE_FORMAT
   }
 
   if (report.keys.length === 0) {
-    sheet.mergeCells(firstDataRow, 1, firstDataRow, 13)
+    sheet.mergeCells(firstDataRow, 1, firstDataRow, 11)
     const emptyCell = sheet.getCell(firstDataRow, 1)
     emptyCell.value = t('No data for the selected period.')
     emptyCell.alignment = { vertical: 'middle', horizontal: 'center' }
@@ -245,15 +238,13 @@ function addKeySummarySheet(
     sheet.getRow(firstDataRow).height = 34
   }
 
-  sheet.autoFilter = { from: 'A5', to: `M${lastDataRow}` }
+  sheet.autoFilter = { from: 'A5', to: `K${lastDataRow}` }
   sheet.columns = [
     { width: 10 },
     { width: 24 },
     { width: 24 },
     { width: 13 },
     { width: 13 },
-    { width: 16 },
-    { width: 16 },
     { width: 16 },
     { width: 20 },
     { width: 12 },
@@ -283,7 +274,7 @@ function addModelDetailsSheet(
     sheet,
     t('Key Model Details'),
     t('Usage is grouped by API key and model for the selected period.'),
-    12
+    10
   )
   sheet.getRow(5).values = [
     t('Key ID'),
@@ -291,8 +282,6 @@ function addModelDetailsSheet(
     t('Masked Key'),
     t('Model'),
     t('Requests'),
-    t('Input Tokens'),
-    t('Output Tokens'),
     t('Total Tokens'),
     amountLabel,
     t('Key Share'),
@@ -315,37 +304,32 @@ function addModelDetailsSheet(
       item.masked_key || `ID ${item.token_id}`,
       item.model_name,
       item.request_count,
-      item.prompt_tokens,
-      item.completion_tokens,
-      {
-        formula: `SUM(F${rowNumber}:G${rowNumber})`,
-        result: item.total_tokens,
-      },
+      item.total_tokens,
       quotaUnitsToDollars(item.quota),
       {
-        formula: `IFERROR(I${rowNumber}/SUMIF($A$${firstDataRow}:$A$${lastDataRow},A${rowNumber},$I$${firstDataRow}:$I$${lastDataRow}),0)`,
+        formula: `IFERROR(G${rowNumber}/SUMIF($A$${firstDataRow}:$A$${lastDataRow},A${rowNumber},$G$${firstDataRow}:$G$${lastDataRow}),0)`,
         result: item.key_share,
       },
       item.last_used_at > 0 ? new Date(item.last_used_at * 1000) : null,
       item.quota,
     ]
     applyDataRow(row, index % 2 === 1)
-    for (const column of [1, 5, 6, 7, 8, 12]) {
+    for (const column of [1, 5, 6, 10]) {
       row.getCell(column).numFmt = INTEGER_FORMAT
       row.getCell(column).alignment = {
         vertical: 'middle',
         horizontal: 'right',
       }
     }
-    row.getCell(9).numFmt = getAmountFormat()
-    row.getCell(9).alignment = { vertical: 'middle', horizontal: 'right' }
-    row.getCell(10).numFmt = PERCENT_FORMAT
-    row.getCell(10).alignment = { vertical: 'middle', horizontal: 'right' }
-    row.getCell(11).numFmt = DATE_FORMAT
+    row.getCell(7).numFmt = getAmountFormat()
+    row.getCell(7).alignment = { vertical: 'middle', horizontal: 'right' }
+    row.getCell(8).numFmt = PERCENT_FORMAT
+    row.getCell(8).alignment = { vertical: 'middle', horizontal: 'right' }
+    row.getCell(9).numFmt = DATE_FORMAT
   }
 
   if (report.models.length === 0) {
-    sheet.mergeCells(firstDataRow, 1, firstDataRow, 12)
+    sheet.mergeCells(firstDataRow, 1, firstDataRow, 10)
     const emptyCell = sheet.getCell(firstDataRow, 1)
     emptyCell.value = t('No model usage data for the selected period.')
     emptyCell.alignment = { vertical: 'middle', horizontal: 'center' }
@@ -358,15 +342,13 @@ function addModelDetailsSheet(
     sheet.getRow(firstDataRow).height = 34
   }
 
-  sheet.autoFilter = { from: 'A5', to: `L${lastDataRow}` }
+  sheet.autoFilter = { from: 'A5', to: `J${lastDataRow}` }
   sheet.columns = [
     { width: 10 },
     { width: 24 },
     { width: 24 },
     { width: 28 },
     { width: 13 },
-    { width: 16 },
-    { width: 16 },
     { width: 16 },
     { width: 20 },
     { width: 13 },
@@ -448,26 +430,14 @@ function addOverviewSheet(
       format: INTEGER_FORMAT,
     },
     {
-      label: t('Input Tokens'),
-      formula: `SUM('${safeSheetName}'!F${firstKeyRow}:F${lastKeyRow})`,
-      result: report.totals.prompt_tokens,
-      format: INTEGER_FORMAT,
-    },
-    {
-      label: t('Output Tokens'),
-      formula: `SUM('${safeSheetName}'!G${firstKeyRow}:G${lastKeyRow})`,
-      result: report.totals.completion_tokens,
-      format: INTEGER_FORMAT,
-    },
-    {
       label: t('Total Tokens'),
-      formula: `SUM('${safeSheetName}'!H${firstKeyRow}:H${lastKeyRow})`,
+      formula: `SUM('${safeSheetName}'!F${firstKeyRow}:F${lastKeyRow})`,
       result: report.totals.total_tokens,
       format: INTEGER_FORMAT,
     },
     {
       label: t('Consumption Amount'),
-      formula: `SUM('${safeSheetName}'!I${firstKeyRow}:I${lastKeyRow})`,
+      formula: `SUM('${safeSheetName}'!G${firstKeyRow}:G${lastKeyRow})`,
       result: quotaUnitsToDollars(report.totals.quota),
       format: getAmountFormat(),
     },
@@ -479,8 +449,8 @@ function addOverviewSheet(
   ]
 
   metrics.forEach((metric, index) => {
-    const metricRow = index < 4 ? 10 : 13
-    const metricColumn = (index % 4) * 2 + 1
+    const metricRow = index < 3 ? 10 : 13
+    const metricColumn = (index % 3) * 3 + 1
     sheet.mergeCells(metricRow, metricColumn, metricRow, metricColumn + 1)
     sheet.mergeCells(
       metricRow + 1,
