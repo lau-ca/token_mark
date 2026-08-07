@@ -85,6 +85,7 @@ export function usePlaygroundOptions({
     queryKey: ['playground-models', currentGroup],
     queryFn: () => getUserModels(currentGroup),
     enabled: currentGroup !== '',
+    refetchOnMount: 'always',
   })
 
   const {
@@ -106,6 +107,7 @@ export function usePlaygroundOptions({
       queryFn: () => getUserModelCatalog(groupsData ?? []),
       enabled: groupValues.length > 0,
       staleTime: 5 * 60 * 1000,
+      refetchOnMount: 'always',
     }
   )
   const modeModelCatalog = useMemo(() => {

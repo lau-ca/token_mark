@@ -2,6 +2,7 @@ package controller
 
 import (
 	"encoding/json"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -18,31 +19,67 @@ type modelCapabilityCatalogItem struct {
 	ModelName              string                  `json:"model_name"`
 	SupportedEndpointTypes []constant.EndpointType `json:"supported_endpoint_types"`
 	Metadata               *model.Model            `json:"metadata,omitempty"`
+	Available              bool                    `json:"available"`
 }
 
-func buildModelCapabilityCatalog(pricings []model.Pricing, metadata map[string]*model.Model) []modelCapabilityCatalogItem {
-	items := make([]modelCapabilityCatalogItem, 0, len(pricings))
+func buildModelCapabilityCatalog(pricings []model.Pricing, metadata []*model.Model) []modelCapabilityCatalogItem {
+	pricingByModel := make(map[string]model.Pricing, len(pricings))
 	for _, pricing := range pricings {
-		item := modelCapabilityCatalogItem{
+		pricingByModel[pricing.ModelName] = pricing
+	}
+
+	itemsByModel := make(map[string]modelCapabilityCatalogItem, len(pricings)+len(metadata))
+	for _, exact := range metadata {
+		if exact == nil || exact.NameRule != model.NameRuleExact || exact.ModelName == "" {
+			continue
+		}
+		pricing, available := pricingByModel[exact.ModelName]
+		endpointTypes := append([]constant.EndpointType(nil), pricing.SupportedEndpointTypes...)
+		if endpoints, err := dto.ParseModelEndpointConfigs(exact.Endpoints); err == nil {
+			endpointNames := make([]string, 0, len(endpoints))
+			for endpointName := range endpoints {
+				endpointNames = append(endpointNames, endpointName)
+			}
+			sort.Strings(endpointNames)
+			for _, endpointName := range endpointNames {
+				endpointType := constant.EndpointType(endpointName)
+				if !slices.Contains(endpointTypes, endpointType) {
+					endpointTypes = append(endpointTypes, endpointType)
+				}
+			}
+		}
+		itemsByModel[exact.ModelName] = modelCapabilityCatalogItem{
+			ModelName:              exact.ModelName,
+			SupportedEndpointTypes: endpointTypes,
+			Metadata:               exact,
+			Available:              available,
+		}
+	}
+
+	for _, pricing := range pricings {
+		if _, exists := itemsByModel[pricing.ModelName]; exists {
+			continue
+		}
+		itemsByModel[pricing.ModelName] = modelCapabilityCatalogItem{
 			ModelName:              pricing.ModelName,
 			SupportedEndpointTypes: pricing.SupportedEndpointTypes,
+			Available:              true,
 		}
-		if exact := metadata[pricing.ModelName]; exact != nil && exact.NameRule == model.NameRuleExact && exact.ModelName == pricing.ModelName {
-			item.Metadata = exact
-		}
+	}
+
+	items := make([]modelCapabilityCatalogItem, 0, len(itemsByModel))
+	for _, item := range itemsByModel {
 		items = append(items, item)
 	}
+	sort.Slice(items, func(i, j int) bool {
+		return items[i].ModelName < items[j].ModelName
+	})
 	return items
 }
 
 func GetModelCapabilityCatalog(c *gin.Context) {
 	pricings := model.GetPricing()
-	modelNames := make([]string, 0, len(pricings))
-	for _, pricing := range pricings {
-		modelNames = append(modelNames, pricing.ModelName)
-	}
-
-	metadata, err := model.GetModelMetadataByNames(modelNames)
+	metadata, err := model.GetExactModelMetadata()
 	if err != nil {
 		common.ApiError(c, err)
 		return
