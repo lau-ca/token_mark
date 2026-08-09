@@ -862,15 +862,44 @@ func TestSettle_TieredSnapshot_SkipsCompletionRecalculation(t *testing.T) {
 		BillingMode:   "tiered_expr",
 		EstimatedTier: "4k",
 	}
-	adaptor := &mockAdaptor{adjustReturn: 2000}
+	adaptor := &mockAdaptor{adjustReturn: 0}
 
 	settleTaskBillingOnComplete(context.Background(), adaptor, task, &relaycommon.TaskInfo{
 		Status:      model.TaskStatusSuccess,
 		TotalTokens: 9999,
 	})
 
-	assert.Zero(t, adaptor.adjustCalls)
+	assert.Equal(t, 1, adaptor.adjustCalls)
 	assert.Equal(t, 4000, task.Quota)
+}
+
+func TestSettle_TieredSnapshot_AppliesUpstreamFinalPrice(t *testing.T) {
+	truncate(t)
+	ctx := context.Background()
+
+	const userID, tokenID, channelID = 34, 34, 34
+	const initQuota, preConsumed = 10000, 5000
+	const actualQuota = 3000
+	const tokenRemain = 8000
+
+	seedUser(t, userID, initQuota)
+	seedToken(t, tokenID, userID, "sk-tiered-final-price", tokenRemain)
+	seedChannel(t, channelID)
+
+	task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceWallet, 0)
+	task.PrivateData.BillingContext.PerCallBilling = true
+	task.PrivateData.BillingContext.TieredBillingSnapshot = &billingexpr.BillingSnapshot{
+		BillingMode:   "tiered_expr",
+		EstimatedTier: "estimated",
+	}
+
+	adaptor := &mockAdaptor{adjustReturn: actualQuota}
+	settleTaskBillingOnComplete(ctx, adaptor, task, &relaycommon.TaskInfo{Status: model.TaskStatusSuccess})
+
+	assert.Equal(t, initQuota+(preConsumed-actualQuota), getUserQuota(t, userID))
+	assert.Equal(t, tokenRemain+(preConsumed-actualQuota), getTokenRemainQuota(t, tokenID))
+	assert.Equal(t, actualQuota, task.Quota)
+	assert.Equal(t, 1, adaptor.adjustCalls)
 }
 
 func TestSettle_NonPerCallBilling_AppliesAdaptorAdjustment(t *testing.T) {

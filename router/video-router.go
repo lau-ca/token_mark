@@ -13,6 +13,7 @@ func SetVideoRouter(router *gin.Engine) {
 	qianfanVideoRouter.Use(middleware.TokenAuth(), middleware.Distribute())
 	{
 		qianfanVideoRouter.POST("/videos", controller.RelayTask)
+		qianfanVideoRouter.GET("/videos/:task_id", controller.RelayTaskFetch)
 	}
 
 	seedanceAssetRouter := router.Group("/volc")

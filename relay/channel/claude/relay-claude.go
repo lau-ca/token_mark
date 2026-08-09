@@ -83,7 +83,7 @@ func FormatClaudeResponseInfo(claudeResponse *dto.ClaudeResponse, oaiResponse *d
 	return relayconvert.FormatClaudeResponseInfo(claudeResponse, oaiResponse, claudeInfo)
 }
 
-func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claudeInfo *ClaudeResponseInfo, data string) *types.NewAPIError {
+func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claudeInfo *ClaudeResponseInfo, data string, streamResult *helper.StreamResult) *types.NewAPIError {
 	var claudeResponse dto.ClaudeResponse
 	err := common.UnmarshalJsonStr(data, &claudeResponse)
 	if err != nil {
@@ -115,11 +115,20 @@ func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 			}
 		}
 		countClaudeStreamBillableTools(c, info, &claudeResponse)
-		helper.ClaudeChunkData(c, claudeResponse, data)
+		if err = helper.ClaudeChunkData(c, claudeResponse, data); err != nil {
+			logger.LogError(c, "send_stream_response_failed: "+err.Error())
+			if streamResult != nil {
+				streamResult.Stop(err)
+			}
+			return nil
+		}
 	} else if info.RelayFormat == types.RelayFormatOpenAI {
 		response := StreamResponseClaude2OpenAI(&claudeResponse)
 
 		if !FormatClaudeResponseInfo(&claudeResponse, response, claudeInfo) {
+			if claudeResponse.Type == "message_stop" && streamResult != nil {
+				streamResult.Done()
+			}
 			return nil
 		}
 
@@ -128,7 +137,14 @@ func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 		err = helper.ObjectData(c, response)
 		if err != nil {
 			logger.LogError(c, "send_stream_response_failed: "+err.Error())
+			if streamResult != nil {
+				streamResult.Stop(err)
+			}
+			return nil
 		}
+	}
+	if claudeResponse.Type == "message_stop" && streamResult != nil {
+		streamResult.Done()
 	}
 	return nil
 }
@@ -201,7 +217,7 @@ func ClaudeStreamHandler(c *gin.Context, resp *http.Response, info *relaycommon.
 	}
 	var err *types.NewAPIError
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
-		err = HandleStreamResponseData(c, info, claudeInfo, data)
+		err = HandleStreamResponseData(c, info, claudeInfo, data, sr)
 		if err != nil {
 			sr.Stop(err)
 		}

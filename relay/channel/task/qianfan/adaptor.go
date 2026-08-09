@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -31,7 +33,7 @@ const (
 	metadataHasVoice          = "qianfan_has_voice"
 )
 
-var modelList = []string{"K3.0", "k3.0", "k3.0-turbo", "K-Identify-Face", "K-Advanced-Lip-Sync"}
+var modelList = []string{"K3.0", "k3.0", "K3O", "k3.0-turbo", "K-Identify-Face", "K-Advanced-Lip-Sync"}
 
 type TaskAdaptor struct {
 	taskcommon.BaseBilling
@@ -91,7 +93,7 @@ func validateAdvancedRequest(c *gin.Context, info *relaycommon.RelayInfo) *taskd
 	if request.ModelParameters == nil {
 		return service.TaskErrorWrapperLocal(fmt.Errorf("model_parameters field is required"), "invalid_request", http.StatusBadRequest)
 	}
-	if !isAdvancedType(request.Type) {
+	if !isNativeType(request.Type) {
 		return service.TaskErrorWrapperLocal(fmt.Errorf("unsupported qianfan video type %q", request.Type), "invalid_type", http.StatusBadRequest)
 	}
 	if err := validateModelType(request.Model, request.Type); err != nil {
@@ -108,9 +110,9 @@ func validateAdvancedRequest(c *gin.Context, info *relaycommon.RelayInfo) *taskd
 	return nil
 }
 
-func isAdvancedType(value string) bool {
+func isNativeType(value string) bool {
 	switch value {
-	case "omni-video", "motion-control", "lip-sync", "advanced-lipsync":
+	case "text2video", "img2video", "omni-video", "motion-control", "lip-sync", "advanced-lipsync":
 		return true
 	default:
 		return false
@@ -118,11 +120,18 @@ func isAdvancedType(value string) bool {
 }
 
 func validateModelType(modelName, requestType string) error {
-	if strings.EqualFold(modelName, "K-Identify-Face") && requestType != "lip-sync" {
+	switch {
+	case strings.EqualFold(modelName, "K-Identify-Face") && requestType != "lip-sync":
 		return fmt.Errorf("model K-Identify-Face requires type lip-sync")
-	}
-	if strings.EqualFold(modelName, "K-Advanced-Lip-Sync") && requestType != "advanced-lipsync" {
+	case strings.EqualFold(modelName, "K-Advanced-Lip-Sync") && requestType != "advanced-lipsync":
 		return fmt.Errorf("model K-Advanced-Lip-Sync requires type advanced-lipsync")
+	case strings.EqualFold(modelName, "K3O") && requestType != "omni-video":
+		return fmt.Errorf("model K3O requires type omni-video")
+	case strings.EqualFold(modelName, "k3.0-turbo") && requestType != "text2video" && requestType != "img2video":
+		return fmt.Errorf("model k3.0-turbo requires type text2video or img2video")
+	case (strings.EqualFold(modelName, "K3.0") || strings.EqualFold(modelName, "k3.0")) &&
+		requestType != "text2video" && requestType != "img2video" && requestType != "motion-control":
+		return fmt.Errorf("model K3.0 requires type text2video, img2video, or motion-control")
 	}
 	return nil
 }
@@ -160,16 +169,39 @@ func normalizeAdvancedBilling(request qianfanRequest) (relaycommon.TaskSubmitReq
 		normalized.Mode = mode
 	}
 	if sound, ok := firstValue(settings, request.ModelParameters, "sound"); ok {
-		value, valid := sound.(bool)
-		if !valid {
-			return normalized, fmt.Errorf("sound must be a boolean")
+		value, err := soundEnabled(sound)
+		if err != nil {
+			return normalized, err
 		}
 		normalized.Metadata[metadataSound] = value
 	}
 
 	normalized.Metadata[metadataHasReferenceVideo] = containsReferenceVideo(request.ModelParameters)
 	normalized.Metadata[metadataHasVoice] = containsVoice(request.ModelParameters)
+	if normalized.Duration == 0 {
+		switch request.Type {
+		case "motion-control":
+			normalized.Duration = 1
+		case "advanced-lipsync":
+			normalized.Duration = advancedLipSyncDuration(request.ModelParameters)
+		}
+	}
 	return normalized, nil
+}
+
+func soundEnabled(value any) (bool, error) {
+	switch typed := value.(type) {
+	case bool:
+		return typed, nil
+	case string:
+		switch strings.ToLower(strings.TrimSpace(typed)) {
+		case "on":
+			return true, nil
+		case "off":
+			return false, nil
+		}
+	}
+	return false, fmt.Errorf("sound must be on or off")
 }
 
 func positiveInteger(value any, field string) (int, error) {
@@ -184,8 +216,8 @@ func positiveInteger(value any, field string) (int, error) {
 		}
 		return integer, nil
 	case int:
-		if typed <= 0 {
-			return 0, fmt.Errorf("%s must be a positive integer", field)
+		if typed <= 0 || typed > relaycommon.MaxTaskDurationSeconds {
+			return 0, fmt.Errorf("%s must be between 1 and %d", field, relaycommon.MaxTaskDurationSeconds)
 		}
 		return typed, nil
 	default:
@@ -219,6 +251,9 @@ func containsReferenceVideo(parameters map[string]any) bool {
 			return true
 		}
 	}
+	if values, ok := parameters["video_list"].([]any); ok && len(values) > 0 {
+		return true
+	}
 	if contents, ok := parameters["contents"].([]any); ok {
 		for _, item := range contents {
 			content, _ := item.(map[string]any)
@@ -232,7 +267,7 @@ func containsReferenceVideo(parameters map[string]any) bool {
 }
 
 func containsVoice(parameters map[string]any) bool {
-	for _, key := range []string{"voice", "voice_id", "voice_ids"} {
+	for _, key := range []string{"voice", "voice_id", "voice_ids", "voice_list"} {
 		if value, ok := parameters[key]; ok && value != nil {
 			switch typed := value.(type) {
 			case string:
@@ -247,6 +282,45 @@ func containsVoice(parameters map[string]any) bool {
 		}
 	}
 	return false
+}
+
+func advancedLipSyncDuration(parameters map[string]any) int {
+	faceChoose, _ := parameters["face_choose"].([]any)
+	total := 0.0
+	for _, item := range faceChoose {
+		face, _ := item.(map[string]any)
+		start, startOK := numericValue(face["sound_start_time"])
+		end, endOK := numericValue(face["sound_end_time"])
+		if startOK && endOK && end > start {
+			total += end - start
+		}
+	}
+	if total <= 0 {
+		return 5
+	}
+	if total > float64(relaycommon.MaxTaskDurationSeconds) {
+		return relaycommon.MaxTaskDurationSeconds
+	}
+	return int(math.Ceil(total))
+}
+
+func numericValue(value any) (float64, bool) {
+	switch typed := value.(type) {
+	case float64:
+		return typed, !math.IsNaN(typed) && !math.IsInf(typed, 0)
+	case float32:
+		value := float64(typed)
+		return value, !math.IsNaN(value) && !math.IsInf(value, 0)
+	case int:
+		return float64(typed), true
+	case int64:
+		return float64(typed), true
+	case string:
+		value, err := strconv.ParseFloat(strings.TrimSpace(typed), 64)
+		return value, err == nil && !math.IsNaN(value) && !math.IsInf(value, 0)
+	default:
+		return 0, false
+	}
 }
 
 func (a *TaskAdaptor) BuildRequestURL(_ *relaycommon.RelayInfo) (string, error) {
@@ -282,36 +356,58 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	if err != nil {
 		return nil, err
 	}
-	settings := map[string]any{}
-	if duration > 0 {
-		settings["duration"] = duration
-	}
-	if strings.TrimSpace(request.Resolution) != "" {
-		settings["resolution"] = strings.TrimSpace(request.Resolution)
-	}
-	if strings.TrimSpace(request.AspectRatio) != "" {
-		settings["aspect_ratio"] = strings.TrimSpace(request.AspectRatio)
-	}
-
 	parameters := map[string]any{}
 	requestType := "text2video"
 	imageURL := strings.TrimSpace(request.Image)
 	if imageURL == "" && len(request.Images) > 0 {
 		imageURL = strings.TrimSpace(request.Images[0])
 	}
-	if imageURL == "" {
-		parameters["prompt"] = request.Prompt
-	} else {
-		requestType = "img2video"
-		contents := make([]any, 0, 2)
-		if strings.TrimSpace(request.Prompt) != "" {
-			contents = append(contents, map[string]any{"type": "prompt", "text": request.Prompt})
+	if strings.EqualFold(info.UpstreamModelName, "k3.0-turbo") {
+		settings := map[string]any{}
+		if duration > 0 {
+			settings["duration"] = duration
 		}
-		contents = append(contents, map[string]any{"type": "first_frame", "url": imageURL})
-		parameters["contents"] = contents
-	}
-	if len(settings) > 0 {
-		parameters["settings"] = settings
+		if strings.TrimSpace(request.Resolution) != "" {
+			settings["resolution"] = strings.TrimSpace(request.Resolution)
+		}
+		if strings.TrimSpace(request.AspectRatio) != "" {
+			settings["aspect_ratio"] = strings.TrimSpace(request.AspectRatio)
+		}
+		if imageURL == "" {
+			parameters["prompt"] = request.Prompt
+		} else {
+			requestType = "img2video"
+			contents := make([]any, 0, 2)
+			if strings.TrimSpace(request.Prompt) != "" {
+				contents = append(contents, map[string]any{"type": "prompt", "text": request.Prompt})
+			}
+			contents = append(contents, map[string]any{"type": "first_frame", "url": imageURL})
+			parameters["contents"] = contents
+		}
+		if len(settings) > 0 {
+			parameters["settings"] = settings
+		}
+	} else {
+		if strings.EqualFold(info.UpstreamModelName, "K3O") {
+			requestType = "omni-video"
+			parameters["sound"] = "off"
+		}
+		parameters["prompt"] = request.Prompt
+		if imageURL != "" {
+			if requestType != "omni-video" {
+				requestType = "img2video"
+			}
+			parameters["image"] = imageURL
+		}
+		if duration > 0 {
+			parameters["duration"] = strconv.Itoa(duration)
+		}
+		if strings.TrimSpace(request.Mode) != "" {
+			parameters["mode"] = strings.TrimSpace(request.Mode)
+		}
+		if strings.TrimSpace(request.AspectRatio) != "" {
+			parameters["aspect_ratio"] = strings.TrimSpace(request.AspectRatio)
+		}
 	}
 
 	data, err := common.Marshal(qianfanRequest{
@@ -338,8 +434,24 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 	if response.Code != 0 {
 		return "", responseBody, service.TaskErrorWrapper(fmt.Errorf("qianfan error %d: %s", response.Code, response.Message), "task_failed", http.StatusBadRequest)
 	}
+	if strings.EqualFold(info.UpstreamModelName, "K-Identify-Face") {
+		if strings.TrimSpace(response.Data.SessionID) == "" {
+			return "", responseBody, service.TaskErrorWrapper(fmt.Errorf("qianfan response missing session_id"), "invalid_response", http.StatusBadGateway)
+		}
+		c.Data(http.StatusOK, "application/json", responseBody)
+		return response.Data.SessionID, responseBody, nil
+	}
 	if strings.TrimSpace(response.Data.TaskID) == "" {
 		return "", responseBody, service.TaskErrorWrapper(fmt.Errorf("qianfan response missing task_id"), "invalid_response", http.StatusBadGateway)
+	}
+	upstreamTaskID := response.Data.TaskID
+	if strings.HasPrefix(c.Request.URL.Path, "/qianfan/") {
+		publicBody, err := replaceQianfanTaskID(responseBody, info.PublicTaskID)
+		if err != nil {
+			return "", responseBody, service.TaskErrorWrapper(err, "marshal_response_failed", http.StatusInternalServerError)
+		}
+		c.Data(http.StatusOK, "application/json", publicBody)
+		return upstreamTaskID, responseBody, nil
 	}
 	video := dto.NewOpenAIVideo()
 	video.ID = info.PublicTaskID
@@ -348,6 +460,19 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 	video.CreatedAt = time.Now().Unix()
 	c.JSON(http.StatusOK, video)
 	return response.Data.TaskID, responseBody, nil
+}
+
+func replaceQianfanTaskID(responseBody []byte, taskID string) ([]byte, error) {
+	var response map[string]any
+	if err := common.Unmarshal(responseBody, &response); err != nil {
+		return nil, err
+	}
+	data, ok := response["data"].(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("qianfan response missing data")
+	}
+	data["task_id"] = taskID
+	return common.Marshal(response)
 }
 
 func (a *TaskAdaptor) FetchTask(baseURL, key string, body map[string]any, proxy string) (*http.Response, error) {
@@ -387,8 +512,20 @@ func (a *TaskAdaptor) ParseTaskResult(responseBody []byte) (*relaycommon.TaskInf
 	if response.Code != 0 {
 		return nil, fmt.Errorf("qianfan error %d: %s", response.Code, response.Message)
 	}
+	if response.Data.SessionID != "" && response.Data.TaskStatus == "" {
+		return &relaycommon.TaskInfo{
+			Code:   response.Code,
+			TaskID: response.Data.SessionID,
+			Status: model.TaskStatusSuccess,
+		}, nil
+	}
 	result := &relaycommon.TaskInfo{Code: response.Code, TaskID: response.Data.TaskID, Reason: response.Data.TaskStatusMsg}
-	switch response.Data.TaskStatus {
+	taskStatus := strings.ToLower(strings.TrimSpace(response.Data.TaskStatus))
+	if taskStatus == "" && strings.EqualFold(strings.TrimSpace(response.Message), "SUCCEED") &&
+		len(response.Data.TaskResult.Videos) > 0 && strings.TrimSpace(response.Data.TaskResult.Videos[0].URL) != "" {
+		taskStatus = "succeed"
+	}
+	switch taskStatus {
 	case "submitted":
 		result.Status = model.TaskStatusSubmitted
 	case "processing":
@@ -404,7 +541,37 @@ func (a *TaskAdaptor) ParseTaskResult(responseBody []byte) (*relaycommon.TaskInf
 	default:
 		return nil, fmt.Errorf("unknown qianfan task status %q", response.Data.TaskStatus)
 	}
+	if price, ok := qianfanFinalPrice(response); ok {
+		result.FinalPrice = price
+	}
 	return result, nil
+}
+
+func qianfanFinalPrice(response qianfanResponse) (float64, bool) {
+	for _, value := range []any{response.Data.FinalUnitDeduction, response.FinalUnitDeduction, response.Data.Usage.Credits, response.Usage.Credits} {
+		if price, ok := numericValue(value); ok && price > 0 {
+			return price, true
+		}
+	}
+	return 0, false
+}
+
+func (a *TaskAdaptor) AdjustBillingOnComplete(task *model.Task, taskResult *relaycommon.TaskInfo) int {
+	if task == nil || taskResult == nil || taskResult.FinalPrice <= 0 {
+		return 0
+	}
+	groupRatio := 1.0
+	if billingContext := task.PrivateData.BillingContext; billingContext != nil {
+		groupRatio = billingContext.GroupRatio
+	}
+	quota, clamp := common.QuotaRoundChecked(taskResult.FinalPrice * common.QuotaPerUnit * groupRatio)
+	if clamp != nil && task.PrivateData.BillingContext != nil && task.PrivateData.BillingContext.QuotaClamp == nil {
+		task.PrivateData.BillingContext.QuotaClamp = clamp
+	}
+	if quota < 0 {
+		return 0
+	}
+	return quota
 }
 
 func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
@@ -432,6 +599,13 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
 		video.Error = &dto.OpenAIVideoError{Message: task.FailReason}
 	}
 	return common.Marshal(video)
+}
+
+func (a *TaskAdaptor) ConvertToNativeVideo(task *model.Task) ([]byte, error) {
+	if len(task.Data) == 0 {
+		return nil, fmt.Errorf("qianfan task data is empty")
+	}
+	return replaceQianfanTaskID(task.Data, task.TaskID)
 }
 
 func (a *TaskAdaptor) GetModelList() []string {

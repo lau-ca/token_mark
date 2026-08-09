@@ -146,12 +146,19 @@ func buildQianfanResourceRequest(c *gin.Context, channel *model.Channel, key str
 		body = bytes.NewReader(data)
 	case qianfanListElements:
 		query := requestURL.Query()
-		query.Set("model", "Custom-Elements")
-		pageNum, err := boundedPositiveQuery(c.Query("pageNum"), 1, 100000, "pageNum")
+		resourceModel := strings.TrimSpace(c.Query("model"))
+		if resourceModel == "" {
+			resourceModel = "Custom-Elements"
+		}
+		if resourceModel != "Custom-Elements" && resourceModel != "Presets-Elements" {
+			return nil, fmt.Errorf("model must be Custom-Elements or Presets-Elements")
+		}
+		query.Set("model", resourceModel)
+		pageNum, err := boundedPositiveQuery(c.Query("pageNum"), 1, 1000, "pageNum")
 		if err != nil {
 			return nil, err
 		}
-		pageSize, err := boundedPositiveQuery(c.Query("pageSize"), 20, 100, "pageSize")
+		pageSize, err := boundedPositiveQuery(c.Query("pageSize"), 30, 500, "pageSize")
 		if err != nil {
 			return nil, err
 		}
@@ -161,11 +168,17 @@ func buildQianfanResourceRequest(c *gin.Context, channel *model.Channel, key str
 	case qianfanListVoices:
 		requestURL.Path += "/list"
 		query := requestURL.Query()
-		query.Set("model", "Custom-Voices")
+		query.Set("model", "Custom-Voice")
+		if err := setQianfanPagination(c, query, 1000); err != nil {
+			return nil, err
+		}
 		requestURL.RawQuery = query.Encode()
 	case qianfanPresetVoices:
 		query := requestURL.Query()
 		query.Set("model", "Presets-Voices")
+		if err := setQianfanPagination(c, query, 1000); err != nil {
+			return nil, err
+		}
 		requestURL.RawQuery = query.Encode()
 	case qianfanGetVoiceTask:
 		taskID := strings.TrimSpace(c.Param("task_id"))
@@ -173,7 +186,7 @@ func buildQianfanResourceRequest(c *gin.Context, channel *model.Channel, key str
 			return nil, fmt.Errorf("task_id is required")
 		}
 		query := requestURL.Query()
-		query.Set("model", "Custom-Voices")
+		query.Set("model", "Custom-Voice")
 		query.Set("task_id", taskID)
 		requestURL.RawQuery = query.Encode()
 	case qianfanDeleteVoice:
@@ -201,6 +214,20 @@ func buildQianfanResourceRequest(c *gin.Context, channel *model.Channel, key str
 		request.Header.Set("Content-Type", "application/json")
 	}
 	return request, nil
+}
+
+func setQianfanPagination(c *gin.Context, query url.Values, maximumPageSize int) error {
+	pageNum, err := boundedPositiveQuery(c.Query("pageNum"), 1, 1000, "pageNum")
+	if err != nil {
+		return err
+	}
+	pageSize, err := boundedPositiveQuery(c.Query("pageSize"), 30, maximumPageSize, "pageSize")
+	if err != nil {
+		return err
+	}
+	query.Set("pageNum", strconv.Itoa(pageNum))
+	query.Set("pageSize", strconv.Itoa(pageSize))
+	return nil
 }
 
 func boundedPositiveQuery(raw string, fallback, maximum int, field string) (int, error) {

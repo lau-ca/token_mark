@@ -237,7 +237,7 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	finalQuota := finalizeTaskBillingOnSubmit(info, adaptor, taskData)
 	initialStatus := model.TaskStatus("")
 	initialProgress := ""
-	if info.ChannelType == constant.ChannelTypeSeedance {
+	if info.ChannelType == constant.ChannelTypeSeedance || info.ChannelType == constant.ChannelTypeBaiduV2 {
 		if taskResult, parseErr := adaptor.ParseTaskResult(taskData); parseErr == nil {
 			initialStatus = model.TaskStatus(taskResult.Status)
 			initialProgress = taskResult.Progress
@@ -412,11 +412,22 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 	}
 
 	isOpenAIVideoAPI := isOpenAIVideoRequest(c.Request.RequestURI)
+	isNativeQianfanAPI := strings.HasPrefix(c.Request.URL.Path, "/qianfan/v1/videos/")
 
 	// Gemini/Vertex 支持实时查询：用户 fetch 时直接从上游拉取最新状态
 	if realtimeResp := tryRealtimeFetch(originTask, isOpenAIVideoAPI); len(realtimeResp) > 0 {
 		respBody = realtimeResp
 		return
+	}
+	if isNativeQianfanAPI {
+		adaptor := GetTaskAdaptor(originTask.Platform)
+		if converter, ok := adaptor.(channel.NativeVideoConverter); ok {
+			respBody, err = converter.ConvertToNativeVideo(originTask)
+			if err != nil {
+				taskResp = service.TaskErrorWrapper(err, "convert_to_native_video_failed", http.StatusInternalServerError)
+			}
+			return
+		}
 	}
 
 	shouldResolvePrivacyChannel := ShouldResolveVideoPrivacyChannel(originTask)
