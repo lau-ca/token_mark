@@ -19,6 +19,18 @@ For commercial licensing, please contact support@quantumnous.com
 import { api } from '@/lib/api'
 
 import { mergeLogFilterModels } from './lib/filter-options'
+import { parseTaskArtifactsResponse } from './lib/task-artifacts'
+import type { TaskArtifactsResponse } from './types'
+
+const taskArtifactRequestConfig = { skipBusinessError: true, skipErrorHandler: true } as const
+
+export async function getTaskArtifacts(taskId: string) {
+  const response = await api.get<TaskArtifactsResponse>(
+    `/api/task/${encodeURIComponent(taskId)}/artifacts`,
+    taskArtifactRequestConfig
+  )
+  return parseTaskArtifactsResponse(response.data)
+}
 import type {
   CommonLogFilterOptions,
   GetLogsParams,

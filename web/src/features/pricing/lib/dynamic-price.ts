@@ -118,6 +118,17 @@ export function getDynamicPriceUnitLabelKey(
   return null
 }
 
+export function getDynamicPriceUnitLabel(
+  entry: DynamicPriceEntry,
+  tokenUnitLabel: string,
+  t: (key: string) => string
+): string {
+  if (entry.labelKind === 'schema') return entry.label
+  const key = getDynamicPriceUnitLabelKey(entry)
+  if (key === '1M token') return tokenUnitLabel
+  return key ? t(key) : entry.unit
+}
+
 const PRIMARY_DYNAMIC_FIELDS = new Set(['inputPrice', 'outputPrice'])
 
 function isTaskPricingTier(tier: DynamicPricingTier): tier is ParsedTaskTier {

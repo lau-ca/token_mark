@@ -1,5 +1,53 @@
 export const RATIO_SYNC_FIELDS = ["model_ratio","completion_ratio","cache_ratio","create_cache_ratio","image_ratio","audio_ratio","audio_completion_ratio"] as const
 export const NUMERIC_SYNC_FIELDS = new Set<string>(RATIO_SYNC_FIELDS)
+
+export type ResolutionsMap = Record<string, Record<string, number | string>>
+export type ResolutionSelection = { model: string; ratioType: string; value: number | string; sourceName: string }
+export type ResolutionRemovalPlan = Map<string, Set<string>>
+
+export function applyResolutionSelection(
+  resolutions: ResolutionsMap,
+  _differences: unknown,
+  selection: ResolutionSelection
+): ResolutionsMap {
+  return applyResolutionSelections(resolutions, _differences, [selection])
+}
+
+export function applyResolutionSelections(
+  resolutions: ResolutionsMap,
+  _differences: unknown,
+  selections: ResolutionSelection[]
+): ResolutionsMap {
+  const next = { ...resolutions }
+  for (const selection of selections) {
+    next[selection.model] = { ...(next[selection.model] ?? {}), [selection.ratioType]: selection.value }
+  }
+  return next
+}
+
+export function deleteResolutionField(
+  resolutions: ResolutionsMap,
+  model: string,
+  ratioType: string
+): ResolutionsMap {
+  const next = { ...resolutions }
+  if (next[model]) {
+    const fields = { ...next[model] }
+    delete fields[ratioType]
+    if (Object.keys(fields).length) next[model] = fields
+    else delete next[model]
+  }
+  return next
+}
+
+export function applyResolutionRemovalPlan(
+  resolutions: ResolutionsMap,
+  plan: ResolutionRemovalPlan
+): ResolutionsMap {
+  let next = resolutions
+  for (const [model, fields] of plan) for (const field of fields) next = deleteResolutionField(next, model, field)
+  return next
+}
 /*
 Copyright (C) 2023-2026 QuantumNous
 

@@ -28,6 +28,40 @@ For commercial licensing, please contact support@quantumnous.com
  * expression syntax.
  */
 
+import type { BillingUsageSchema } from '../types'
+
+export type TaskTierCondition = { field: string; value: string }
+export type ParsedTaskTier = {
+  label: string
+  conditions: TaskTierCondition[]
+  constant: number
+  unitPrices: Record<string, number>
+}
+
+export function parseTaskTiersFromExpr(
+  exprStr: string,
+  schema: BillingUsageSchema | null | undefined
+): ParsedTaskTier[] {
+  if (!exprStr || !schema) return []
+  const result: ParsedTaskTier[] = []
+  for (const match of exprStr.matchAll(/tier\("([^"]*)"\s*,\s*([^)]*)\)/g)) {
+    const body = match[2]
+    const unitPrices: Record<string, number> = {}
+    for (const item of body.split('+')) {
+      const price = item.match(/([A-Za-z_][A-Za-z0-9_]*)\s*\*\s*([0-9.eE+-]+)/)
+      if (price && schema[price[1]]) unitPrices[price[1]] = Number(price[2])
+    }
+    const constantMatch = body.match(/(^|\+)\s*([0-9.eE+-]+)\s*($|\+)/)
+    result.push({
+      label: match[1],
+      conditions: [],
+      constant: constantMatch ? Number(constantMatch[2]) : 0,
+      unitPrices,
+    })
+  }
+  return result
+}
+
 // ---------------------------------------------------------------------------
 // Variable registry
 // ---------------------------------------------------------------------------
