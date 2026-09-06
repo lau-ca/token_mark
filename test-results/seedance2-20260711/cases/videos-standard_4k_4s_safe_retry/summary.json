@@ -1,0 +1,33 @@
+{
+  "case": "videos-standard_4k_4s_safe_retry",
+  "started_at": "2026-07-11T19:04:42+08:00",
+  "finished_at": "2026-07-11T19:30:04+08:00",
+  "request": {
+    "model": "videos-standard",
+    "prompt": "一颗红色玻璃球放在纯白背景上缓慢旋转，柔和棚拍光线，无人物、无文字、无品牌。",
+    "duration": 4,
+    "ratio": "16:9",
+    "resolution": "4k"
+  },
+  "billing_mode": "per_second",
+  "expected_unit_cny": 1.2,
+  "expected_cny": 4.8,
+  "submit_http_status": 200,
+  "task_id": "videos-standard_55d1b9d209e74ffaab2dd68bc85e7689",
+  "final_status": "failed",
+  "poll_count": 121,
+  "usage_before": {
+    "total_granted": 500000,
+    "total_used": 19200000,
+    "total_available": -18700000,
+    "unlimited_quota": true
+  },
+  "usage_after": {
+    "total_granted": 2900000,
+    "total_used": 21600000,
+    "total_available": -18700000,
+    "unlimited_quota": true
+  },
+  "observed_quota_delta": 2400000,
+  "content_download": null
+}

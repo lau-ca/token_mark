@@ -1,0 +1,19 @@
+{
+  "case": "videos-standard_4k_4s_safe_retry",
+  "started_at": "2026-07-11T19:04:42+08:00",
+  "endpoint": "https://newapi.megabyai.cc/v1/videos",
+  "headers": {
+    "Authorization": "Bearer <REDACTED>",
+    "Content-Type": "application/json"
+  },
+  "billing_mode": "per_second",
+  "expected_unit_cny": 1.2,
+  "expected_cny": 4.8,
+  "body": {
+    "model": "videos-standard",
+    "prompt": "一颗红色玻璃球放在纯白背景上缓慢旋转，柔和棚拍光线，无人物、无文字、无品牌。",
+    "duration": 4,
+    "ratio": "16:9",
+    "resolution": "4k"
+  }
+}

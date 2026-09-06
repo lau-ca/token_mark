@@ -1,0 +1,33 @@
+{
+  "captured_at": "2026-07-11T18:40:24+08:00",
+  "method": "GET",
+  "url": "https://newapi.megabyai.cc/v1/videos/videos-standard_6c9cf5fd68e3415c8e136e72ba5ec8fc",
+  "status_code": 200,
+  "headers": {
+    "Server": "nginx/1.18.0 (Ubuntu)",
+    "Date": "Sat, 11 Jul 2026 10:40:26 GMT",
+    "Content-Type": "application/json",
+    "Content-Length": "697",
+    "Connection": "close",
+    "X-New-Api-Version": "v0.0.0",
+    "X-Oneapi-Request-Id": "20260711104024871344653mVLV1d0O"
+  },
+  "body": {
+    "id": "videos-standard_6c9cf5fd68e3415c8e136e72ba5ec8fc",
+    "task_id": "videos-standard_6c9cf5fd68e3415c8e136e72ba5ec8fc",
+    "object": "video",
+    "model": "videos-standard",
+    "status": "completed",
+    "progress": 61,
+    "created_at": 1783764780,
+    "completed_at": 1783766400,
+    "seconds": "15",
+    "url": "https://apisd.megabyai.cc/v1/videos/videos-standard_6c9cf5fd68e3415c8e136e72ba5ec8fc/content",
+    "video_url": "https://apisd.megabyai.cc/v1/videos/videos-standard_6c9cf5fd68e3415c8e136e72ba5ec8fc/content",
+    "metadata": {
+      "origin_video_url": "https://apisd.megabyai.cc/v1/videos/videos-standard_6c9cf5fd68e3415c8e136e72ba5ec8fc/content",
+      "url": "https://apisd.megabyai.cc/v1/videos/videos-standard_6c9cf5fd68e3415c8e136e72ba5ec8fc/content"
+    }
+  },
+  "raw_body": "{\"id\":\"videos-standard_6c9cf5fd68e3415c8e136e72ba5ec8fc\",\"task_id\":\"videos-standard_6c9cf5fd68e3415c8e136e72ba5ec8fc\",\"object\":\"video\",\"model\":\"videos-standard\",\"status\":\"completed\",\"progress\":61,\"created_at\":1783764780,\"completed_at\":1783766400,\"seconds\":\"15\",\"url\":\"https://apisd.megabyai.cc/v1/videos/videos-standard_6c9cf5fd68e3415c8e136e72ba5ec8fc/content\",\"video_url\":\"https://apisd.megabyai.cc/v1/videos/videos-standard_6c9cf5fd68e3415c8e136e72ba5ec8fc/content\",\"metadata\":{\"origin_video_url\":\"https://apisd.megabyai.cc/v1/videos/videos-standard_6c9cf5fd68e3415c8e136e72ba5ec8fc/content\",\"url\":\"https://apisd.megabyai.cc/v1/videos/videos-standard_6c9cf5fd68e3415c8e136e72ba5ec8fc/content\"}}"
+}

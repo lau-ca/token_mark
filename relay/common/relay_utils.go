@@ -334,9 +334,9 @@ func ValidateParsedTaskRequest(c *gin.Context, info *RelayInfo, req TaskSubmitRe
 		return taskErr
 	}
 
-	action := constant.TaskActionTextGenerate
+	action := constant.TaskActionTextToVideo
 	if hasInputReference {
-		action = constant.TaskActionGenerate
+		action = constant.TaskActionImageToVideo
 	}
 	if strings.HasPrefix(model, "sora-2") {
 

@@ -1,0 +1,26 @@
+{
+  "captured_at": "2026-07-11T18:20:22+08:00",
+  "method": "GET",
+  "url": "https://newapi.megabyai.cc/v1/videos/videos-fast_a1daa2ec754a492f8bd6af2b0f3aa2d5",
+  "status_code": 200,
+  "headers": {
+    "Server": "nginx/1.18.0 (Ubuntu)",
+    "Date": "Sat, 11 Jul 2026 10:20:24 GMT",
+    "Content-Type": "application/json",
+    "Content-Length": "220",
+    "Connection": "close",
+    "X-New-Api-Version": "v0.0.0",
+    "X-Oneapi-Request-Id": "20260711102023489384251bdF07df8"
+  },
+  "body": {
+    "id": "videos-fast_a1daa2ec754a492f8bd6af2b0f3aa2d5",
+    "task_id": "videos-fast_a1daa2ec754a492f8bd6af2b0f3aa2d5",
+    "object": "video",
+    "model": "videos-fast",
+    "status": "queued",
+    "progress": 20,
+    "created_at": 1783764335,
+    "seconds": "15"
+  },
+  "raw_body": "{\"id\":\"videos-fast_a1daa2ec754a492f8bd6af2b0f3aa2d5\",\"task_id\":\"videos-fast_a1daa2ec754a492f8bd6af2b0f3aa2d5\",\"object\":\"video\",\"model\":\"videos-fast\",\"status\":\"queued\",\"progress\":20,\"created_at\":1783764335,\"seconds\":\"15\"}"
+}

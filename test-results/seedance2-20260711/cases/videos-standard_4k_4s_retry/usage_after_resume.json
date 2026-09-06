@@ -1,0 +1,10 @@
+{
+  "captured_at": "2026-07-11T19:01:50+08:00",
+  "method": "GET",
+  "url": "https://newapi.megabyai.cc/api/usage/token/",
+  "status_code": null,
+  "headers": {},
+  "body": null,
+  "raw_body": "",
+  "transport_error": "[SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1010)"
+}

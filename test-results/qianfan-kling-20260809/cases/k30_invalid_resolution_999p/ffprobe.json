@@ -1,0 +1,28 @@
+{
+    "programs": [
+
+    ],
+    "stream_groups": [
+
+    ],
+    "streams": [
+        {
+            "index": 0,
+            "codec_name": "h264",
+            "profile": "Main",
+            "codec_type": "video",
+            "width": 1280,
+            "height": 720,
+            "pix_fmt": "yuv420p",
+            "r_frame_rate": "24/1",
+            "avg_frame_rate": "24/1",
+            "bit_rate": "8285333"
+        }
+    ],
+    "format": {
+        "format_name": "mov,mp4,m4a,3gp,3g2,mj2",
+        "duration": "3.041667",
+        "size": "3151887",
+        "bit_rate": "8289893"
+    }
+}

@@ -1,0 +1,45 @@
+{
+  "case": "videos-standard_4k_4s_retry",
+  "started_at": "2026-07-11T18:13:50+08:00",
+  "finished_at": "2026-07-11T18:44:02+08:00",
+  "request": {
+    "model": "videos-standard",
+    "prompt": "以 @image1 中的主体与场景为准，参考 @video1 的动作节奏与镜头语言，并结合 @audio1 的声音节奏，生成一段镜头稳定、电影感明确的短片。",
+    "duration": 4,
+    "ratio": "16:9",
+    "resolution": "4k",
+    "referenceImages": [
+      "https://ark-project.tos-cn-beijing.volces.com/doc_image/r2v_tea_pic1.jpg"
+    ],
+    "referenceVideos": [
+      "https://ark-project.tos-cn-beijing.volces.com/doc_video/r2v_tea_video1.mp4"
+    ],
+    "referenceAudios": [
+      "https://ark-project.tos-cn-beijing.volces.com/doc_audio/r2v_tea_audio1.mp3"
+    ]
+  },
+  "billing_mode": "per_second",
+  "expected_unit_cny": 1.2,
+  "expected_cny": 4.8,
+  "submit_http_status": 200,
+  "task_id": "videos-standard_8a66760f81214dec8246dd91e8170f51",
+  "final_status": "failed",
+  "poll_count": 223,
+  "usage_before": {
+    "total_granted": 500000,
+    "total_used": 18000000,
+    "total_available": -17500000,
+    "unlimited_quota": true
+  },
+  "usage_after": {
+    "total_granted": 500000,
+    "total_used": 21600000,
+    "total_available": -21100000,
+    "unlimited_quota": true
+  },
+  "observed_quota_delta": 3600000,
+  "content_download": null,
+  "resumed_at": "2026-07-11T18:48:03+08:00",
+  "resume_finished_at": "2026-07-11T19:01:55+08:00",
+  "usage_after_resume": null
+}

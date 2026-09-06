@@ -1,0 +1,13 @@
+{
+  "captured_at": "2026-07-11T18:54:00+08:00",
+  "method": "GET",
+  "url": "https://apisd.megabyai.cc/v1/videos/videos-mini_9731d5f3e5ec4af2a60e0be70cb25e62/content",
+  "authorization": "not sent",
+  "range": "bytes=0-",
+  "status_code": 206,
+  "curl_exit_code": 0,
+  "raw_headers": "HTTP/1.1 206 Partial Content\nServer: nginx/1.18.0 (Ubuntu)\nDate: Sat, 11 Jul 2026 10:54:01 GMT\nContent-Type: video/mp4\nContent-Length: 10376045\nConnection: keep-alive\ncontent-range: bytes 0-10376044/10376045\netag: \"CA224DEF6EEB0FA8C7DDD5F77E6E553C\"\nlast-modified: Sat, 11 Jul 2026 10:39:24 GMT\ncache-control: public, max-age=31536000\naccept-ranges: bytes\n\n",
+  "saved_as": "output.mp4",
+  "size_bytes": 10376045,
+  "sha256": "a09e83bd1c95e3a0f044f1d23d803f8336eb2ec9a3b50d413a3dbc5a2d97557d"
+}

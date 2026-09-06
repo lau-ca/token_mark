@@ -1,0 +1,16 @@
+{
+  "captured_at": "2026-07-11T18:54:45+08:00",
+  "method": "GET",
+  "url": "https://newapi.megabyai.cc/api/usage/token/",
+  "status_code": 429,
+  "headers": {
+    "Server": "nginx/1.18.0 (Ubuntu)",
+    "Date": "Sat, 11 Jul 2026 10:54:47 GMT",
+    "Content-Length": "0",
+    "Connection": "close",
+    "X-New-Api-Version": "v0.0.0",
+    "X-Oneapi-Request-Id": "202607111054465142084395uPHkjIj"
+  },
+  "body": null,
+  "raw_body": ""
+}

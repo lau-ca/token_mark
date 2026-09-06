@@ -1,0 +1,22 @@
+HTTP/2 200 
+server: nginx/1.27.5
+date: Sun, 09 Aug 2026 15:42:10 GMT
+content-type: video/mp4
+content-length: 4814401
+accept-ranges: bytes
+cache-control: public, max-age=86400
+content-md5: 7J7nikgMBPF2jFtUjf315g==
+etag: "ec9ee78a480c04f1768c5b548dfdf5e6"
+expires: Wed, 12 Aug 2026 15:42:10 GMT
+last-modified: Sun, 09 Aug 2026 15:41:59 GMT
+x-bce-content-crc32: 2479277128
+x-bce-content-crc32c: 3736489869
+x-bce-content-crc64ecma: 10593659311676940091
+x-bce-debug-id: JdlBB/Dioid8OHiBhOCKBlukTWKzQ+SvIoJLP9d055Hxd6WcL90vFGI2Bg2LPhgVgzbCxheB4WQ42LbP7S+ZUw==
+x-bce-flow-control-type: -1
+x-bce-is-transition: false
+x-bce-request-id: c9aae767-2c4f-482a-9f6f-a1b8ba7edc12
+x-bce-storage-class: STANDARD
+x-oneapi-request-id: 202608091542099524097938268d9d6Gyom7lHJ
+strict-transport-security: max-age=15552000
+

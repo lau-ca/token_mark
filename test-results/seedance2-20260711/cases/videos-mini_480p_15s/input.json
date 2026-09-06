@@ -1,0 +1,28 @@
+{
+  "case": "videos-mini_480p_15s",
+  "started_at": "2026-07-11T18:12:54+08:00",
+  "endpoint": "https://newapi.megabyai.cc/v1/videos",
+  "headers": {
+    "Authorization": "Bearer <REDACTED>",
+    "Content-Type": "application/json"
+  },
+  "billing_mode": "per_request",
+  "expected_unit_cny": null,
+  "expected_cny": 1.5,
+  "body": {
+    "model": "videos-mini",
+    "prompt": "以 @image1 中的主体与场景为准，参考 @video1 的动作节奏与镜头语言，并结合 @audio1 的声音节奏，生成一段镜头稳定、电影感明确的短片。",
+    "duration": 15,
+    "ratio": "16:9",
+    "resolution": "480p",
+    "referenceImages": [
+      "https://ark-project.tos-cn-beijing.volces.com/doc_image/r2v_tea_pic1.jpg"
+    ],
+    "referenceVideos": [
+      "https://ark-project.tos-cn-beijing.volces.com/doc_video/r2v_tea_video1.mp4"
+    ],
+    "referenceAudios": [
+      "https://ark-project.tos-cn-beijing.volces.com/doc_audio/r2v_tea_audio1.mp3"
+    ]
+  }
+}

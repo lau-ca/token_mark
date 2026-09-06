@@ -1,0 +1,7 @@
+HTTP/1.1 400 Bad Request
+Content-Type: application/json; charset=utf-8
+X-Oneapi-Request-Id: 202608091542586006500138268d9d6bYA9gaeb
+Date: Sun, 09 Aug 2026 15:42:58 GMT
+Content-Length: 86
+
+{"code":"invalid_request","message":"duration must be a positive integer","data":null}

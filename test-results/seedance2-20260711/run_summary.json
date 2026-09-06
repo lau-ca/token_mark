@@ -1,0 +1,734 @@
+{
+  "finished_at": "2026-07-11T19:30:04+08:00",
+  "cases": [
+    {
+      "case": "videos-fast_480p_15s",
+      "started_at": "2026-07-11T18:05:30+08:00",
+      "finished_at": "2026-07-11T18:35:46+08:00",
+      "request": {
+        "model": "videos-fast",
+        "prompt": "以 @image1 中的主体与场景为准，参考 @video1 的动作节奏与镜头语言，并结合 @audio1 的声音节奏，生成一段镜头稳定、电影感明确的短片。",
+        "duration": 15,
+        "ratio": "16:9",
+        "resolution": "480p",
+        "referenceImages": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_image/r2v_tea_pic1.jpg"
+        ],
+        "referenceVideos": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_video/r2v_tea_video1.mp4"
+        ],
+        "referenceAudios": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_audio/r2v_tea_audio1.mp3"
+        ]
+      },
+      "billing_mode": "per_request",
+      "expected_unit_cny": null,
+      "expected_cny": 2.0,
+      "submit_http_status": 200,
+      "task_id": "videos-fast_a1daa2ec754a492f8bd6af2b0f3aa2d5",
+      "final_status": "completed",
+      "poll_count": 196,
+      "usage_before": {
+        "total_granted": 500000,
+        "total_used": 9000000,
+        "total_available": -8500000,
+        "unlimited_quota": true
+      },
+      "usage_after": {
+        "total_granted": 500000,
+        "total_used": 21600000,
+        "total_available": -21100000,
+        "unlimited_quota": true
+      },
+      "observed_quota_delta": 12600000,
+      "content_download": {
+        "proxy": {
+          "captured_at": "2026-07-11T18:54:41+08:00",
+          "method": "GET",
+          "url": "https://newapi.megabyai.cc/v1/videos/videos-fast_a1daa2ec754a492f8bd6af2b0f3aa2d5/content",
+          "status_code": 502,
+          "headers": {
+            "Connection": "close",
+            "Content-Length": "82",
+            "Content-Type": "application/json; charset=utf-8",
+            "Date": "Sat, 11 Jul 2026 10:54:42 GMT",
+            "Server": "nginx/1.18.0 (Ubuntu)",
+            "X-New-Api-Version": "max-token-guard-20260707",
+            "X-Oneapi-Request-Id": "20260711105442801411717v0dwJQy7"
+          },
+          "body": {
+            "error": {
+              "message": "Upstream service returned status 502",
+              "type": "server_error"
+            }
+          },
+          "raw_body": "{\"error\":{\"message\":\"Upstream service returned status 502\",\"type\":\"server_error\"}}"
+        },
+        "direct_fallback": {
+          "captured_at": "2026-07-11T18:54:42+08:00",
+          "method": "GET",
+          "url": "https://apisd.megabyai.cc/v1/videos/videos-fast_a1daa2ec754a492f8bd6af2b0f3aa2d5/content",
+          "authorization": "not sent",
+          "range": "bytes=0-",
+          "status_code": 206,
+          "curl_exit_code": 0,
+          "raw_headers": "HTTP/1.1 206 Partial Content\nServer: nginx/1.18.0 (Ubuntu)\nDate: Sat, 11 Jul 2026 10:54:45 GMT\nContent-Type: video/mp4\nContent-Length: 2408494\nConnection: keep-alive\ncontent-range: bytes 0-2408493/2408494\netag: \"D8EAD3AC2DFAE6F171AA4162D945FFAD\"\nlast-modified: Sat, 11 Jul 2026 10:45:12 GMT\ncache-control: public, max-age=31536000\naccept-ranges: bytes\n\n",
+          "saved_as": "output.mp4",
+          "size_bytes": 2408494,
+          "sha256": "574c7fd882a1e448432d48417bbcdfe0b918a45201ef78305c1a603843e0ffd6"
+        }
+      },
+      "resumed_at": "2026-07-11T18:54:41+08:00",
+      "resume_finished_at": "2026-07-11T18:54:59+08:00",
+      "usage_after_resume": null
+    },
+    {
+      "case": "videos-fast_720p_15s",
+      "started_at": "2026-07-11T18:12:54+08:00",
+      "finished_at": "2026-07-11T18:40:21+08:00",
+      "request": {
+        "model": "videos-fast",
+        "prompt": "以 @image1 中的主体与场景为准，参考 @video1 的动作节奏与镜头语言，并结合 @audio1 的声音节奏，生成一段镜头稳定、电影感明确的短片。",
+        "duration": 15,
+        "ratio": "16:9",
+        "resolution": "720p",
+        "referenceImages": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_image/r2v_tea_pic1.jpg"
+        ],
+        "referenceVideos": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_video/r2v_tea_video1.mp4"
+        ],
+        "referenceAudios": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_audio/r2v_tea_audio1.mp3"
+        ]
+      },
+      "billing_mode": "per_request",
+      "expected_unit_cny": null,
+      "expected_cny": 3.5,
+      "submit_http_status": 200,
+      "task_id": "videos-fast_582974a3e7ab4071bc05036debd4e21b",
+      "final_status": "completed",
+      "poll_count": 144,
+      "usage_before": {
+        "total_granted": 500000,
+        "total_used": 10000000,
+        "total_available": -9500000,
+        "unlimited_quota": true
+      },
+      "usage_after": {
+        "total_granted": 500000,
+        "total_used": 21600000,
+        "total_available": -21100000,
+        "unlimited_quota": true
+      },
+      "observed_quota_delta": 11600000,
+      "content_download": {
+        "proxy": {
+          "captured_at": "2026-07-11T18:54:39+08:00",
+          "method": "GET",
+          "url": "https://newapi.megabyai.cc/v1/videos/videos-fast_582974a3e7ab4071bc05036debd4e21b/content",
+          "status_code": 502,
+          "headers": {
+            "Connection": "close",
+            "Content-Length": "82",
+            "Content-Type": "application/json; charset=utf-8",
+            "Date": "Sat, 11 Jul 2026 10:54:41 GMT",
+            "Server": "nginx/1.18.0 (Ubuntu)",
+            "X-New-Api-Version": "max-token-guard-20260707",
+            "X-Oneapi-Request-Id": "20260711105441207588567QaN8PfTo"
+          },
+          "body": {
+            "error": {
+              "message": "Upstream service returned status 502",
+              "type": "server_error"
+            }
+          },
+          "raw_body": "{\"error\":{\"message\":\"Upstream service returned status 502\",\"type\":\"server_error\"}}"
+        },
+        "direct_fallback": {
+          "captured_at": "2026-07-11T18:54:41+08:00",
+          "method": "GET",
+          "url": "https://apisd.megabyai.cc/v1/videos/videos-fast_582974a3e7ab4071bc05036debd4e21b/content",
+          "authorization": "not sent",
+          "range": "bytes=0-",
+          "status_code": 206,
+          "curl_exit_code": 0,
+          "raw_headers": "HTTP/1.1 206 Partial Content\nServer: nginx/1.18.0 (Ubuntu)\nDate: Sat, 11 Jul 2026 10:54:43 GMT\nContent-Type: video/mp4\nContent-Length: 5899236\nConnection: keep-alive\ncontent-range: bytes 0-5899235/5899236\netag: \"1F755E4047FCEBF77137932FD63BD8B8\"\nlast-modified: Sat, 11 Jul 2026 10:40:13 GMT\ncache-control: public, max-age=31536000\naccept-ranges: bytes\n\n",
+          "saved_as": "output.mp4",
+          "size_bytes": 5899236,
+          "sha256": "05b9c5242f8081d5f796b5bb9634a6539da36fdf4bea4186de666ea86de5e9d9"
+        }
+      },
+      "resumed_at": "2026-07-11T18:54:39+08:00",
+      "resume_finished_at": "2026-07-11T18:54:52+08:00",
+      "usage_after_resume": null
+    },
+    {
+      "case": "videos-mini_480p_15s",
+      "started_at": "2026-07-11T18:12:54+08:00",
+      "finished_at": "2026-07-11T18:43:15+08:00",
+      "request": {
+        "model": "videos-mini",
+        "prompt": "以 @image1 中的主体与场景为准，参考 @video1 的动作节奏与镜头语言，并结合 @audio1 的声音节奏，生成一段镜头稳定、电影感明确的短片。",
+        "duration": 15,
+        "ratio": "16:9",
+        "resolution": "480p",
+        "referenceImages": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_image/r2v_tea_pic1.jpg"
+        ],
+        "referenceVideos": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_video/r2v_tea_video1.mp4"
+        ],
+        "referenceAudios": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_audio/r2v_tea_audio1.mp3"
+        ]
+      },
+      "billing_mode": "per_request",
+      "expected_unit_cny": null,
+      "expected_cny": 1.5,
+      "submit_http_status": 200,
+      "task_id": "videos-mini_c1755a91cc32458797897c0e75a9a124",
+      "final_status": "completed",
+      "poll_count": 166,
+      "usage_before": {
+        "total_granted": 500000,
+        "total_used": 10000000,
+        "total_available": -9500000,
+        "unlimited_quota": true
+      },
+      "usage_after": {
+        "total_granted": 500000,
+        "total_used": 21600000,
+        "total_available": -21100000,
+        "unlimited_quota": true
+      },
+      "observed_quota_delta": 11600000,
+      "content_download": {
+        "proxy": {
+          "captured_at": "2026-07-11T18:54:39+08:00",
+          "method": "GET",
+          "url": "https://newapi.megabyai.cc/v1/videos/videos-mini_c1755a91cc32458797897c0e75a9a124/content",
+          "status_code": 502,
+          "headers": {
+            "Connection": "close",
+            "Content-Length": "82",
+            "Content-Type": "application/json; charset=utf-8",
+            "Date": "Sat, 11 Jul 2026 10:54:41 GMT",
+            "Server": "nginx/1.18.0 (Ubuntu)",
+            "X-New-Api-Version": "max-token-guard-20260707",
+            "X-Oneapi-Request-Id": "20260711105441620297889ygumOtIz"
+          },
+          "body": {
+            "error": {
+              "message": "Upstream service returned status 502",
+              "type": "server_error"
+            }
+          },
+          "raw_body": "{\"error\":{\"message\":\"Upstream service returned status 502\",\"type\":\"server_error\"}}"
+        },
+        "direct_fallback": {
+          "captured_at": "2026-07-11T18:54:41+08:00",
+          "method": "GET",
+          "url": "https://apisd.megabyai.cc/v1/videos/videos-mini_c1755a91cc32458797897c0e75a9a124/content",
+          "authorization": "not sent",
+          "range": "bytes=0-",
+          "status_code": 206,
+          "curl_exit_code": 0,
+          "raw_headers": "HTTP/1.1 206 Partial Content\nServer: nginx/1.18.0 (Ubuntu)\nDate: Sat, 11 Jul 2026 10:54:43 GMT\nContent-Type: video/mp4\nContent-Length: 4593233\nConnection: keep-alive\ncontent-range: bytes 0-4593232/4593233\netag: \"46119B768FF876349422277C476CE995\"\nlast-modified: Sat, 11 Jul 2026 10:45:52 GMT\ncache-control: public, max-age=31536000\naccept-ranges: bytes\n\n",
+          "saved_as": "output.mp4",
+          "size_bytes": 4593233,
+          "sha256": "a27cc43e9111a963f64292b74402cc3ad93c07f6ab694e5b6abb7346d3d4ce0d"
+        }
+      },
+      "resumed_at": "2026-07-11T18:54:39+08:00",
+      "resume_finished_at": "2026-07-11T18:55:00+08:00",
+      "usage_after_resume": null
+    },
+    {
+      "case": "videos-mini_720p_15s",
+      "started_at": "2026-07-11T18:12:54+08:00",
+      "finished_at": "2026-07-11T18:39:36+08:00",
+      "request": {
+        "model": "videos-mini",
+        "prompt": "以 @image1 中的主体与场景为准，参考 @video1 的动作节奏与镜头语言，并结合 @audio1 的声音节奏，生成一段镜头稳定、电影感明确的短片。",
+        "duration": 15,
+        "ratio": "16:9",
+        "resolution": "720p",
+        "referenceImages": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_image/r2v_tea_pic1.jpg"
+        ],
+        "referenceVideos": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_video/r2v_tea_video1.mp4"
+        ],
+        "referenceAudios": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_audio/r2v_tea_audio1.mp3"
+        ]
+      },
+      "billing_mode": "per_request",
+      "expected_unit_cny": null,
+      "expected_cny": 2.5,
+      "submit_http_status": 200,
+      "task_id": "videos-mini_9731d5f3e5ec4af2a60e0be70cb25e62",
+      "final_status": "completed",
+      "poll_count": 140,
+      "usage_before": {
+        "total_granted": 500000,
+        "total_used": 10000000,
+        "total_available": -9500000,
+        "unlimited_quota": true
+      },
+      "usage_after": {
+        "total_granted": 500000,
+        "total_used": 21600000,
+        "total_available": -21100000,
+        "unlimited_quota": true
+      },
+      "observed_quota_delta": 11600000,
+      "content_download": {
+        "proxy": {
+          "captured_at": "2026-07-11T18:53:59+08:00",
+          "method": "GET",
+          "url": "https://newapi.megabyai.cc/v1/videos/videos-mini_9731d5f3e5ec4af2a60e0be70cb25e62/content",
+          "status_code": 502,
+          "headers": {
+            "Connection": "close",
+            "Content-Length": "82",
+            "Content-Type": "application/json; charset=utf-8",
+            "Date": "Sat, 11 Jul 2026 10:54:00 GMT",
+            "Server": "nginx/1.18.0 (Ubuntu)",
+            "X-New-Api-Version": "max-token-guard-20260707",
+            "X-Oneapi-Request-Id": "20260711105400354614081dKRQ1gFU"
+          },
+          "body": {
+            "error": {
+              "message": "Upstream service returned status 502",
+              "type": "server_error"
+            }
+          },
+          "raw_body": "{\"error\":{\"message\":\"Upstream service returned status 502\",\"type\":\"server_error\"}}"
+        },
+        "direct_fallback": {
+          "captured_at": "2026-07-11T18:54:00+08:00",
+          "method": "GET",
+          "url": "https://apisd.megabyai.cc/v1/videos/videos-mini_9731d5f3e5ec4af2a60e0be70cb25e62/content",
+          "authorization": "not sent",
+          "range": "bytes=0-",
+          "status_code": 206,
+          "curl_exit_code": 0,
+          "raw_headers": "HTTP/1.1 206 Partial Content\nServer: nginx/1.18.0 (Ubuntu)\nDate: Sat, 11 Jul 2026 10:54:01 GMT\nContent-Type: video/mp4\nContent-Length: 10376045\nConnection: keep-alive\ncontent-range: bytes 0-10376044/10376045\netag: \"CA224DEF6EEB0FA8C7DDD5F77E6E553C\"\nlast-modified: Sat, 11 Jul 2026 10:39:24 GMT\ncache-control: public, max-age=31536000\naccept-ranges: bytes\n\n",
+          "saved_as": "output.mp4",
+          "size_bytes": 10376045,
+          "sha256": "a09e83bd1c95e3a0f044f1d23d803f8336eb2ec9a3b50d413a3dbc5a2d97557d"
+        }
+      },
+      "resumed_at": "2026-07-11T18:53:59+08:00",
+      "resume_finished_at": "2026-07-11T18:54:14+08:00",
+      "usage_after_resume": null
+    },
+    {
+      "case": "videos-standard_480p_15s",
+      "started_at": "2026-07-11T18:12:54+08:00",
+      "finished_at": "2026-07-11T18:40:31+08:00",
+      "request": {
+        "model": "videos-standard",
+        "prompt": "以 @image1 中的主体与场景为准，参考 @video1 的动作节奏与镜头语言，并结合 @audio1 的声音节奏，生成一段镜头稳定、电影感明确的短片。",
+        "duration": 15,
+        "ratio": "16:9",
+        "resolution": "480p",
+        "referenceImages": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_image/r2v_tea_pic1.jpg"
+        ],
+        "referenceVideos": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_video/r2v_tea_video1.mp4"
+        ],
+        "referenceAudios": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_audio/r2v_tea_audio1.mp3"
+        ]
+      },
+      "billing_mode": "per_request",
+      "expected_unit_cny": null,
+      "expected_cny": 3.5,
+      "submit_http_status": 200,
+      "task_id": "videos-standard_6c9cf5fd68e3415c8e136e72ba5ec8fc",
+      "final_status": "completed",
+      "poll_count": 144,
+      "usage_before": {
+        "total_granted": 500000,
+        "total_used": 10000000,
+        "total_available": -9500000,
+        "unlimited_quota": true
+      },
+      "usage_after": {
+        "total_granted": 500000,
+        "total_used": 21600000,
+        "total_available": -21100000,
+        "unlimited_quota": true
+      },
+      "observed_quota_delta": 11600000,
+      "content_download": {
+        "proxy": {
+          "captured_at": "2026-07-11T18:54:39+08:00",
+          "method": "GET",
+          "url": "https://newapi.megabyai.cc/v1/videos/videos-standard_6c9cf5fd68e3415c8e136e72ba5ec8fc/content",
+          "status_code": 502,
+          "headers": {
+            "Connection": "close",
+            "Content-Length": "82",
+            "Content-Type": "application/json; charset=utf-8",
+            "Date": "Sat, 11 Jul 2026 10:54:41 GMT",
+            "Server": "nginx/1.18.0 (Ubuntu)",
+            "X-New-Api-Version": "max-token-guard-20260707",
+            "X-Oneapi-Request-Id": "2026071110544113521818rQBeSD5X"
+          },
+          "body": {
+            "error": {
+              "message": "Upstream service returned status 502",
+              "type": "server_error"
+            }
+          },
+          "raw_body": "{\"error\":{\"message\":\"Upstream service returned status 502\",\"type\":\"server_error\"}}"
+        },
+        "direct_fallback": {
+          "captured_at": "2026-07-11T18:54:41+08:00",
+          "method": "GET",
+          "url": "https://apisd.megabyai.cc/v1/videos/videos-standard_6c9cf5fd68e3415c8e136e72ba5ec8fc/content",
+          "authorization": "not sent",
+          "range": "bytes=0-",
+          "status_code": 206,
+          "curl_exit_code": 0,
+          "raw_headers": "HTTP/1.1 206 Partial Content\nServer: nginx/1.18.0 (Ubuntu)\nDate: Sat, 11 Jul 2026 10:54:43 GMT\nContent-Type: video/mp4\nContent-Length: 2915274\nConnection: keep-alive\ncontent-range: bytes 0-2915273/2915274\netag: \"41CAFD48C2E1BBA949AA7022C8F0552A\"\nlast-modified: Sat, 11 Jul 2026 10:40:15 GMT\ncache-control: public, max-age=31536000\naccept-ranges: bytes\n\n",
+          "saved_as": "output.mp4",
+          "size_bytes": 2915274,
+          "sha256": "468da574d568c79bb32a6eb9b76e4aff13e1a64076f718a0c55be7f5ee4f9f29"
+        }
+      },
+      "resumed_at": "2026-07-11T18:54:39+08:00",
+      "resume_finished_at": "2026-07-11T18:54:50+08:00",
+      "usage_after_resume": null
+    },
+    {
+      "case": "videos-standard_720p_15s",
+      "started_at": "2026-07-11T18:12:54+08:00",
+      "finished_at": "2026-07-11T18:41:09+08:00",
+      "request": {
+        "model": "videos-standard",
+        "prompt": "以 @image1 中的主体与场景为准，参考 @video1 的动作节奏与镜头语言，并结合 @audio1 的声音节奏，生成一段镜头稳定、电影感明确的短片。",
+        "duration": 15,
+        "ratio": "16:9",
+        "resolution": "720p",
+        "referenceImages": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_image/r2v_tea_pic1.jpg"
+        ],
+        "referenceVideos": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_video/r2v_tea_video1.mp4"
+        ],
+        "referenceAudios": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_audio/r2v_tea_audio1.mp3"
+        ]
+      },
+      "billing_mode": "per_request",
+      "expected_unit_cny": null,
+      "expected_cny": 5.0,
+      "submit_http_status": 200,
+      "task_id": "videos-standard_ba855a1d62554deea00156dc16b17005",
+      "final_status": "completed",
+      "poll_count": 147,
+      "usage_before": {
+        "total_granted": 500000,
+        "total_used": 10000000,
+        "total_available": -9500000,
+        "unlimited_quota": true
+      },
+      "usage_after": {
+        "total_granted": 500000,
+        "total_used": 21600000,
+        "total_available": -21100000,
+        "unlimited_quota": true
+      },
+      "observed_quota_delta": 11600000,
+      "content_download": {
+        "proxy": {
+          "captured_at": "2026-07-11T18:54:40+08:00",
+          "method": "GET",
+          "url": "https://newapi.megabyai.cc/v1/videos/videos-standard_ba855a1d62554deea00156dc16b17005/content",
+          "status_code": 502,
+          "headers": {
+            "Connection": "close",
+            "Content-Length": "82",
+            "Content-Type": "application/json; charset=utf-8",
+            "Date": "Sat, 11 Jul 2026 10:54:42 GMT",
+            "Server": "nginx/1.18.0 (Ubuntu)",
+            "X-New-Api-Version": "max-token-guard-20260707",
+            "X-Oneapi-Request-Id": "202607111054419995873394tRCiwBl"
+          },
+          "body": {
+            "error": {
+              "message": "Upstream service returned status 502",
+              "type": "server_error"
+            }
+          },
+          "raw_body": "{\"error\":{\"message\":\"Upstream service returned status 502\",\"type\":\"server_error\"}}"
+        },
+        "direct_fallback": {
+          "captured_at": "2026-07-11T18:54:42+08:00",
+          "method": "GET",
+          "url": "https://apisd.megabyai.cc/v1/videos/videos-standard_ba855a1d62554deea00156dc16b17005/content",
+          "authorization": "not sent",
+          "range": "bytes=0-",
+          "status_code": 206,
+          "curl_exit_code": 0,
+          "raw_headers": "HTTP/1.1 206 Partial Content\nServer: nginx/1.18.0 (Ubuntu)\nDate: Sat, 11 Jul 2026 10:54:43 GMT\nContent-Type: video/mp4\nContent-Length: 6209023\nConnection: keep-alive\ncontent-range: bytes 0-6209022/6209023\netag: \"11B0085AA569393F88B2B64DD5212650\"\nlast-modified: Sat, 11 Jul 2026 10:40:59 GMT\ncache-control: public, max-age=31536000\naccept-ranges: bytes\n\n",
+          "saved_as": "output.mp4",
+          "size_bytes": 6209023,
+          "sha256": "fd717212782c778b5074b5bc1b7f668104c639c0f5593a4849d345726a76c887"
+        }
+      },
+      "resumed_at": "2026-07-11T18:54:40+08:00",
+      "resume_finished_at": "2026-07-11T18:54:57+08:00",
+      "usage_after_resume": null
+    },
+    {
+      "case": "videos-standard_1080p_2s",
+      "started_at": "2026-07-11T18:12:54+08:00",
+      "finished_at": "2026-07-11T18:13:11+08:00",
+      "request": {
+        "model": "videos-standard",
+        "prompt": "以 @image1 中的主体与场景为准，参考 @video1 的动作节奏与镜头语言，并结合 @audio1 的声音节奏，生成一段镜头稳定、电影感明确的短片。",
+        "duration": 2,
+        "ratio": "16:9",
+        "resolution": "1080p",
+        "referenceImages": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_image/r2v_tea_pic1.jpg"
+        ],
+        "referenceVideos": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_video/r2v_tea_video1.mp4"
+        ],
+        "referenceAudios": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_audio/r2v_tea_audio1.mp3"
+        ]
+      },
+      "billing_mode": "per_second",
+      "expected_unit_cny": 0.6,
+      "expected_cny": 1.2,
+      "submit_http_status": 422,
+      "task_id": null,
+      "final_status": null,
+      "poll_count": 0,
+      "usage_before": {
+        "total_granted": 500000,
+        "total_used": 10000000,
+        "total_available": -9500000,
+        "unlimited_quota": true
+      },
+      "usage_after": {
+        "total_granted": -7500000,
+        "total_used": 10000000,
+        "total_available": -17500000,
+        "unlimited_quota": true
+      },
+      "observed_quota_delta": 0,
+      "content_download": null
+    },
+    {
+      "case": "videos-standard_4k_2s",
+      "started_at": "2026-07-11T18:12:54+08:00",
+      "finished_at": "2026-07-11T18:13:10+08:00",
+      "request": {
+        "model": "videos-standard",
+        "prompt": "以 @image1 中的主体与场景为准，参考 @video1 的动作节奏与镜头语言，并结合 @audio1 的声音节奏，生成一段镜头稳定、电影感明确的短片。",
+        "duration": 2,
+        "ratio": "16:9",
+        "resolution": "4k",
+        "referenceImages": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_image/r2v_tea_pic1.jpg"
+        ],
+        "referenceVideos": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_video/r2v_tea_video1.mp4"
+        ],
+        "referenceAudios": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_audio/r2v_tea_audio1.mp3"
+        ]
+      },
+      "billing_mode": "per_second",
+      "expected_unit_cny": 1.2,
+      "expected_cny": 2.4,
+      "submit_http_status": 422,
+      "task_id": null,
+      "final_status": null,
+      "poll_count": 0,
+      "usage_before": {
+        "total_granted": 500000,
+        "total_used": 10000000,
+        "total_available": -9500000,
+        "unlimited_quota": true
+      },
+      "usage_after": {
+        "total_granted": -7500000,
+        "total_used": 10000000,
+        "total_available": -17500000,
+        "unlimited_quota": true
+      },
+      "observed_quota_delta": 0,
+      "content_download": null
+    },
+    {
+      "case": "videos-standard_1080p_4s_retry",
+      "started_at": "2026-07-11T18:13:50+08:00",
+      "finished_at": "2026-07-11T18:40:04+08:00",
+      "request": {
+        "model": "videos-standard",
+        "prompt": "以 @image1 中的主体与场景为准，参考 @video1 的动作节奏与镜头语言，并结合 @audio1 的声音节奏，生成一段镜头稳定、电影感明确的短片。",
+        "duration": 4,
+        "ratio": "16:9",
+        "resolution": "1080p",
+        "referenceImages": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_image/r2v_tea_pic1.jpg"
+        ],
+        "referenceVideos": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_video/r2v_tea_video1.mp4"
+        ],
+        "referenceAudios": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_audio/r2v_tea_audio1.mp3"
+        ]
+      },
+      "billing_mode": "per_second",
+      "expected_unit_cny": 0.6,
+      "expected_cny": 2.4,
+      "submit_http_status": 200,
+      "task_id": "videos-standard_916b02d7e4d84dfa9fef3492569d0026",
+      "final_status": "completed",
+      "poll_count": 136,
+      "usage_before": {
+        "total_granted": 500000,
+        "total_used": 18000000,
+        "total_available": -17500000,
+        "unlimited_quota": true
+      },
+      "usage_after": {
+        "total_granted": 500000,
+        "total_used": 21600000,
+        "total_available": -21100000,
+        "unlimited_quota": true
+      },
+      "observed_quota_delta": 3600000,
+      "content_download": {
+        "proxy": {
+          "captured_at": "2026-07-11T18:54:39+08:00",
+          "method": "GET",
+          "url": "https://newapi.megabyai.cc/v1/videos/videos-standard_916b02d7e4d84dfa9fef3492569d0026/content",
+          "status_code": 502,
+          "headers": {
+            "Connection": "close",
+            "Content-Length": "82",
+            "Content-Type": "application/json; charset=utf-8",
+            "Date": "Sat, 11 Jul 2026 10:54:41 GMT",
+            "Server": "nginx/1.18.0 (Ubuntu)",
+            "X-New-Api-Version": "max-token-guard-20260707",
+            "X-Oneapi-Request-Id": "20260711105440872208023bIuzMzQR"
+          },
+          "body": {
+            "error": {
+              "message": "Upstream service returned status 502",
+              "type": "server_error"
+            }
+          },
+          "raw_body": "{\"error\":{\"message\":\"Upstream service returned status 502\",\"type\":\"server_error\"}}"
+        },
+        "direct_fallback": {
+          "captured_at": "2026-07-11T18:54:41+08:00",
+          "method": "GET",
+          "url": "https://apisd.megabyai.cc/v1/videos/videos-standard_916b02d7e4d84dfa9fef3492569d0026/content",
+          "authorization": "not sent",
+          "range": "bytes=0-",
+          "status_code": 206,
+          "curl_exit_code": 0,
+          "raw_headers": "HTTP/1.1 206 Partial Content\nServer: nginx/1.18.0 (Ubuntu)\nDate: Sat, 11 Jul 2026 10:54:42 GMT\nContent-Type: video/mp4\nContent-Length: 3495781\nConnection: keep-alive\ncontent-range: bytes 0-3495780/3495781\netag: \"2BE87EE66F6E6D53261097EB53AED2C5\"\nlast-modified: Sat, 11 Jul 2026 10:39:45 GMT\ncache-control: public, max-age=31536000\naccept-ranges: bytes\n\n",
+          "saved_as": "output.mp4",
+          "size_bytes": 3495781,
+          "sha256": "155b0240c7c38d8f52514fc3055491ed5ecdef7258040b44741f1fb86f65763d"
+        }
+      },
+      "resumed_at": "2026-07-11T18:54:39+08:00",
+      "resume_finished_at": "2026-07-11T18:54:47+08:00",
+      "usage_after_resume": null
+    },
+    {
+      "case": "videos-standard_4k_4s_retry",
+      "started_at": "2026-07-11T18:13:50+08:00",
+      "finished_at": "2026-07-11T18:44:02+08:00",
+      "request": {
+        "model": "videos-standard",
+        "prompt": "以 @image1 中的主体与场景为准，参考 @video1 的动作节奏与镜头语言，并结合 @audio1 的声音节奏，生成一段镜头稳定、电影感明确的短片。",
+        "duration": 4,
+        "ratio": "16:9",
+        "resolution": "4k",
+        "referenceImages": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_image/r2v_tea_pic1.jpg"
+        ],
+        "referenceVideos": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_video/r2v_tea_video1.mp4"
+        ],
+        "referenceAudios": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_audio/r2v_tea_audio1.mp3"
+        ]
+      },
+      "billing_mode": "per_second",
+      "expected_unit_cny": 1.2,
+      "expected_cny": 4.8,
+      "submit_http_status": 200,
+      "task_id": "videos-standard_8a66760f81214dec8246dd91e8170f51",
+      "final_status": "failed",
+      "poll_count": 223,
+      "usage_before": {
+        "total_granted": 500000,
+        "total_used": 18000000,
+        "total_available": -17500000,
+        "unlimited_quota": true
+      },
+      "usage_after": {
+        "total_granted": 500000,
+        "total_used": 21600000,
+        "total_available": -21100000,
+        "unlimited_quota": true
+      },
+      "observed_quota_delta": 3600000,
+      "content_download": null,
+      "resumed_at": "2026-07-11T18:48:03+08:00",
+      "resume_finished_at": "2026-07-11T19:01:55+08:00",
+      "usage_after_resume": null
+    },
+    {
+      "case": "videos-standard_4k_4s_safe_retry",
+      "started_at": "2026-07-11T19:04:42+08:00",
+      "finished_at": "2026-07-11T19:30:04+08:00",
+      "request": {
+        "model": "videos-standard",
+        "prompt": "一颗红色玻璃球放在纯白背景上缓慢旋转，柔和棚拍光线，无人物、无文字、无品牌。",
+        "duration": 4,
+        "ratio": "16:9",
+        "resolution": "4k"
+      },
+      "billing_mode": "per_second",
+      "expected_unit_cny": 1.2,
+      "expected_cny": 4.8,
+      "submit_http_status": 200,
+      "task_id": "videos-standard_55d1b9d209e74ffaab2dd68bc85e7689",
+      "final_status": "failed",
+      "poll_count": 121,
+      "usage_before": {
+        "total_granted": 500000,
+        "total_used": 19200000,
+        "total_available": -18700000,
+        "unlimited_quota": true
+      },
+      "usage_after": {
+        "total_granted": 2900000,
+        "total_used": 21600000,
+        "total_available": -18700000,
+        "unlimited_quota": true
+      },
+      "observed_quota_delta": 2400000,
+      "content_download": null
+    }
+  ]
+}

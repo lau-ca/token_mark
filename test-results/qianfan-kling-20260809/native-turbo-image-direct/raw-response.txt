@@ -1,0 +1,8 @@
+HTTP/1.1 200 OK
+Content-Type: application/json
+X-New-Api-Other-Ratios: {}
+X-Oneapi-Request-Id: 202608091548143849811078268d9d6hMNLjDhF
+Date: Sun, 09 Aug 2026 15:48:17 GMT
+Content-Length: 206
+
+{"code":0,"data":{"created_at":1786290496000,"task_id":"task_NMWNLSuXGwrdeqa4AuPrELZGE8RqhN7P","task_info":{},"task_status":"submitted","updated_at":1786290496000},"message":"","request_id":"as-kshp1r6n3c"}

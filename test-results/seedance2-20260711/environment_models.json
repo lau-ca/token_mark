@@ -1,0 +1,470 @@
+{
+  "captured_at": "2026-07-11T19:04:35+08:00",
+  "method": "GET",
+  "url": "https://newapi.megabyai.cc/v1/models",
+  "status_code": 200,
+  "headers": {
+    "Server": "nginx/1.18.0 (Ubuntu)",
+    "Date": "Sat, 11 Jul 2026 11:04:37 GMT",
+    "Content-Type": "application/json; charset=utf-8",
+    "Transfer-Encoding": "chunked",
+    "Connection": "close",
+    "X-New-Api-Version": "v0.0.0",
+    "X-Oneapi-Request-Id": "20260711110435822265488rieW7EkR"
+  },
+  "body": {
+    "data": [
+      {
+        "id": "gpt-4o-audio-preview",
+        "object": "model",
+        "created": 1626777600,
+        "owned_by": "openai",
+        "supported_endpoint_types": [
+          "openai"
+        ]
+      },
+      {
+        "id": "seedance-2.0-fast",
+        "object": "model",
+        "created": 1626777600,
+        "owned_by": "custom",
+        "supported_endpoint_types": [
+          "openai"
+        ]
+      },
+      {
+        "id": "gpt-5.4",
+        "object": "model",
+        "created": 1626777600,
+        "owned_by": "custom",
+        "supported_endpoint_types": [
+          "openai"
+        ]
+      },
+      {
+        "id": "gpt-5.3-codex",
+        "object": "model",
+        "created": 1626777600,
+        "owned_by": "custom",
+        "supported_endpoint_types": [
+          "openai"
+        ]
+      },
+      {
+        "id": "videos_stable",
+        "object": "model",
+        "created": 1626777600,
+        "owned_by": "custom",
+        "supported_endpoint_types": [
+          "openai"
+        ]
+      },
+      {
+        "id": "grok-4.20-0309-non-reasoning-super",
+        "object": "model",
+        "created": 1626777600,
+        "owned_by": "custom",
+        "supported_endpoint_types": [
+          "openai"
+        ]
+      },
+      {
+        "id": "grok-4.20-0309-non-reasoning",
+        "object": "model",
+        "created": 1626777600,
+        "owned_by": "custom",
+        "supported_endpoint_types": [
+          "openai"
+        ]
+      },
+      {
+        "id": "gemini-3.1-pro-preview",
+        "object": "model",
+        "created": 1626777600,
+        "owned_by": "custom",
+        "supported_endpoint_types": [
+          "gemini",
+          "openai"
+        ]
+      },
+      {
+        "id": "grok-4.20-0309-super",
+        "object": "model",
+        "created": 1626777600,
+        "owned_by": "custom",
+        "supported_endpoint_types": [
+          "openai"
+        ]
+      },
+      {
+        "id": "veo-omni-flash-video-edit",
+        "object": "model",
+        "created": 1626777600,
+        "owned_by": "custom",
+        "supported_endpoint_types": [
+          "gemini",
+          "openai"
+        ]
+      },
+      {
+        "id": "videos-standard-480p",
+        "object": "model",
+        "created": 1626777600,
+        "owned_by": "custom",
+        "supported_endpoint_types": [
+          "openai"
+        ]
+      },
+      {
+        "id": "grok-4.20-auto",
+        "object": "model",
+        "created": 1626777600,
+        "owned_by": "custom",
+        "supported_endpoint_types": [
+          "openai"
+        ]
+      },
+      {
+        "id": "grok-4.20-fast",
+        "object": "model",
+        "created": 1626777600,
+        "owned_by": "custom",
+        "supported_endpoint_types": [
+          "openai"
+        ]
+      },
+      {
+        "id": "veo-omni-flash",
+        "object": "model",
+        "created": 1626777600,
+        "owned_by": "custom",
+        "supported_endpoint_types": [
+          "gemini",
+          "openai"
+        ]
+      },
+      {
+        "id": "grok-imagine-image-pro",
+        "object": "model",
+        "created": 1626777600,
+        "owned_by": "custom",
+        "supported_endpoint_types": [
+          "openai"
+        ]
+      },
+      {
+        "id": "videos-mini-720p",
+        "object": "model",
+        "created": 1626777600,
+        "owned_by": "custom",
+        "supported_endpoint_types": [
+          "openai"
+        ]
+      },
+      {
+        "id": "seedance-2.0-n",
+        "object": "model",
+        "created": 1626777600,
+        "owned_by": "custom",
+        "supported_endpoint_types": [
+          "openai"
+        ]
+      },
+      {
+        "id": "grok-imagine-image-edit",
+        "object": "model",
+        "created": 1626777600,
+        "owned_by": "custom",
+        "supported_endpoint_types": [
+          "openai"
+        ]
+      },
+      {
+        "id": "gpt-5.2-pro-2025-12-11",
+        "object": "model",
+        "created": 1626777600,
+        "owned_by": "custom",
+        "supported_endpoint_types": [
+          "openai"
+        ]
+      },
+      {
+        "id": "videos-mini",
+        "object": "model",
+        "created": 1626777600,
+        "owned_by": "custom",
+        "supported_endpoint_types": [
+          "openai"
+        ]
+      },
+      {
+        "id": "videos-standard-4k",
+        "object": "model",
+        "created": 1626777600,
+        "owned_by": "custom",
+        "supported_endpoint_types": [
+          "openai"
+        ]
+      },
+      {
+        "id": "gpt-5.2-pro",
+        "object": "model",
+        "created": 1626777600,
+        "owned_by": "custom",
+        "supported_endpoint_types": [
+          "openai"
+        ]
+      },
+      {
+        "id": "nana-banana-pro",
+        "object": "model",
+        "created": 1626777600,
+        "owned_by": "custom",
+        "supported_endpoint_types": [
+          "gemini",
+          "openai"
+        ]
+      },
+      {
+        "id": "gpt-image-2",
+        "object": "model",
+        "created": 1626777600,
+        "owned_by": "openai",
+        "supported_endpoint_types": [
+          "image-generation",
+          "openai"
+        ]
+      },
+      {
+        "id": "grok-4.20-0309-reasoning-super",
+        "object": "model",
+        "created": 1626777600,
+        "owned_by": "custom",
+        "supported_endpoint_types": [
+          "openai"
+        ]
+      },
+      {
+        "id": "veo-omni-flash-dewatermark",
+        "object": "model",
+        "created": 1626777600,
+        "owned_by": "custom",
+        "supported_endpoint_types": [
+          "gemini",
+          "openai"
+        ]
+      },
+      {
+        "id": "gpt-5.6-terra",
+        "object": "model",
+        "created": 1626777600,
+        "owned_by": "custom",
+        "supported_endpoint_types": [
+          "openai"
+        ]
+      },
+      {
+        "id": "gpt-5.6-luna",
+        "object": "model",
+        "created": 1626777600,
+        "owned_by": "custom",
+        "supported_endpoint_types": [
+          "openai"
+        ]
+      },
+      {
+        "id": "gpt-4o-realtime-preview",
+        "object": "model",
+        "created": 1626777600,
+        "owned_by": "openai",
+        "supported_endpoint_types": [
+          "openai"
+        ]
+      },
+      {
+        "id": "gpt-5.3-codex-spark",
+        "object": "model",
+        "created": 1626777600,
+        "owned_by": "custom",
+        "supported_endpoint_types": [
+          "openai"
+        ]
+      },
+      {
+        "id": "grok-imagine-video",
+        "object": "model",
+        "created": 1626777600,
+        "owned_by": "custom",
+        "supported_endpoint_types": [
+          "openai"
+        ]
+      },
+      {
+        "id": "videos_stable_fast",
+        "object": "model",
+        "created": 1626777600,
+        "owned_by": "custom",
+        "supported_endpoint_types": [
+          "openai"
+        ]
+      },
+      {
+        "id": "videos-fast",
+        "object": "model",
+        "created": 1626777600,
+        "owned_by": "custom",
+        "supported_endpoint_types": [
+          "openai"
+        ]
+      },
+      {
+        "id": "videos-manxie",
+        "object": "model",
+        "created": 1626777600,
+        "owned_by": "custom",
+        "supported_endpoint_types": [
+          "openai"
+        ]
+      },
+      {
+        "id": "videos-standard-720p",
+        "object": "model",
+        "created": 1626777600,
+        "owned_by": "custom",
+        "supported_endpoint_types": [
+          "openai"
+        ]
+      },
+      {
+        "id": "grok-4.20-0309-reasoning",
+        "object": "model",
+        "created": 1626777600,
+        "owned_by": "custom",
+        "supported_endpoint_types": [
+          "openai"
+        ]
+      },
+      {
+        "id": "grok-imagine-image",
+        "object": "model",
+        "created": 1626777600,
+        "owned_by": "custom",
+        "supported_endpoint_types": [
+          "openai"
+        ]
+      },
+      {
+        "id": "nana-banana-2",
+        "object": "model",
+        "created": 1626777600,
+        "owned_by": "custom",
+        "supported_endpoint_types": [
+          "gemini",
+          "openai"
+        ]
+      },
+      {
+        "id": "videos-mini-480p",
+        "object": "model",
+        "created": 1626777600,
+        "owned_by": "custom",
+        "supported_endpoint_types": [
+          "openai"
+        ]
+      },
+      {
+        "id": "seedance-2.0-fast-video",
+        "object": "model",
+        "created": 1626777600,
+        "owned_by": "custom",
+        "supported_endpoint_types": [
+          "openai"
+        ]
+      },
+      {
+        "id": "gpt-5.2",
+        "object": "model",
+        "created": 1626777600,
+        "owned_by": "codex",
+        "supported_endpoint_types": [
+          "openai"
+        ]
+      },
+      {
+        "id": "gpt-5.5",
+        "object": "model",
+        "created": 1626777600,
+        "owned_by": "custom",
+        "supported_endpoint_types": [
+          "openai"
+        ]
+      },
+      {
+        "id": "videos-fast-480p",
+        "object": "model",
+        "created": 1626777600,
+        "owned_by": "custom",
+        "supported_endpoint_types": [
+          "openai"
+        ]
+      },
+      {
+        "id": "grok-4.20-0309",
+        "object": "model",
+        "created": 1626777600,
+        "owned_by": "custom",
+        "supported_endpoint_types": [
+          "openai"
+        ]
+      },
+      {
+        "id": "videos-standard-1080p",
+        "object": "model",
+        "created": 1626777600,
+        "owned_by": "custom",
+        "supported_endpoint_types": [
+          "openai"
+        ]
+      },
+      {
+        "id": "sora-2",
+        "object": "model",
+        "created": 1626777600,
+        "owned_by": "custom",
+        "supported_endpoint_types": [
+          "openai"
+        ]
+      },
+      {
+        "id": "videos-fast-720p",
+        "object": "model",
+        "created": 1626777600,
+        "owned_by": "custom",
+        "supported_endpoint_types": [
+          "openai"
+        ]
+      },
+      {
+        "id": "videos-standard",
+        "object": "model",
+        "created": 1626777600,
+        "owned_by": "custom",
+        "supported_endpoint_types": [
+          "openai"
+        ]
+      },
+      {
+        "id": "gpt-5.6-sol",
+        "object": "model",
+        "created": 1626777600,
+        "owned_by": "custom",
+        "supported_endpoint_types": [
+          "openai"
+        ]
+      }
+    ],
+    "object": "list",
+    "success": true
+  },
+  "raw_body": "{\"data\":[{\"id\":\"gpt-4o-audio-preview\",\"object\":\"model\",\"created\":1626777600,\"owned_by\":\"openai\",\"supported_endpoint_types\":[\"openai\"]},{\"id\":\"seedance-2.0-fast\",\"object\":\"model\",\"created\":1626777600,\"owned_by\":\"custom\",\"supported_endpoint_types\":[\"openai\"]},{\"id\":\"gpt-5.4\",\"object\":\"model\",\"created\":1626777600,\"owned_by\":\"custom\",\"supported_endpoint_types\":[\"openai\"]},{\"id\":\"gpt-5.3-codex\",\"object\":\"model\",\"created\":1626777600,\"owned_by\":\"custom\",\"supported_endpoint_types\":[\"openai\"]},{\"id\":\"videos_stable\",\"object\":\"model\",\"created\":1626777600,\"owned_by\":\"custom\",\"supported_endpoint_types\":[\"openai\"]},{\"id\":\"grok-4.20-0309-non-reasoning-super\",\"object\":\"model\",\"created\":1626777600,\"owned_by\":\"custom\",\"supported_endpoint_types\":[\"openai\"]},{\"id\":\"grok-4.20-0309-non-reasoning\",\"object\":\"model\",\"created\":1626777600,\"owned_by\":\"custom\",\"supported_endpoint_types\":[\"openai\"]},{\"id\":\"gemini-3.1-pro-preview\",\"object\":\"model\",\"created\":1626777600,\"owned_by\":\"custom\",\"supported_endpoint_types\":[\"gemini\",\"openai\"]},{\"id\":\"grok-4.20-0309-super\",\"object\":\"model\",\"created\":1626777600,\"owned_by\":\"custom\",\"supported_endpoint_types\":[\"openai\"]},{\"id\":\"veo-omni-flash-video-edit\",\"object\":\"model\",\"created\":1626777600,\"owned_by\":\"custom\",\"supported_endpoint_types\":[\"gemini\",\"openai\"]},{\"id\":\"videos-standard-480p\",\"object\":\"model\",\"created\":1626777600,\"owned_by\":\"custom\",\"supported_endpoint_types\":[\"openai\"]},{\"id\":\"grok-4.20-auto\",\"object\":\"model\",\"created\":1626777600,\"owned_by\":\"custom\",\"supported_endpoint_types\":[\"openai\"]},{\"id\":\"grok-4.20-fast\",\"object\":\"model\",\"created\":1626777600,\"owned_by\":\"custom\",\"supported_endpoint_types\":[\"openai\"]},{\"id\":\"veo-omni-flash\",\"object\":\"model\",\"created\":1626777600,\"owned_by\":\"custom\",\"supported_endpoint_types\":[\"gemini\",\"openai\"]},{\"id\":\"grok-imagine-image-pro\",\"object\":\"model\",\"created\":1626777600,\"owned_by\":\"custom\",\"supported_endpoint_types\":[\"openai\"]},{\"id\":\"videos-mini-720p\",\"object\":\"model\",\"created\":1626777600,\"owned_by\":\"custom\",\"supported_endpoint_types\":[\"openai\"]},{\"id\":\"seedance-2.0-n\",\"object\":\"model\",\"created\":1626777600,\"owned_by\":\"custom\",\"supported_endpoint_types\":[\"openai\"]},{\"id\":\"grok-imagine-image-edit\",\"object\":\"model\",\"created\":1626777600,\"owned_by\":\"custom\",\"supported_endpoint_types\":[\"openai\"]},{\"id\":\"gpt-5.2-pro-2025-12-11\",\"object\":\"model\",\"created\":1626777600,\"owned_by\":\"custom\",\"supported_endpoint_types\":[\"openai\"]},{\"id\":\"videos-mini\",\"object\":\"model\",\"created\":1626777600,\"owned_by\":\"custom\",\"supported_endpoint_types\":[\"openai\"]},{\"id\":\"videos-standard-4k\",\"object\":\"model\",\"created\":1626777600,\"owned_by\":\"custom\",\"supported_endpoint_types\":[\"openai\"]},{\"id\":\"gpt-5.2-pro\",\"object\":\"model\",\"created\":1626777600,\"owned_by\":\"custom\",\"supported_endpoint_types\":[\"openai\"]},{\"id\":\"nana-banana-pro\",\"object\":\"model\",\"created\":1626777600,\"owned_by\":\"custom\",\"supported_endpoint_types\":[\"gemini\",\"openai\"]},{\"id\":\"gpt-image-2\",\"object\":\"model\",\"created\":1626777600,\"owned_by\":\"openai\",\"supported_endpoint_types\":[\"image-generation\",\"openai\"]},{\"id\":\"grok-4.20-0309-reasoning-super\",\"object\":\"model\",\"created\":1626777600,\"owned_by\":\"custom\",\"supported_endpoint_types\":[\"openai\"]},{\"id\":\"veo-omni-flash-dewatermark\",\"object\":\"model\",\"created\":1626777600,\"owned_by\":\"custom\",\"supported_endpoint_types\":[\"gemini\",\"openai\"]},{\"id\":\"gpt-5.6-terra\",\"object\":\"model\",\"created\":1626777600,\"owned_by\":\"custom\",\"supported_endpoint_types\":[\"openai\"]},{\"id\":\"gpt-5.6-luna\",\"object\":\"model\",\"created\":1626777600,\"owned_by\":\"custom\",\"supported_endpoint_types\":[\"openai\"]},{\"id\":\"gpt-4o-realtime-preview\",\"object\":\"model\",\"created\":1626777600,\"owned_by\":\"openai\",\"supported_endpoint_types\":[\"openai\"]},{\"id\":\"gpt-5.3-codex-spark\",\"object\":\"model\",\"created\":1626777600,\"owned_by\":\"custom\",\"supported_endpoint_types\":[\"openai\"]},{\"id\":\"grok-imagine-video\",\"object\":\"model\",\"created\":1626777600,\"owned_by\":\"custom\",\"supported_endpoint_types\":[\"openai\"]},{\"id\":\"videos_stable_fast\",\"object\":\"model\",\"created\":1626777600,\"owned_by\":\"custom\",\"supported_endpoint_types\":[\"openai\"]},{\"id\":\"videos-fast\",\"object\":\"model\",\"created\":1626777600,\"owned_by\":\"custom\",\"supported_endpoint_types\":[\"openai\"]},{\"id\":\"videos-manxie\",\"object\":\"model\",\"created\":1626777600,\"owned_by\":\"custom\",\"supported_endpoint_types\":[\"openai\"]},{\"id\":\"videos-standard-720p\",\"object\":\"model\",\"created\":1626777600,\"owned_by\":\"custom\",\"supported_endpoint_types\":[\"openai\"]},{\"id\":\"grok-4.20-0309-reasoning\",\"object\":\"model\",\"created\":1626777600,\"owned_by\":\"custom\",\"supported_endpoint_types\":[\"openai\"]},{\"id\":\"grok-imagine-image\",\"object\":\"model\",\"created\":1626777600,\"owned_by\":\"custom\",\"supported_endpoint_types\":[\"openai\"]},{\"id\":\"nana-banana-2\",\"object\":\"model\",\"created\":1626777600,\"owned_by\":\"custom\",\"supported_endpoint_types\":[\"gemini\",\"openai\"]},{\"id\":\"videos-mini-480p\",\"object\":\"model\",\"created\":1626777600,\"owned_by\":\"custom\",\"supported_endpoint_types\":[\"openai\"]},{\"id\":\"seedance-2.0-fast-video\",\"object\":\"model\",\"created\":1626777600,\"owned_by\":\"custom\",\"supported_endpoint_types\":[\"openai\"]},{\"id\":\"gpt-5.2\",\"object\":\"model\",\"created\":1626777600,\"owned_by\":\"codex\",\"supported_endpoint_types\":[\"openai\"]},{\"id\":\"gpt-5.5\",\"object\":\"model\",\"created\":1626777600,\"owned_by\":\"custom\",\"supported_endpoint_types\":[\"openai\"]},{\"id\":\"videos-fast-480p\",\"object\":\"model\",\"created\":1626777600,\"owned_by\":\"custom\",\"supported_endpoint_types\":[\"openai\"]},{\"id\":\"grok-4.20-0309\",\"object\":\"model\",\"created\":1626777600,\"owned_by\":\"custom\",\"supported_endpoint_types\":[\"openai\"]},{\"id\":\"videos-standard-1080p\",\"object\":\"model\",\"created\":1626777600,\"owned_by\":\"custom\",\"supported_endpoint_types\":[\"openai\"]},{\"id\":\"sora-2\",\"object\":\"model\",\"created\":1626777600,\"owned_by\":\"custom\",\"supported_endpoint_types\":[\"openai\"]},{\"id\":\"videos-fast-720p\",\"object\":\"model\",\"created\":1626777600,\"owned_by\":\"custom\",\"supported_endpoint_types\":[\"openai\"]},{\"id\":\"videos-standard\",\"object\":\"model\",\"created\":1626777600,\"owned_by\":\"custom\",\"supported_endpoint_types\":[\"openai\"]},{\"id\":\"gpt-5.6-sol\",\"object\":\"model\",\"created\":1626777600,\"owned_by\":\"custom\",\"supported_endpoint_types\":[\"openai\"]}],\"object\":\"list\",\"success\":true}"
+}

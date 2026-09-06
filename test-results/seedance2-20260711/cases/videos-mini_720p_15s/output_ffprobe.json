@@ -1,0 +1,30 @@
+{
+  "exit_code": 0,
+  "stdout": "{\n    \"programs\": [\n\n    ],\n    \"stream_groups\": [\n\n    ],\n    \"streams\": [\n        {\n            \"index\": 0,\n            \"codec_name\": \"h264\",\n            \"codec_type\": \"video\",\n            \"width\": 1280,\n            \"height\": 720,\n            \"duration\": \"15.041667\"\n        },\n        {\n            \"index\": 1,\n            \"codec_name\": \"aac\",\n            \"codec_type\": \"audio\",\n            \"duration\": \"15.104000\"\n        }\n    ],\n    \"format\": {\n        \"format_name\": \"mov,mp4,m4a,3gp,3g2,mj2\",\n        \"duration\": \"15.104000\",\n        \"size\": \"10376045\"\n    }\n}\n",
+  "stderr": "",
+  "parsed": {
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+      {
+        "index": 0,
+        "codec_name": "h264",
+        "codec_type": "video",
+        "width": 1280,
+        "height": 720,
+        "duration": "15.041667"
+      },
+      {
+        "index": 1,
+        "codec_name": "aac",
+        "codec_type": "audio",
+        "duration": "15.104000"
+      }
+    ],
+    "format": {
+      "format_name": "mov,mp4,m4a,3gp,3g2,mj2",
+      "duration": "15.104000",
+      "size": "10376045"
+    }
+  }
+}

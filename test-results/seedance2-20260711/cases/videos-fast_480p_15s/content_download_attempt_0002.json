@@ -1,0 +1,7 @@
+{
+  "captured_at": "2026-07-11T18:50:49+08:00",
+  "method": "GET",
+  "url": "https://newapi.megabyai.cc/v1/videos/videos-fast_a1daa2ec754a492f8bd6af2b0f3aa2d5/content",
+  "status_code": null,
+  "transport_error": "[SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1010)"
+}

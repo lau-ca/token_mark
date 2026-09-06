@@ -1,0 +1,33 @@
+{
+  "captured_at": "2026-07-11T18:39:30+08:00",
+  "method": "GET",
+  "url": "https://newapi.megabyai.cc/v1/videos/videos-mini_9731d5f3e5ec4af2a60e0be70cb25e62",
+  "status_code": 200,
+  "headers": {
+    "Server": "nginx/1.18.0 (Ubuntu)",
+    "Date": "Sat, 11 Jul 2026 10:39:31 GMT",
+    "Content-Type": "application/json",
+    "Content-Length": "669",
+    "Connection": "close",
+    "X-New-Api-Version": "v0.0.0",
+    "X-Oneapi-Request-Id": "20260711103930638278612JTc7TukZ"
+  },
+  "body": {
+    "id": "videos-mini_9731d5f3e5ec4af2a60e0be70cb25e62",
+    "task_id": "videos-mini_9731d5f3e5ec4af2a60e0be70cb25e62",
+    "object": "video",
+    "model": "videos-mini",
+    "status": "completed",
+    "progress": 57,
+    "created_at": 1783764780,
+    "completed_at": 1783766353,
+    "seconds": "15",
+    "url": "https://apisd.megabyai.cc/v1/videos/videos-mini_9731d5f3e5ec4af2a60e0be70cb25e62/content",
+    "video_url": "https://apisd.megabyai.cc/v1/videos/videos-mini_9731d5f3e5ec4af2a60e0be70cb25e62/content",
+    "metadata": {
+      "origin_video_url": "https://apisd.megabyai.cc/v1/videos/videos-mini_9731d5f3e5ec4af2a60e0be70cb25e62/content",
+      "url": "https://apisd.megabyai.cc/v1/videos/videos-mini_9731d5f3e5ec4af2a60e0be70cb25e62/content"
+    }
+  },
+  "raw_body": "{\"id\":\"videos-mini_9731d5f3e5ec4af2a60e0be70cb25e62\",\"task_id\":\"videos-mini_9731d5f3e5ec4af2a60e0be70cb25e62\",\"object\":\"video\",\"model\":\"videos-mini\",\"status\":\"completed\",\"progress\":57,\"created_at\":1783764780,\"completed_at\":1783766353,\"seconds\":\"15\",\"url\":\"https://apisd.megabyai.cc/v1/videos/videos-mini_9731d5f3e5ec4af2a60e0be70cb25e62/content\",\"video_url\":\"https://apisd.megabyai.cc/v1/videos/videos-mini_9731d5f3e5ec4af2a60e0be70cb25e62/content\",\"metadata\":{\"origin_video_url\":\"https://apisd.megabyai.cc/v1/videos/videos-mini_9731d5f3e5ec4af2a60e0be70cb25e62/content\",\"url\":\"https://apisd.megabyai.cc/v1/videos/videos-mini_9731d5f3e5ec4af2a60e0be70cb25e62/content\"}}"
+}

@@ -1,0 +1,13 @@
+{
+  "captured_at": "2026-07-11T19:00:17+08:00",
+  "method": "GET",
+  "url": "https://newapi.megabyai.cc/v1/videos/videos-mini_9731d5f3e5ec4af2a60e0be70cb25e62/content",
+  "headers": {
+    "Authorization": "Bearer <REDACTED>",
+    "Range": "bytes=0-0"
+  },
+  "follow_redirects": false,
+  "status_code": 302,
+  "location": "http://38.55.102.11/v1/videos/videos-mini_9731d5f3e5ec4af2a60e0be70cb25e62/content",
+  "security_note": "HTTPS authenticated request redirected to a plaintext HTTP IP. Clients must not forward Authorization across this redirect."
+}

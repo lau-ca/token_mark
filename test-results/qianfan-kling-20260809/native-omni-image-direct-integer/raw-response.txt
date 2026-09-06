@@ -1,0 +1,7 @@
+HTTP/1.1 400 Bad Request
+Content-Type: application/json; charset=utf-8
+X-Oneapi-Request-Id: 202608091527429139903388268d9d6kvgjSCLz
+Date: Sun, 09 Aug 2026 15:27:44 GMT
+Content-Length: 259
+
+{"code":"fail_to_fetch_task","message":"{\"error\":{\"code\":\"malformed_json\",\"message\":\"json: cannot unmarshal number into struct field CreateKlingO1V2.duration of type string\",\"type\":\"invalid_request_error\"},\"id\":\"as-h3wauzd6d9\"}","data":null}

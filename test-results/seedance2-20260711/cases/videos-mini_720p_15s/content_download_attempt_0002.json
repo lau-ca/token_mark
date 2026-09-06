@@ -1,0 +1,22 @@
+{
+  "captured_at": "2026-07-11T18:48:59+08:00",
+  "method": "GET",
+  "url": "https://newapi.megabyai.cc/v1/videos/videos-mini_9731d5f3e5ec4af2a60e0be70cb25e62/content",
+  "status_code": 502,
+  "headers": {
+    "Connection": "close",
+    "Content-Length": "82",
+    "Content-Type": "application/json; charset=utf-8",
+    "Date": "Sat, 11 Jul 2026 10:49:00 GMT",
+    "Server": "nginx/1.18.0 (Ubuntu)",
+    "X-New-Api-Version": "max-token-guard-20260707",
+    "X-Oneapi-Request-Id": "20260711104900805507500pIM5K3iD"
+  },
+  "body": {
+    "error": {
+      "message": "Upstream service returned status 502",
+      "type": "server_error"
+    }
+  },
+  "raw_body": "{\"error\":{\"message\":\"Upstream service returned status 502\",\"type\":\"server_error\"}}"
+}

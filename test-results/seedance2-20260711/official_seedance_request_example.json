@@ -1,0 +1,38 @@
+{
+  "endpoint": "https://ark.cn-beijing.volces.com/api/v3/contents/generations/tasks",
+  "body": {
+    "model": "doubao-seedance-2-0-260128",
+    "content": [
+      {
+        "type": "text",
+        "text": "主体与场景参考图片1，动作节奏与镜头语言参考视频1，声音节奏参考音频1，生成一段电影感短片。"
+      },
+      {
+        "type": "image_url",
+        "image_url": {
+          "url": "https://ark-project.tos-cn-beijing.volces.com/doc_image/r2v_tea_pic1.jpg"
+        },
+        "role": "reference_image"
+      },
+      {
+        "type": "video_url",
+        "video_url": {
+          "url": "https://ark-project.tos-cn-beijing.volces.com/doc_video/r2v_tea_video1.mp4"
+        },
+        "role": "reference_video"
+      },
+      {
+        "type": "audio_url",
+        "audio_url": {
+          "url": "https://ark-project.tos-cn-beijing.volces.com/doc_audio/r2v_tea_audio1.mp3"
+        },
+        "role": "reference_audio"
+      }
+    ],
+    "duration": 4,
+    "ratio": "16:9",
+    "resolution": "720p",
+    "generate_audio": true,
+    "watermark": false
+  }
+}

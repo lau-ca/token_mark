@@ -1,0 +1,6 @@
+### channels same upstream
+ id  |         name          |        base_url         |    models     | status | priority | weight 
+-----+-----------------------+-------------------------+---------------+--------+----------+--------
+ 109 | image_web_gpt_siphot2 | https://2.shumai.online | gpt-image-2-w |      1 |        1 |      0
+(1 row)
+

@@ -1,0 +1,18 @@
+{
+  "captured_at": "2026-07-11T18:50:32+08:00",
+  "method": "GET",
+  "url": "https://apisd.megabyai.cc/v1/videos/videos-standard_ba855a1d62554deea00156dc16b17005/content",
+  "authorization": "not sent",
+  "status_code": 502,
+  "headers": {
+    "Server": "nginx/1.18.0 (Ubuntu)",
+    "Date": "Sat, 11 Jul 2026 10:50:33 GMT",
+    "Content-Type": "application/json",
+    "Content-Length": "58",
+    "Connection": "close"
+  },
+  "body": {
+    "detail": "视频内容暂时不可用，请稍后重试"
+  },
+  "raw_body": "{\"detail\":\"视频内容暂时不可用，请稍后重试\"}"
+}

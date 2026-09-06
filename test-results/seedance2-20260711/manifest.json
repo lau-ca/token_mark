@@ -1,0 +1,242 @@
+{
+  "created_at": "2026-07-11T19:04:35+08:00",
+  "base_url": "https://newapi.megabyai.cc",
+  "authorization": "Bearer <REDACTED>",
+  "poll_interval_seconds": 10,
+  "poll_timeout_seconds": 1800,
+  "documentation": {
+    "compatibility_api": "https://4os673ec2p.apifox.cn/472626689e0",
+    "volcengine_api_reference": "https://www.volcengine.com/docs/82379/1520757",
+    "volcengine_seedance_2_tutorial": "https://www.volcengine.com/docs/82379/2291680"
+  },
+  "reference_assets": {
+    "source_note": "Volcengine official Seedance 2.0 tutorial media",
+    "images": [
+      "https://ark-project.tos-cn-beijing.volces.com/doc_image/r2v_tea_pic1.jpg"
+    ],
+    "videos": [
+      "https://ark-project.tos-cn-beijing.volces.com/doc_video/r2v_tea_video1.mp4"
+    ],
+    "audios": [
+      "https://ark-project.tos-cn-beijing.volces.com/doc_audio/r2v_tea_audio1.mp3"
+    ]
+  },
+  "cases": {
+    "videos-fast_480p_15s": {
+      "billing_mode": "per_request",
+      "expected_cny": 2.0,
+      "request": {
+        "model": "videos-fast",
+        "prompt": "以 @image1 中的主体与场景为准，参考 @video1 的动作节奏与镜头语言，并结合 @audio1 的声音节奏，生成一段镜头稳定、电影感明确的短片。",
+        "duration": 15,
+        "ratio": "16:9",
+        "resolution": "480p",
+        "referenceImages": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_image/r2v_tea_pic1.jpg"
+        ],
+        "referenceVideos": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_video/r2v_tea_video1.mp4"
+        ],
+        "referenceAudios": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_audio/r2v_tea_audio1.mp3"
+        ]
+      }
+    },
+    "videos-fast_720p_15s": {
+      "billing_mode": "per_request",
+      "expected_cny": 3.5,
+      "request": {
+        "model": "videos-fast",
+        "prompt": "以 @image1 中的主体与场景为准，参考 @video1 的动作节奏与镜头语言，并结合 @audio1 的声音节奏，生成一段镜头稳定、电影感明确的短片。",
+        "duration": 15,
+        "ratio": "16:9",
+        "resolution": "720p",
+        "referenceImages": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_image/r2v_tea_pic1.jpg"
+        ],
+        "referenceVideos": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_video/r2v_tea_video1.mp4"
+        ],
+        "referenceAudios": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_audio/r2v_tea_audio1.mp3"
+        ]
+      }
+    },
+    "videos-mini_480p_15s": {
+      "billing_mode": "per_request",
+      "expected_cny": 1.5,
+      "request": {
+        "model": "videos-mini",
+        "prompt": "以 @image1 中的主体与场景为准，参考 @video1 的动作节奏与镜头语言，并结合 @audio1 的声音节奏，生成一段镜头稳定、电影感明确的短片。",
+        "duration": 15,
+        "ratio": "16:9",
+        "resolution": "480p",
+        "referenceImages": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_image/r2v_tea_pic1.jpg"
+        ],
+        "referenceVideos": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_video/r2v_tea_video1.mp4"
+        ],
+        "referenceAudios": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_audio/r2v_tea_audio1.mp3"
+        ]
+      }
+    },
+    "videos-mini_720p_15s": {
+      "billing_mode": "per_request",
+      "expected_cny": 2.5,
+      "request": {
+        "model": "videos-mini",
+        "prompt": "以 @image1 中的主体与场景为准，参考 @video1 的动作节奏与镜头语言，并结合 @audio1 的声音节奏，生成一段镜头稳定、电影感明确的短片。",
+        "duration": 15,
+        "ratio": "16:9",
+        "resolution": "720p",
+        "referenceImages": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_image/r2v_tea_pic1.jpg"
+        ],
+        "referenceVideos": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_video/r2v_tea_video1.mp4"
+        ],
+        "referenceAudios": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_audio/r2v_tea_audio1.mp3"
+        ]
+      }
+    },
+    "videos-standard_480p_15s": {
+      "billing_mode": "per_request",
+      "expected_cny": 3.5,
+      "request": {
+        "model": "videos-standard",
+        "prompt": "以 @image1 中的主体与场景为准，参考 @video1 的动作节奏与镜头语言，并结合 @audio1 的声音节奏，生成一段镜头稳定、电影感明确的短片。",
+        "duration": 15,
+        "ratio": "16:9",
+        "resolution": "480p",
+        "referenceImages": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_image/r2v_tea_pic1.jpg"
+        ],
+        "referenceVideos": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_video/r2v_tea_video1.mp4"
+        ],
+        "referenceAudios": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_audio/r2v_tea_audio1.mp3"
+        ]
+      }
+    },
+    "videos-standard_720p_15s": {
+      "billing_mode": "per_request",
+      "expected_cny": 5.0,
+      "request": {
+        "model": "videos-standard",
+        "prompt": "以 @image1 中的主体与场景为准，参考 @video1 的动作节奏与镜头语言，并结合 @audio1 的声音节奏，生成一段镜头稳定、电影感明确的短片。",
+        "duration": 15,
+        "ratio": "16:9",
+        "resolution": "720p",
+        "referenceImages": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_image/r2v_tea_pic1.jpg"
+        ],
+        "referenceVideos": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_video/r2v_tea_video1.mp4"
+        ],
+        "referenceAudios": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_audio/r2v_tea_audio1.mp3"
+        ]
+      }
+    },
+    "videos-standard_1080p_2s": {
+      "billing_mode": "per_second",
+      "expected_unit_cny": 0.6,
+      "expected_cny": 1.2,
+      "request": {
+        "model": "videos-standard",
+        "prompt": "以 @image1 中的主体与场景为准，参考 @video1 的动作节奏与镜头语言，并结合 @audio1 的声音节奏，生成一段镜头稳定、电影感明确的短片。",
+        "duration": 2,
+        "ratio": "16:9",
+        "resolution": "1080p",
+        "referenceImages": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_image/r2v_tea_pic1.jpg"
+        ],
+        "referenceVideos": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_video/r2v_tea_video1.mp4"
+        ],
+        "referenceAudios": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_audio/r2v_tea_audio1.mp3"
+        ]
+      }
+    },
+    "videos-standard_4k_2s": {
+      "billing_mode": "per_second",
+      "expected_unit_cny": 1.2,
+      "expected_cny": 2.4,
+      "request": {
+        "model": "videos-standard",
+        "prompt": "以 @image1 中的主体与场景为准，参考 @video1 的动作节奏与镜头语言，并结合 @audio1 的声音节奏，生成一段镜头稳定、电影感明确的短片。",
+        "duration": 2,
+        "ratio": "16:9",
+        "resolution": "4k",
+        "referenceImages": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_image/r2v_tea_pic1.jpg"
+        ],
+        "referenceVideos": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_video/r2v_tea_video1.mp4"
+        ],
+        "referenceAudios": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_audio/r2v_tea_audio1.mp3"
+        ]
+      }
+    },
+    "videos-standard_1080p_4s_retry": {
+      "billing_mode": "per_second",
+      "expected_unit_cny": 0.6,
+      "expected_cny": 2.4,
+      "request": {
+        "model": "videos-standard",
+        "prompt": "以 @image1 中的主体与场景为准，参考 @video1 的动作节奏与镜头语言，并结合 @audio1 的声音节奏，生成一段镜头稳定、电影感明确的短片。",
+        "duration": 4,
+        "ratio": "16:9",
+        "resolution": "1080p",
+        "referenceImages": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_image/r2v_tea_pic1.jpg"
+        ],
+        "referenceVideos": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_video/r2v_tea_video1.mp4"
+        ],
+        "referenceAudios": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_audio/r2v_tea_audio1.mp3"
+        ]
+      }
+    },
+    "videos-standard_4k_4s_retry": {
+      "billing_mode": "per_second",
+      "expected_unit_cny": 1.2,
+      "expected_cny": 4.8,
+      "request": {
+        "model": "videos-standard",
+        "prompt": "以 @image1 中的主体与场景为准，参考 @video1 的动作节奏与镜头语言，并结合 @audio1 的声音节奏，生成一段镜头稳定、电影感明确的短片。",
+        "duration": 4,
+        "ratio": "16:9",
+        "resolution": "4k",
+        "referenceImages": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_image/r2v_tea_pic1.jpg"
+        ],
+        "referenceVideos": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_video/r2v_tea_video1.mp4"
+        ],
+        "referenceAudios": [
+          "https://ark-project.tos-cn-beijing.volces.com/doc_audio/r2v_tea_audio1.mp3"
+        ]
+      }
+    },
+    "videos-standard_4k_4s_safe_retry": {
+      "billing_mode": "per_second",
+      "expected_unit_cny": 1.2,
+      "expected_cny": 4.8,
+      "request": {
+        "model": "videos-standard",
+        "prompt": "一颗红色玻璃球放在纯白背景上缓慢旋转，柔和棚拍光线，无人物、无文字、无品牌。",
+        "duration": 4,
+        "ratio": "16:9",
+        "resolution": "4k"
+      }
+    }
+  }
+}

@@ -1,5 +1,7 @@
 # 模型能力配置持久化设计
 
+> 此方案已被 `2026-08-11-model-capabilities-separation-design.md` 取代。模型能力现改为独立表存储，不再复用 `models.endpoints`。
+
 ## 目标
 
 模型能力配置一旦保存，必须持续保存在 `models.endpoints` 中。渠道的新增、修改、启用、禁用和删除只能改变模型当前是否可用以及是否出现在 Playground，不能删除、覆盖或重建模型能力配置。

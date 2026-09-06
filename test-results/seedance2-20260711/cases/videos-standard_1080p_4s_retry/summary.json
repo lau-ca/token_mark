@@ -1,0 +1,81 @@
+{
+  "case": "videos-standard_1080p_4s_retry",
+  "started_at": "2026-07-11T18:13:50+08:00",
+  "finished_at": "2026-07-11T18:40:04+08:00",
+  "request": {
+    "model": "videos-standard",
+    "prompt": "以 @image1 中的主体与场景为准，参考 @video1 的动作节奏与镜头语言，并结合 @audio1 的声音节奏，生成一段镜头稳定、电影感明确的短片。",
+    "duration": 4,
+    "ratio": "16:9",
+    "resolution": "1080p",
+    "referenceImages": [
+      "https://ark-project.tos-cn-beijing.volces.com/doc_image/r2v_tea_pic1.jpg"
+    ],
+    "referenceVideos": [
+      "https://ark-project.tos-cn-beijing.volces.com/doc_video/r2v_tea_video1.mp4"
+    ],
+    "referenceAudios": [
+      "https://ark-project.tos-cn-beijing.volces.com/doc_audio/r2v_tea_audio1.mp3"
+    ]
+  },
+  "billing_mode": "per_second",
+  "expected_unit_cny": 0.6,
+  "expected_cny": 2.4,
+  "submit_http_status": 200,
+  "task_id": "videos-standard_916b02d7e4d84dfa9fef3492569d0026",
+  "final_status": "completed",
+  "poll_count": 136,
+  "usage_before": {
+    "total_granted": 500000,
+    "total_used": 18000000,
+    "total_available": -17500000,
+    "unlimited_quota": true
+  },
+  "usage_after": {
+    "total_granted": 500000,
+    "total_used": 21600000,
+    "total_available": -21100000,
+    "unlimited_quota": true
+  },
+  "observed_quota_delta": 3600000,
+  "content_download": {
+    "proxy": {
+      "captured_at": "2026-07-11T18:54:39+08:00",
+      "method": "GET",
+      "url": "https://newapi.megabyai.cc/v1/videos/videos-standard_916b02d7e4d84dfa9fef3492569d0026/content",
+      "status_code": 502,
+      "headers": {
+        "Connection": "close",
+        "Content-Length": "82",
+        "Content-Type": "application/json; charset=utf-8",
+        "Date": "Sat, 11 Jul 2026 10:54:41 GMT",
+        "Server": "nginx/1.18.0 (Ubuntu)",
+        "X-New-Api-Version": "max-token-guard-20260707",
+        "X-Oneapi-Request-Id": "20260711105440872208023bIuzMzQR"
+      },
+      "body": {
+        "error": {
+          "message": "Upstream service returned status 502",
+          "type": "server_error"
+        }
+      },
+      "raw_body": "{\"error\":{\"message\":\"Upstream service returned status 502\",\"type\":\"server_error\"}}"
+    },
+    "direct_fallback": {
+      "captured_at": "2026-07-11T18:54:41+08:00",
+      "method": "GET",
+      "url": "https://apisd.megabyai.cc/v1/videos/videos-standard_916b02d7e4d84dfa9fef3492569d0026/content",
+      "authorization": "not sent",
+      "range": "bytes=0-",
+      "status_code": 206,
+      "curl_exit_code": 0,
+      "raw_headers": "HTTP/1.1 206 Partial Content\nServer: nginx/1.18.0 (Ubuntu)\nDate: Sat, 11 Jul 2026 10:54:42 GMT\nContent-Type: video/mp4\nContent-Length: 3495781\nConnection: keep-alive\ncontent-range: bytes 0-3495780/3495781\netag: \"2BE87EE66F6E6D53261097EB53AED2C5\"\nlast-modified: Sat, 11 Jul 2026 10:39:45 GMT\ncache-control: public, max-age=31536000\naccept-ranges: bytes\n\n",
+      "saved_as": "output.mp4",
+      "size_bytes": 3495781,
+      "sha256": "155b0240c7c38d8f52514fc3055491ed5ecdef7258040b44741f1fb86f65763d"
+    }
+  },
+  "resumed_at": "2026-07-11T18:54:39+08:00",
+  "resume_finished_at": "2026-07-11T18:54:47+08:00",
+  "usage_after_resume": null
+}

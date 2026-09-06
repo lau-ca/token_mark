@@ -1,0 +1,8 @@
+{
+  "captured_at": "2026-07-11T18:50:55+08:00",
+  "method": "GET",
+  "url": "https://apisd.megabyai.cc/v1/videos/videos-fast_582974a3e7ab4071bc05036debd4e21b/content",
+  "authorization": "not sent",
+  "status_code": null,
+  "transport_error": "[SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1010)"
+}

@@ -1,0 +1,26 @@
+{
+  "captured_at": "2026-07-11T18:23:37+08:00",
+  "method": "GET",
+  "url": "https://newapi.megabyai.cc/v1/videos/videos-standard_ba855a1d62554deea00156dc16b17005",
+  "status_code": 200,
+  "headers": {
+    "Server": "nginx/1.18.0 (Ubuntu)",
+    "Date": "Sat, 11 Jul 2026 10:23:38 GMT",
+    "Content-Type": "application/json",
+    "Content-Length": "232",
+    "Connection": "close",
+    "X-New-Api-Version": "v0.0.0",
+    "X-Oneapi-Request-Id": "20260711102337865818021coP7V5qz"
+  },
+  "body": {
+    "id": "videos-standard_ba855a1d62554deea00156dc16b17005",
+    "task_id": "videos-standard_ba855a1d62554deea00156dc16b17005",
+    "object": "video",
+    "model": "videos-standard",
+    "status": "queued",
+    "progress": 20,
+    "created_at": 1783764779,
+    "seconds": "15"
+  },
+  "raw_body": "{\"id\":\"videos-standard_ba855a1d62554deea00156dc16b17005\",\"task_id\":\"videos-standard_ba855a1d62554deea00156dc16b17005\",\"object\":\"video\",\"model\":\"videos-standard\",\"status\":\"queued\",\"progress\":20,\"created_at\":1783764779,\"seconds\":\"15\"}"
+}

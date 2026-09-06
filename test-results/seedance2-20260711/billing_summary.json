@@ -1,0 +1,50 @@
+{
+  "quota_per_unit": 500000,
+  "quota_display_type": "CNY",
+  "usd_exchange_rate": 1,
+  "initial": {
+    "total_used": 9000000,
+    "total_available": -8500000,
+    "total_granted": 500000
+  },
+  "first_valid_batch_after_precharge": {
+    "total_used": 21600000,
+    "total_available": -21100000,
+    "gross_quota_delta": 12600000,
+    "gross_cny": 25.2
+  },
+  "two_second_rejections": {
+    "cases": [
+      "videos-standard_1080p_2s",
+      "videos-standard_4k_2s"
+    ],
+    "http_status": 422,
+    "quota_delta": 0
+  },
+  "failed_4k_attempts": [
+    {
+      "case": "videos-standard_4k_4s_retry",
+      "expected_cny": 4.8,
+      "precharged_quota": 2400000,
+      "refund_quota": 2400000,
+      "final_status": "failed"
+    },
+    {
+      "case": "videos-standard_4k_4s_safe_retry",
+      "expected_cny": 4.8,
+      "precharged_quota": 2400000,
+      "refund_quota": 2400000,
+      "final_status": "failed"
+    }
+  ],
+  "final": {
+    "successful_cases": 7,
+    "failed_cases": 2,
+    "rejected_cases": 2,
+    "total_used": 19200000,
+    "total_available": -18700000,
+    "total_granted": 500000,
+    "net_quota_delta": 10200000,
+    "net_cny": 20.4
+  }
+}

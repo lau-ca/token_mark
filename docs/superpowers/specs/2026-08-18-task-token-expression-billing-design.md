@@ -89,6 +89,14 @@ Failed, cancelled, or expired tasks retain the existing refund behavior and do n
 - Models without the new expression are unchanged.
 - The Doubao hard-coded price table is not required for `Doubao-Seedance-2.0` after the expression is configured.
 
+## Public Pricing Presentation
+
+The pricing page must parse the supported `task_tokens(...)` expression into the same normalized dynamic-tier data used by model cards, table rows, model details, group pricing, and usage-log details.
+
+For the Seedance expression, the model card and table row show that the model has three resolutions and six prices. The model detail renders a readable matrix with one row per resolution and separate columns for requests without and with a reference video. Unsupported `task_tokens` shapes keep the existing raw-expression fallback instead of guessing at prices.
+
+The parser is expression-based rather than model-name-based. Other models can use the same supported expression shape without adding aliases or hard-coded model identifiers. This presentation layer does not participate in quota calculation and cannot alter billing results.
+
 ## Validation and Tests
 
 Add deterministic tests for:
@@ -101,5 +109,7 @@ Add deterministic tests for:
 - unchanged `per_request()` Task expressions;
 - unchanged legacy ratio billing;
 - malformed, negative, NaN, infinite, and saturated expression results.
+- complete parsing and display metadata for all six Seedance pricing combinations;
+- raw-expression fallback for unsupported Task-token expression shapes.
 
 Run the focused Go tests for billing expressions, Task price calculation, Doubao request normalization, task polling, and task settlement.

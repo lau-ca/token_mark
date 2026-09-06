@@ -88,7 +88,7 @@ Unknown top-level provider fields remain present. Only the normalized top-level 
 
 ## Top-Level Field Resolution
 
-Each field is resolved independently. A valid upstream value has highest priority.
+Each field is resolved independently. A valid upstream value has highest priority except for `quality`, which is derived from the original client request.
 
 ### `created`
 
@@ -105,11 +105,10 @@ OpenAI's current image API specification defines `png` as the request default.
 
 ### `quality`
 
-1. Preserve a non-empty upstream string.
-2. Otherwise use the normalized original client request value.
-3. If the client omitted it or supplied an unusable value, use `auto`.
+1. If the normalized original client request value is `low`, `medium`, or `high`, preserve that request value.
+2. For every other request value, including an omitted value, `auto`, whitespace-only text, mixed case, or an unknown value, use `medium`.
 
-OpenAI's current image API documentation defines `auto` as the default quality selection.
+The upstream response value does not override the client request for this field. This keeps the normalized envelope aligned with the quality requested by the caller while giving unsupported values a stable `medium` fallback.
 
 ### `size`
 
@@ -193,9 +192,9 @@ Backend regression tests protect these observable contracts:
 
 - Disabled switch returns the original body without normalization.
 - Enabled switch preserves the exact raw `data` value.
-- Existing upstream top-level values win over request-derived values.
-- Missing `output_format`, `quality`, and `size` use request values.
-- Missing request values use `png`, `auto`, and `auto` respectively.
+- Existing upstream top-level values win over request-derived values except for `quality`.
+- Missing `output_format` and `size` use request values; `quality` follows its request allowlist rule.
+- Missing request values use `png`, `medium`, and `auto` for `output_format`, `quality`, and `size` respectively.
 - Missing or invalid `created` uses the current Unix time within a bounded assertion window.
 - A complete native image `usage` object is preserved leaf by leaf.
 - A legacy `prompt_tokens` and `completion_tokens` usage object maps to the standard image leaves.
