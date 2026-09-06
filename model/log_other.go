@@ -45,6 +45,12 @@ func NewLogOther() *LogOther {
 	return &LogOther{}
 }
 
+func NewLogOtherFromMap(values map[string]interface{}) *LogOther {
+	o := NewLogOther()
+	o.MergePublic(values)
+	return o
+}
+
 func isReservedLogOtherKey(key string) bool {
 	switch key {
 	case logOtherAdminInfoKey, logOtherRootInfoKey, logOtherAuditInfoKey:

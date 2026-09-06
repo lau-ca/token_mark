@@ -465,16 +465,16 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	logContent := strings.Join(extraContent, ", ")
 	var other *model.LogOther
 	if summary.IsClaudeUsageSemantic {
-		other = GenerateClaudeOtherInfo(ctx, relayInfo,
+		other = model.NewLogOtherFromMap(GenerateClaudeOtherInfo(ctx, relayInfo,
 			summary.ModelRatio, summary.GroupRatio, summary.CompletionRatio,
 			summary.CacheTokens, summary.CacheRatio,
 			summary.CacheCreationTokens, summary.CacheCreationRatio,
 			summary.CacheCreationTokens5m, summary.CacheCreationRatio5m,
 			summary.CacheCreationTokens1h, summary.CacheCreationRatio1h,
-			summary.ModelPrice, relayInfo.PriceData.GroupRatioInfo.GroupSpecialRatio)
+			summary.ModelPrice, relayInfo.PriceData.GroupRatioInfo.GroupSpecialRatio))
 		other.SetPublic("usage_semantic", "anthropic")
 	} else {
-		other = GenerateTextOtherInfo(ctx, relayInfo, summary.ModelRatio, summary.GroupRatio, summary.CompletionRatio, summary.CacheTokens, summary.CacheRatio, summary.ModelPrice, relayInfo.PriceData.GroupRatioInfo.GroupSpecialRatio)
+		other = model.NewLogOtherFromMap(GenerateTextOtherInfo(ctx, relayInfo, summary.ModelRatio, summary.GroupRatio, summary.CompletionRatio, summary.CacheTokens, summary.CacheRatio, summary.ModelPrice, relayInfo.PriceData.GroupRatioInfo.GroupSpecialRatio))
 	}
 	appendUsageBillingPathForLog(other, common.GetContextKeyBool(ctx, constant.ContextKeyLocalCountTokens), originUsage)
 	if adminRejectReason != "" {
