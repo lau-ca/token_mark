@@ -59,6 +59,7 @@ const (
 	ChannelTypeSub2API        = 59
 	ChannelTypeNewAPI         = 60
 	ChannelTypeTaskPlugin     = 61
+	ChannelTypeSeedance       = 62
 	ChannelTypeDummy          // this one is only for count, do not add any channel after this
 
 )
