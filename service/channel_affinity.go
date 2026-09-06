@@ -700,7 +700,7 @@ func MarkChannelAffinityUsed(c *gin.Context, selectedGroup string, channelID int
 	c.Set(ginKeyChannelAffinityLogInfo, info)
 }
 
-func AppendChannelAffinityAdminInfo(c *gin.Context, other *model.LogOther) {
+func AppendChannelAffinityAdminInfo(c *gin.Context, other any) {
 	if c == nil || other == nil {
 		return
 	}
@@ -708,7 +708,12 @@ func AppendChannelAffinityAdminInfo(c *gin.Context, other *model.LogOther) {
 	if !ok || anyInfo == nil {
 		return
 	}
-	other.SetAdmin("channel_affinity", anyInfo)
+	switch value := other.(type) {
+	case *model.LogOther:
+		value.SetAdmin("channel_affinity", anyInfo)
+	case map[string]interface{}:
+		value["channel_affinity"] = anyInfo
+	}
 }
 
 func RecordChannelAffinity(c *gin.Context, channelID int) {

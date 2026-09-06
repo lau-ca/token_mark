@@ -1,8 +1,19 @@
 package constant
 
 import (
+	"net/http"
 	"strings"
 )
+
+func Path2RelaySuno(method, path string) int {
+	if method == http.MethodPost && strings.HasSuffix(path, "/fetch") { return RelayModeSunoFetch }
+	if method == http.MethodGet && strings.Contains(path, "/fetch/") { return RelayModeSunoFetchByID }
+	return RelayModeSunoSubmit
+}
+const RelayModeSunoSubmit = 9003
+
+const RelayModeSunoFetch = 9001
+const RelayModeSunoFetchByID = 9002
 
 const (
 	RelayModeUnknown = iota

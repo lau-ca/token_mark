@@ -81,25 +81,29 @@ type TokenCountMeta struct {
 	estimatePromptTokens int
 }
 
-type CompositeAttempt struct { RouteOrder int `json:"route_order"`; ChannelID int `json:"channel_id"`; Error string `json:"error,omitempty"` }
+type CompositeAttempt struct {
+	RouteOrder int    `json:"route_order"`
+	ChannelID  int    `json:"channel_id"`
+	Error      string `json:"error,omitempty"`
+}
 type RelayInfo struct {
 	TokenDailyQuotaNextResetTime int64
-	TokenDailyQuotaEnabled bool
-	CompositeGroupName string
-	CompositePhysicalGroup string
-	CompositeRouteOrder int
-	CompositeOperation string
-	CompositeAttempts []CompositeAttempt
-	TokenId           int
-	TokenKey          string
-	TokenGroup        string
-	UserId            int
-	UsingGroup        string // 使用的分组，当auto跨分组重试时，会变动
-	UserGroup         string // 用户所在分组
-	TokenUnlimited    bool
-	StartTime         time.Time
-	FirstResponseTime time.Time
-	isFirstResponse   bool
+	TokenDailyQuotaEnabled       bool
+	CompositeGroupName           string
+	CompositePhysicalGroup       string
+	CompositeRouteOrder          int
+	CompositeOperation           string
+	CompositeAttempts            []CompositeAttempt
+	TokenId                      int
+	TokenKey                     string
+	TokenGroup                   string
+	UserId                       int
+	UsingGroup                   string // 使用的分组，当auto跨分组重试时，会变动
+	UserGroup                    string // 用户所在分组
+	TokenUnlimited               bool
+	StartTime                    time.Time
+	FirstResponseTime            time.Time
+	isFirstResponse              bool
 	//SendLastReasoningResponse bool
 	IsStream               bool
 	IsGeminiBatchEmbedding bool
@@ -211,7 +215,16 @@ type RelayInfo struct {
 	*ChannelMeta
 	*TaskRelayInfo
 }
-func (info *RelayInfo) EffectiveBillingModelName() string { if info != nil && info.BillingModelName != "" { return info.BillingModelName }; if info == nil { return "" }; return info.OriginModelName }
+
+func (info *RelayInfo) EffectiveBillingModelName() string {
+	if info != nil && info.BillingModelName != "" {
+		return info.BillingModelName
+	}
+	if info == nil {
+		return ""
+	}
+	return info.OriginModelName
+}
 
 func (info *RelayInfo) InitChannelMeta(c *gin.Context) {
 	info.FinalRequestRelayFormat = ""
@@ -947,16 +960,18 @@ type TaskRelayInfo struct {
 }
 
 type TaskSubmitReq struct {
-	Prompt         string                 `json:"prompt"`
-	Model          string                 `json:"model,omitempty"`
-	Mode           string                 `json:"mode,omitempty"`
-	Image          string                 `json:"image,omitempty"`
-	Images         []string               `json:"images,omitempty"`
-	Size           string                 `json:"size,omitempty"`
-	Duration       int                    `json:"duration,omitempty"`
-	Seconds        string                 `json:"seconds,omitempty"`
-	InputReference string                 `json:"input_reference,omitempty"`
-	Metadata       map[string]interface{} `json:"metadata,omitempty"`
+	Prompt            string                 `json:"prompt"`
+	Model             string                 `json:"model,omitempty"`
+	Mode              string                 `json:"mode,omitempty"`
+	Image             string                 `json:"image,omitempty"`
+	Images            []string               `json:"images,omitempty"`
+	Size              string                 `json:"size,omitempty"`
+	Duration          int                    `json:"duration,omitempty"`
+	Seconds           string                 `json:"seconds,omitempty"`
+	InputReference    string                 `json:"input_reference,omitempty"`
+	Metadata          map[string]interface{} `json:"metadata,omitempty"`
+	Resolution        string                 `json:"resolution,omitempty"`
+	HasReferenceVideo bool                   `json:"has_reference_video,omitempty"`
 }
 
 func (t *TaskSubmitReq) GetPrompt() string {

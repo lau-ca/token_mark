@@ -8,6 +8,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -37,7 +38,7 @@ func attachQuotaSaturationToOther(other map[string]interface{}, clamp *common.Qu
 // attachQuotaSaturation records the request's quota clamp (if any) onto the
 // consume log's other.admin_info and emits a request-correlated backend audit
 // line. Called right before RecordConsumeLog on the text/audio/wss paths.
-func attachQuotaSaturation(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, other map[string]interface{}) {
+func attachQuotaSaturation(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, other any) {
 	if relayInfo == nil {
 		return
 	}
@@ -45,7 +46,11 @@ func attachQuotaSaturation(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, o
 	if clamp == nil {
 		return
 	}
-	attachQuotaSaturationToOther(other, clamp)
+	if values, ok := other.(map[string]interface{}); ok {
+		attachQuotaSaturationToOther(values, clamp)
+	} else if logOther, ok := other.(*model.LogOther); ok {
+		logOther.SetAdmin("quota_saturation", clamp.AuditMap())
+	}
 	logger.LogWarn(ctx, fmt.Sprintf("quota saturation on consume log: op=%s kind=%s original=%g clamped=%d user=%d model=%s",
 		clamp.Op, clamp.Kind, clamp.Original, clamp.Clamped, relayInfo.UserId, relayInfo.OriginModelName))
 }
@@ -324,7 +329,16 @@ func GenerateMjOtherInfo(relayInfo *relaycommon.RelayInfo, priceData hosttypes.P
 // InjectTieredBillingInfo overlays tiered billing fields onto an existing
 // module-specific other map. Call this after GenerateTextOtherInfo /
 // GenerateClaudeOtherInfo / etc. when the request used tiered_expr billing.
-func InjectTieredBillingInfo(other map[string]interface{}, relayInfo *relaycommon.RelayInfo, result *billingexpr.TieredResult) {
+func InjectTieredBillingInfo(other any, relayInfo *relaycommon.RelayInfo, result *billingexpr.TieredResult) {
+	var values map[string]interface{}
+	switch value := other.(type) {
+	case map[string]interface{}:
+		values = value
+	case *model.LogOther:
+		values = map[string]interface{}{}
+	default:
+		return
+	}
 	if relayInfo == nil || other == nil {
 		return
 	}
@@ -336,7 +350,7 @@ func InjectTieredBillingInfo(other map[string]interface{}, relayInfo *relaycommo
 	if result != nil && result.MatchedTier != "" {
 		matchedTier = result.MatchedTier
 	}
-	injectTieredBillingSnapshotInfo(other, snap, matchedTier)
+	injectTieredBillingSnapshotInfo(values, snap, matchedTier)
 }
 
 func injectTieredBillingSnapshotInfo(other map[string]interface{}, snap *billingexpr.BillingSnapshot, matchedTier string) {

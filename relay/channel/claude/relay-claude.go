@@ -224,9 +224,6 @@ func sendGeminiStreamResults(c *gin.Context, results []relayconvert.ResponseResu
 		c.Render(-1, common.CustomEvent{Data: "data: " + string(data)})
 		_ = helper.FlushWriter(c)
 	}
-	if claudeResponse.Type == "message_stop" && streamResult != nil {
-		streamResult.Done()
-	}
 	return nil
 }
 

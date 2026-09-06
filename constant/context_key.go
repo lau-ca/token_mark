@@ -28,7 +28,10 @@ const (
 	ContextKeyTokenAutoGroups              ContextKey = "token_auto_groups"
 	ContextKeyTokenDailyQuotaEnabled       ContextKey = "token_daily_quota_enabled"
 	ContextKeyTokenDailyQuotaNextResetTime ContextKey = "token_daily_quota_next_reset_time"
-	ContextKeyChannelConstraints ContextKey = "channel_constraints"
+	ContextKeyOriginTasks                  ContextKey = "origin_tasks"
+	ContextKeyTokenAuditParams             ContextKey = "token_audit_params"
+	ContextKeyTokenAuditSucceeded          ContextKey = "token_audit_succeeded"
+	ContextKeyChannelConstraints           ContextKey = "channel_constraints"
 
 	/* channel related keys */
 	ContextKeyChannelId                ContextKey = "channel_id"

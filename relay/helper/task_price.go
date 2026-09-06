@@ -78,7 +78,7 @@ func buildTaskBillingRequestInput(c *gin.Context, info *relaycommon.RelayInfo) (
 		Mode:       taskRequest.Mode,
 	}
 	if info.ChannelType != constant.ChannelTypeBaiduV2 {
-		hasReferenceVideo := taskRequest.HasReferenceVideo()
+		hasReferenceVideo := taskRequest.HasReferenceVideo
 		normalizedRequest.HasReferenceVideo = &hasReferenceVideo
 	}
 	if info.ChannelType == constant.ChannelTypeBaiduV2 && taskRequest.Metadata != nil {
