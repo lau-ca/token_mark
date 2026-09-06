@@ -356,18 +356,18 @@ func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string,
 }
 
 type RecordConsumeLogParams struct {
-	ChannelId        int       `json:"channel_id"`
-	PromptTokens     int       `json:"prompt_tokens"`
-	CompletionTokens int       `json:"completion_tokens"`
-	ModelName        string    `json:"model_name"`
-	TokenName        string    `json:"token_name"`
-	Quota            int       `json:"quota"`
-	Content          string    `json:"content"`
-	TokenId          int       `json:"token_id"`
-	UseTimeSeconds   int       `json:"use_time_seconds"`
-	IsStream         bool      `json:"is_stream"`
-	Group            string    `json:"group"`
-	Other            *LogOther `json:"other"`
+	ChannelId        int    `json:"channel_id"`
+	PromptTokens     int    `json:"prompt_tokens"`
+	CompletionTokens int    `json:"completion_tokens"`
+	ModelName        string `json:"model_name"`
+	TokenName        string `json:"token_name"`
+	Quota            int    `json:"quota"`
+	Content          string `json:"content"`
+	TokenId          int    `json:"token_id"`
+	UseTimeSeconds   int    `json:"use_time_seconds"`
+	IsStream         bool   `json:"is_stream"`
+	Group            string `json:"group"`
+	Other            any    `json:"other"`
 }
 
 func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams) {
@@ -379,7 +379,18 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	requestId := c.GetString(common.RequestIdKey)
 	upstreamRequestId := c.GetString(common.UpstreamRequestIdKey)
 	createdAt := common.GetTimestamp()
-	otherStr := params.Other.JSONString()
+	otherStr := "{}"
+	switch other := params.Other.(type) {
+	case *LogOther:
+		otherStr = other.JSONString()
+	case map[string]interface{}:
+		converted := NewLogOther()
+		converted.MergePublic(other)
+		otherStr = converted.JSONString()
+	case nil:
+	default:
+		otherStr = common.GetJsonString(other)
+	}
 	// 判断是否需要记录 IP
 	needRecordIp := false
 	if settingMap, err := GetUserSetting(userId, false); err == nil {

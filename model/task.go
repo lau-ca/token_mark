@@ -115,7 +115,8 @@ type TaskPrivateData struct {
 }
 
 type TaskExecutionSnapshot struct { RequestID string `json:"request_id,omitempty"`; RequestPath string `json:"request_path,omitempty"`; TaskPlugin *TaskPluginSnapshot `json:"task_plugin,omitempty"` }
-type TaskPluginSnapshot struct { Key string `json:"key"`; Name string `json:"name"`; Version string `json:"version"`; APIVersion int `json:"api_version"`; Generation uint64 `json:"generation"` }
+type TaskPluginAuthorSnapshot struct { Name string `json:"name"`; URL string `json:"url,omitempty"` }
+type TaskPluginSnapshot struct { Key string `json:"key"`; Name string `json:"name"`; Version string `json:"version"`; Author *TaskPluginAuthorSnapshot `json:"author,omitempty"`; APIVersion int `json:"api_version"`; Generation uint64 `json:"generation"` }
 
 // TaskBillingContext 记录任务提交时的计费参数，以便轮询阶段可以重新计算额度。
 type TaskBillingContext struct {
