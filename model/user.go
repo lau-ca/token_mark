@@ -95,6 +95,7 @@ type User struct {
 	TelegramId       string                     `json:"telegram_id" gorm:"column:telegram_id;index"`
 	VerificationCode string                     `json:"verification_code" gorm:"-:all"`                         // this field is only for Email verification, don't save it to database!
 	AccessToken      *string                    `json:"-" gorm:"type:char(32);column:access_token;uniqueIndex"` // this token is for system management
+	AccessTokenCreatedAt *int64                  `json:"-" gorm:"type:bigint;column:access_token_created_at"`
 	Quota            int                        `json:"quota" gorm:"type:int;default:0"`
 	UsedQuota        int                        `json:"used_quota" gorm:"type:int;default:0;column:used_quota"` // used quota
 	RequestCount     int                        `json:"request_count" gorm:"type:int;default:0;"`               // request number
@@ -116,6 +117,8 @@ type User struct {
 	AdminPermissions map[string]map[string]bool `json:"admin_permissions,omitempty" gorm:"-:all"`
 	AgentEnabled     bool                       `json:"agent_enabled" gorm:"-:all"`
 }
+
+var userBindColumns = map[string]bool{"github_id": true, "discord_id": true, "oidc_id": true, "linux_do_id": true, "wechat_id": true}
 
 func (user *User) ToBaseUser() *UserBase {
 	cache := &UserBase{
@@ -343,6 +346,20 @@ func withNormalizedEmailLock(tx *gorm.DB, email string, fn func(tx *gorm.DB) err
 		}
 	}
 	return fn(tx)
+}
+
+func lockNormalizedEmail(tx *gorm.DB, email string) error {
+	email = NormalizeEmail(email)
+	if email == "" { return nil }
+	switch {
+	case common.UsingMainDatabase(common.DatabaseTypePostgreSQL):
+		return tx.Exec("SELECT pg_advisory_xact_lock(hashtext(?))", email).Error
+	case common.UsingMainDatabase(common.DatabaseTypeMySQL):
+		var ids []int
+		return tx.Raw("SELECT id FROM users WHERE email = ? FOR UPDATE", email).Scan(&ids).Error
+	default:
+		return nil
+	}
 }
 
 func GetMaxUserId() int {

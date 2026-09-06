@@ -12,6 +12,8 @@ import (
 
 type ChannelSettings struct {
 	TaskPluginKey          string `json:"task_plugin_key,omitempty"`
+	RetryTimes             int `json:"retry_times,omitempty"`
+	ImagePromptParameterAppend *ImagePromptParameterAppendConfig `json:"image_prompt_parameter_append,omitempty"`
 	ForceFormat            bool   `json:"force_format,omitempty"`
 	ThinkingToContent      bool   `json:"thinking_to_content,omitempty"`
 	Proxy                  string `json:"proxy"`
@@ -25,6 +27,14 @@ type ChannelSettings struct {
 	// (1-8). Zero/unset means 1. Ignored when HTTPProtocol is "http1".
 	HTTP2ConnectionShards int `json:"http2_connection_shards,omitempty"`
 }
+
+const MaxChannelRetryTimes = 3
+func (s *ChannelSettings) ValidateRetryTimes() error {
+	if s != nil && (s.RetryTimes < 0 || s.RetryTimes > MaxChannelRetryTimes) { return fmt.Errorf("retry_times must be between 0 and %d", MaxChannelRetryTimes) }
+	return nil
+}
+type ImagePromptParameterAppendConfig struct { Enabled bool `json:"enabled,omitempty"`; Models []string `json:"models,omitempty"`; Template string `json:"template,omitempty"` }
+func (c *ImagePromptParameterAppendConfig) Validate() error { return nil }
 
 const (
 	HTTPProtocolAuto         = "auto"

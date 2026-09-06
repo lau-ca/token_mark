@@ -8,6 +8,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
+	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	"github.com/samber/lo"
 )
 
@@ -80,6 +81,9 @@ func GetBillingExprCopy() map[string]string {
 	return GetConfigCopy().BillingExpr
 }
 
+func GetBuiltinBillingExpr(model string) (string, bool) { expression, ok := builtinBillingExpr[model]; return expression, ok }
+func GetBuiltinBillingExprCopy() map[string]string { return lo.Assign(builtinBillingExpr) }
+
 func ParseConfigJSON(modeJSON, exprJSON string) (BillingSetting, error) {
 	parsed := BillingSetting{
 		BillingMode: make(map[string]string),
@@ -118,6 +122,10 @@ func GetPricingSyncData(base map[string]any) map[string]any {
 // ---------------------------------------------------------------------------
 
 func SmokeTestExpr(exprStr string) error {
+	return smokeTestExpr(exprStr)
+}
+
+func SmokeTestTaskExpr(exprStr string, _ map[string]jsplugin.UsageFieldSchema) error {
 	return smokeTestExpr(exprStr)
 }
 
