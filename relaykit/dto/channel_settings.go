@@ -11,14 +11,13 @@ import (
 )
 
 type ChannelSettings struct {
-	ForceFormat                bool                              `json:"force_format,omitempty"`
-	ThinkingToContent          bool                              `json:"thinking_to_content,omitempty"`
-	Proxy                      string                            `json:"proxy"`
-	RetryTimes                 int                               `json:"retry_times,omitempty"`
-	PassThroughBodyEnabled     bool                              `json:"pass_through_body_enabled,omitempty"`
-	SystemPrompt               string                            `json:"system_prompt,omitempty"`
-	SystemPromptOverride       bool                              `json:"system_prompt_override,omitempty"`
-	ImagePromptParameterAppend *ImagePromptParameterAppendConfig `json:"image_prompt_parameter_append,omitempty"`
+	TaskPluginKey          string `json:"task_plugin_key,omitempty"`
+	ForceFormat            bool   `json:"force_format,omitempty"`
+	ThinkingToContent      bool   `json:"thinking_to_content,omitempty"`
+	Proxy                  string `json:"proxy"`
+	PassThroughBodyEnabled bool   `json:"pass_through_body_enabled,omitempty"`
+	SystemPrompt           string `json:"system_prompt,omitempty"`
+	SystemPromptOverride   bool   `json:"system_prompt_override,omitempty"`
 	// HTTPProtocol controls outbound HTTP version negotiation for this channel.
 	// Accepted values: "", "auto" (default), "http1".
 	HTTPProtocol string `json:"http_protocol,omitempty"`
@@ -27,119 +26,11 @@ type ChannelSettings struct {
 	HTTP2ConnectionShards int `json:"http2_connection_shards,omitempty"`
 }
 
-const DefaultImagePromptParameterAppendTemplate = "Output image requirements: size={{size}}; quality={{quality}}."
-
-var imagePromptParameterPlaceholderRegex = regexp.MustCompile(`\{\{\s*([^{}]+?)\s*\}\}`)
-
-type ImagePromptParameterAppendConfig struct {
-	Enabled  bool     `json:"enabled,omitempty"`
-	Models   []string `json:"models,omitempty"`
-	Template string   `json:"template,omitempty"`
-}
-
-func (c *ImagePromptParameterAppendConfig) Validate() error {
-	if c == nil {
-		return nil
-	}
-	template := strings.TrimSpace(c.Template)
-	if template == "" {
-		template = DefaultImagePromptParameterAppendTemplate
-	}
-	for _, match := range imagePromptParameterPlaceholderRegex.FindAllStringSubmatch(template, -1) {
-		placeholder := strings.TrimSpace(match[1])
-		if placeholder != "size" && placeholder != "quality" {
-			return fmt.Errorf("unsupported placeholder: %s", placeholder)
-		}
-	}
-	remaining := imagePromptParameterPlaceholderRegex.ReplaceAllString(template, "")
-	if strings.Contains(remaining, "{{") || strings.Contains(remaining, "}}") {
-		return fmt.Errorf("invalid template placeholder")
-	}
-	return nil
-}
-
-func (c *ImagePromptParameterAppendConfig) MatchesModel(model string) bool {
-	if c == nil || !c.Enabled {
-		return false
-	}
-	model = strings.TrimSpace(model)
-	hasConfiguredModel := false
-	for _, configuredModel := range c.Models {
-		configuredModel = strings.TrimSpace(configuredModel)
-		if configuredModel == "" {
-			continue
-		}
-		hasConfiguredModel = true
-		if configuredModel == model {
-			return true
-		}
-	}
-	return !hasConfiguredModel && model == "gpt-image-2"
-}
-
-func (c *ImagePromptParameterAppendConfig) Append(prompt, size, quality string) (string, bool, error) {
-	if c == nil || !c.Enabled {
-		return prompt, false, nil
-	}
-	if err := c.Validate(); err != nil {
-		return prompt, false, err
-	}
-	size = strings.TrimSpace(size)
-	quality = strings.TrimSpace(quality)
-	if size == "" && quality == "" {
-		return prompt, false, nil
-	}
-	if size == "" {
-		size = "auto"
-	}
-	if quality == "" {
-		quality = "auto"
-	}
-	template := strings.TrimSpace(c.Template)
-	if template == "" {
-		template = DefaultImagePromptParameterAppendTemplate
-	}
-	rendered := strings.NewReplacer(
-		"{{size}}", size,
-		"{{quality}}", quality,
-	).Replace(template)
-	rendered = imagePromptParameterPlaceholderRegex.ReplaceAllStringFunc(rendered, func(placeholder string) string {
-		match := imagePromptParameterPlaceholderRegex.FindStringSubmatch(placeholder)
-		if len(match) != 2 {
-			return placeholder
-		}
-		switch strings.TrimSpace(match[1]) {
-		case "size":
-			return size
-		case "quality":
-			return quality
-		default:
-			return placeholder
-		}
-	})
-	trimmedPrompt := strings.TrimRight(prompt, " \t\r\n")
-	if strings.HasSuffix(trimmedPrompt, rendered) {
-		return prompt, false, nil
-	}
-	return trimmedPrompt + "\n\n" + rendered, true, nil
-}
-
 const (
 	HTTPProtocolAuto         = "auto"
 	HTTPProtocolHTTP1        = "http1"
 	MaxHTTP2ConnectionShards = 8
-	MaxChannelRetryTimes     = 3
 )
-
-func (s *ChannelSettings) ValidateRetryTimes() error {
-	if s == nil {
-		return nil
-	}
-	if s.RetryTimes < 0 || s.RetryTimes > MaxChannelRetryTimes {
-		return fmt.Errorf("retry_times must be between 0 and %d", MaxChannelRetryTimes)
-	}
-	return nil
-}
 
 // ValidateHTTPTransport validates save-time HTTP transport channel settings.
 func (s *ChannelSettings) ValidateHTTPTransport() error {
@@ -187,9 +78,6 @@ type ChannelOtherSettings struct {
 	DisableStore                          bool                  `json:"disable_store,omitempty"`              // 是否禁用 store 透传（默认允许透传，禁用后可能导致 Codex 无法使用）
 	AllowIncludeObfuscation               bool                  `json:"allow_include_obfuscation,omitempty"`  // 是否允许 stream_options.include_obfuscation 透传（默认过滤以避免关闭流混淆保护）
 	DisableTaskPollingSleep               bool                  `json:"disable_task_polling_sleep,omitempty"` // 是否跳过异步任务轮询间隔
-	ForceImageB64JSONNoURL                bool                  `json:"force_image_b64_json_no_url,omitempty"`
-	ImageResponseURLPrefix                string                `json:"image_response_url_prefix,omitempty"`
-	NormalizeOpenAIImageResponse          bool                  `json:"normalize_openai_image_response,omitempty"`
 	AwsKeyType                            AwsKeyType            `json:"aws_key_type,omitempty"`
 	UpstreamModelUpdateCheckEnabled       bool                  `json:"upstream_model_update_check_enabled,omitempty"`        // 是否检测上游模型更新
 	UpstreamModelUpdateAutoSyncEnabled    bool                  `json:"upstream_model_update_auto_sync_enabled,omitempty"`    // 是否自动同步上游模型更新
@@ -197,8 +85,11 @@ type ChannelOtherSettings struct {
 	UpstreamModelUpdateLastDetectedModels []string              `json:"upstream_model_update_last_detected_models,omitempty"` // 上次检测到的可加入模型
 	UpstreamModelUpdateLastRemovedModels  []string              `json:"upstream_model_update_last_removed_models,omitempty"`  // 上次检测到的可删除模型
 	UpstreamModelUpdateIgnoredModels      []string              `json:"upstream_model_update_ignored_models,omitempty"`       // 手动忽略的模型
-	ReplaceVideoURLsWithProxy             bool                  `json:"replace_video_urls_with_proxy,omitempty"`
 	AdvancedCustom                        *AdvancedCustomConfig `json:"advanced_custom,omitempty"`
+	// ToolLossPolicy is a channel-level opt-in for request-phase conversion
+	// rejection. Empty follows the default allow policy. Accepted values:
+	// "", "allow", "safe", "strict".
+	ToolLossPolicy string `json:"tool_loss_policy,omitempty"`
 }
 
 func (s *ChannelOtherSettings) IsOpenRouterEnterprise() bool {
@@ -206,6 +97,20 @@ func (s *ChannelOtherSettings) IsOpenRouterEnterprise() bool {
 		return false
 	}
 	return *s.OpenRouterEnterprise
+}
+
+// ValidateToolLossPolicy validates the channel-level request-phase tool-loss
+// policy. Empty keeps the default allow policy.
+func (s *ChannelOtherSettings) ValidateToolLossPolicy() error {
+	if s == nil {
+		return nil
+	}
+	switch strings.TrimSpace(s.ToolLossPolicy) {
+	case "", string(types.ConversionLossPolicyAllow), string(types.ConversionLossPolicySafe), string(types.ConversionLossPolicyStrict):
+		return nil
+	default:
+		return fmt.Errorf("invalid tool_loss_policy: %s", s.ToolLossPolicy)
+	}
 }
 
 const (
@@ -259,8 +164,12 @@ const (
 	advancedCustomEndpointPathEmbeddings             = "/v1/embeddings"
 )
 
-// AdvancedCustomModelListPath identifies the optional OpenAI Models discovery route.
-const AdvancedCustomModelListPath = "/v1/models"
+const (
+	// AdvancedCustomModelListPath identifies the optional OpenAI Models discovery route.
+	AdvancedCustomModelListPath = "/v1/models"
+	// AdvancedCustomBalancePath identifies the optional balance lookup route used by channel management.
+	AdvancedCustomBalancePath = "/v1/dashboard/billing/credit_grants"
+)
 
 // MatchPath returns the first route whose IncomingPath matches requestPath.
 // Matching mirrors the relay adaptor: exact match, {model} placeholder, and
@@ -301,6 +210,19 @@ func (c *AdvancedCustomConfig) ModelListRoute() (AdvancedCustomRoute, bool) {
 	}
 	for _, route := range c.Routes {
 		if strings.TrimSpace(route.IncomingPath) == AdvancedCustomModelListPath {
+			return route, true
+		}
+	}
+	return AdvancedCustomRoute{}, false
+}
+
+// BalanceRoute returns the explicitly configured channel-management balance route.
+func (c *AdvancedCustomConfig) BalanceRoute() (AdvancedCustomRoute, bool) {
+	if c == nil {
+		return AdvancedCustomRoute{}, false
+	}
+	for _, route := range c.Routes {
+		if strings.TrimSpace(route.IncomingPath) == AdvancedCustomBalancePath {
 			return route, true
 		}
 	}
@@ -474,6 +396,7 @@ func (c *AdvancedCustomConfig) Validate() error {
 
 	paths := make(map[string]*advancedCustomPathModelState, len(c.Routes))
 	modelListRouteIndex := -1
+	balanceRouteIndex := -1
 	for i := range c.Routes {
 		route := c.Routes[i]
 		route.IncomingPath = strings.TrimSpace(route.IncomingPath)
@@ -492,19 +415,28 @@ func (c *AdvancedCustomConfig) Validate() error {
 		if strings.Contains(route.IncomingPath, "?") {
 			return fmt.Errorf("advanced_custom.advanced_routes[%d].incoming_path must not include query", i)
 		}
-		if route.IncomingPath == AdvancedCustomModelListPath {
-			if modelListRouteIndex >= 0 {
-				return fmt.Errorf("advanced_custom.advanced_routes[%d] duplicates the /v1/models route at advanced_routes[%d]", i, modelListRouteIndex)
+		if route.IncomingPath == AdvancedCustomModelListPath || route.IncomingPath == AdvancedCustomBalancePath {
+			managementRouteName := route.IncomingPath
+			previousIndex := modelListRouteIndex
+			if route.IncomingPath == AdvancedCustomBalancePath {
+				previousIndex = balanceRouteIndex
 			}
-			modelListRouteIndex = i
+			if previousIndex >= 0 {
+				return fmt.Errorf("advanced_custom.advanced_routes[%d] duplicates the %s route at advanced_routes[%d]", i, managementRouteName, previousIndex)
+			}
+			if route.IncomingPath == AdvancedCustomModelListPath {
+				modelListRouteIndex = i
+			} else {
+				balanceRouteIndex = i
+			}
 			if len(normalizeAdvancedCustomRouteModels(route.Models)) > 0 {
-				return fmt.Errorf("advanced_custom.advanced_routes[%d].models must be empty for /v1/models", i)
+				return fmt.Errorf("advanced_custom.advanced_routes[%d].models must be empty for %s", i, managementRouteName)
 			}
 			if route.Converter != advancedCustomConverterNone {
-				return fmt.Errorf("advanced_custom.advanced_routes[%d].converter must be none for /v1/models", i)
+				return fmt.Errorf("advanced_custom.advanced_routes[%d].converter must be none for %s", i, managementRouteName)
 			}
 			if strings.Contains(upstreamPath, advancedCustomModelPlaceholder) {
-				return fmt.Errorf("advanced_custom.advanced_routes[%d].upstream_path must not contain %s for /v1/models", i, advancedCustomModelPlaceholder)
+				return fmt.Errorf("advanced_custom.advanced_routes[%d].upstream_path must not contain %s for %s", i, advancedCustomModelPlaceholder, managementRouteName)
 			}
 		}
 		if err := validateAdvancedCustomRouteModels(i, route.IncomingPath, route.Models, paths); err != nil {

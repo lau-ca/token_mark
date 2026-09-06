@@ -145,79 +145,6 @@ func validatePrompt(prompt string) *dto.TaskError {
 // overflow quota calculation into a negative charge.
 const MaxTaskDurationSeconds = 3600
 
-const (
-	SeedanceVideoModelFast     = "videos-fast"
-	SeedanceVideoModelMini     = "videos-mini"
-	SeedanceVideoModelStandard = "videos-standard"
-
-	minSeedanceVideoDurationSeconds  = 4
-	maxSeedanceVideoDurationSeconds  = 15
-	minSeedanceExecutionExpiresAfter = 3600
-	maxSeedanceExecutionExpiresAfter = 259200
-)
-
-var nativeSeedanceResolutions = map[string]struct{}{
-	"480p":  {},
-	"720p":  {},
-	"1080p": {},
-	"4k":    {},
-}
-
-var nativeSeedanceRatios = map[string]struct{}{
-	"16:9":     {},
-	"4:3":      {},
-	"1:1":      {},
-	"3:4":      {},
-	"9:16":     {},
-	"21:9":     {},
-	"adaptive": {},
-}
-
-func IsSeedanceVideoModel(model string) bool {
-	switch model {
-	case SeedanceVideoModelFast, SeedanceVideoModelMini, SeedanceVideoModelStandard:
-		return true
-	default:
-		return false
-	}
-}
-
-func ResolveSeedanceVideoDuration(req TaskSubmitReq) (int, error) {
-	duration, err := ResolveTaskDuration(req)
-	if err != nil {
-		return 0, err
-	}
-	if !req.durationProvided && req.Duration == 0 && req.Seconds == "" {
-		duration = minSeedanceVideoDurationSeconds
-	}
-
-	if duration < minSeedanceVideoDurationSeconds || duration > maxSeedanceVideoDurationSeconds {
-		return 0, fmt.Errorf("seconds must be between %d and %d", minSeedanceVideoDurationSeconds, maxSeedanceVideoDurationSeconds)
-	}
-	return duration, nil
-}
-
-func ResolveTaskDuration(req TaskSubmitReq) (int, error) {
-	if req.durationParseErr != nil {
-		return 0, req.durationParseErr
-	}
-
-	duration := req.Duration
-	hasDuration := req.durationProvided || req.Duration != 0
-	if req.Seconds == "" {
-		return duration, nil
-	}
-
-	seconds, err := strconv.Atoi(req.Seconds)
-	if err != nil {
-		return 0, fmt.Errorf("seconds must be an integer")
-	}
-	if hasDuration && seconds != duration {
-		return 0, fmt.Errorf("duration and seconds must match when both are provided")
-	}
-	return seconds, nil
-}
-
 func validateTaskDurationBounds(req TaskSubmitReq) *dto.TaskError {
 	seconds := req.Duration
 	if seconds == 0 && req.Seconds != "" {
@@ -270,19 +197,21 @@ func validateMultipartTaskRequest(c *gin.Context, info *RelayInfo, action string
 }
 
 func ValidateMultipartDirect(c *gin.Context, info *RelayInfo) *dto.TaskError {
+	var prompt string
+	var model string
+	var seconds int
+	var size string
+	var hasInputReference bool
+
 	var req TaskSubmitReq
 	if err := common.UnmarshalBodyReusable(c, &req); err != nil {
 		return createTaskError(err, "invalid_json", http.StatusBadRequest, true)
 	}
-	return ValidateParsedTaskRequest(c, info, req)
-}
 
-func ValidateParsedTaskRequest(c *gin.Context, info *RelayInfo, req TaskSubmitReq) *dto.TaskError {
-	prompt := req.Prompt
-	model := req.Model
-	size := req.Size
-	seconds, _ := strconv.Atoi(req.Seconds)
-	var hasInputReference bool
+	prompt = req.Prompt
+	model = req.Model
+	size = req.Size
+	seconds, _ = strconv.Atoi(req.Seconds)
 	if seconds == 0 {
 		seconds = req.Duration
 	}
@@ -305,32 +234,7 @@ func ValidateParsedTaskRequest(c *gin.Context, info *RelayInfo, req TaskSubmitRe
 		return taskErr
 	}
 
-	if IsSeedanceVideoModel(model) {
-		if len(req.ReferenceImages) > 0 {
-			hasInputReference = true
-		}
-
-		duration, err := ResolveSeedanceVideoDuration(req)
-		if err != nil {
-			return createTaskError(err, "invalid_seconds", http.StatusBadRequest, true)
-		}
-
-		resolution := strings.ToLower(strings.TrimSpace(req.Resolution))
-		isSupportedResolution := false
-		switch model {
-		case SeedanceVideoModelFast, SeedanceVideoModelMini:
-			isSupportedResolution = lo.Contains([]string{"480p", "720p"}, resolution)
-		case SeedanceVideoModelStandard:
-			isSupportedResolution = lo.Contains([]string{"480p", "720p", "1080p", "4k"}, resolution)
-		}
-		if !isSupportedResolution {
-			return createTaskError(fmt.Errorf("resolution %q is not supported by model %s", req.Resolution, model), "invalid_resolution", http.StatusBadRequest, true)
-		}
-
-		req.Duration = duration
-		req.Seconds = ""
-		req.Resolution = resolution
-	} else if taskErr := validateTaskDurationBounds(req); taskErr != nil {
+	if taskErr := validateTaskDurationBounds(req); taskErr != nil {
 		return taskErr
 	}
 
@@ -390,9 +294,6 @@ func ValidateBasicTaskRequest(c *gin.Context, info *RelayInfo, action string) *d
 	if err := common.UnmarshalBodyReusable(c, &req); err != nil {
 		return createTaskError(err, "invalid_request", http.StatusBadRequest, true)
 	}
-	if c.Request.Method == http.MethodPost && c.Request.URL.Path == "/v3/contents/generations/tasks" {
-		return validateNativeSeedanceTaskRequest(c, info, req, action)
-	}
 
 	if taskErr := validatePrompt(req.Prompt); taskErr != nil {
 		return taskErr
@@ -405,65 +306,6 @@ func ValidateBasicTaskRequest(c *gin.Context, info *RelayInfo, action string) *d
 	if len(req.Images) == 0 && strings.TrimSpace(req.Image) != "" {
 		// 兼容单图上传
 		req.Images = []string{req.Image}
-	}
-
-	storeTaskRequest(c, info, action, req)
-	return nil
-}
-
-func validateNativeSeedanceTaskRequest(c *gin.Context, info *RelayInfo, req TaskSubmitReq, action string) *dto.TaskError {
-	if strings.TrimSpace(req.Model) == "" {
-		return createTaskError(fmt.Errorf("model field is required"), "missing_model", http.StatusBadRequest, true)
-	}
-
-	hasMeaningfulContent := false
-	for _, item := range req.Content {
-		switch item.Type {
-		case "text":
-			hasMeaningfulContent = hasMeaningfulContent || strings.TrimSpace(item.Text) != ""
-		case "image_url":
-			hasMeaningfulContent = hasMeaningfulContent || item.ImageURL != nil && strings.TrimSpace(item.ImageURL.URL) != ""
-		case "video_url":
-			hasMeaningfulContent = hasMeaningfulContent || item.VideoURL != nil && strings.TrimSpace(item.VideoURL.URL) != ""
-		case "audio_url":
-			if item.AudioURL == nil || strings.TrimSpace(item.AudioURL.URL) == "" {
-				return createTaskError(fmt.Errorf("audio_url content requires url"), "invalid_content", http.StatusBadRequest, true)
-			}
-		case "draft_task":
-			if item.DraftTask == nil || strings.TrimSpace(item.DraftTask.ID) == "" {
-				return createTaskError(fmt.Errorf("draft_task content requires id"), "invalid_content", http.StatusBadRequest, true)
-			}
-		default:
-			return createTaskError(fmt.Errorf("unsupported content type %q", item.Type), "invalid_content", http.StatusBadRequest, true)
-		}
-	}
-	if !hasMeaningfulContent {
-		return createTaskError(fmt.Errorf("content must include text, image_url, or video_url"), "invalid_content", http.StatusBadRequest, true)
-	}
-
-	if req.durationParseErr != nil {
-		return createTaskError(req.durationParseErr, "invalid_duration", http.StatusBadRequest, true)
-	}
-	if req.durationProvided && req.Duration != -1 && (req.Duration < minSeedanceVideoDurationSeconds || req.Duration > maxSeedanceVideoDurationSeconds) {
-		return createTaskError(fmt.Errorf("duration must be -1 or between %d and %d", minSeedanceVideoDurationSeconds, maxSeedanceVideoDurationSeconds), "invalid_duration", http.StatusBadRequest, true)
-	}
-	if req.ExecutionExpiresAfter != nil && (*req.ExecutionExpiresAfter < minSeedanceExecutionExpiresAfter || *req.ExecutionExpiresAfter > maxSeedanceExecutionExpiresAfter) {
-		return createTaskError(fmt.Errorf("execution_expires_after must be between %d and %d", minSeedanceExecutionExpiresAfter, maxSeedanceExecutionExpiresAfter), "invalid_execution_expires_after", http.StatusBadRequest, true)
-	}
-	if req.Priority != nil && (*req.Priority < 0 || *req.Priority > 9) {
-		return createTaskError(fmt.Errorf("priority must be between 0 and 9"), "invalid_priority", http.StatusBadRequest, true)
-	}
-	if req.Resolution != "" {
-		req.Resolution = strings.ToLower(strings.TrimSpace(req.Resolution))
-		if _, ok := nativeSeedanceResolutions[req.Resolution]; !ok {
-			return createTaskError(fmt.Errorf("unsupported resolution %q", req.Resolution), "invalid_resolution", http.StatusBadRequest, true)
-		}
-	}
-	if req.Ratio != "" {
-		req.Ratio = strings.ToLower(strings.TrimSpace(req.Ratio))
-		if _, ok := nativeSeedanceRatios[req.Ratio]; !ok {
-			return createTaskError(fmt.Errorf("unsupported ratio %q", req.Ratio), "invalid_ratio", http.StatusBadRequest, true)
-		}
 	}
 
 	storeTaskRequest(c, info, action, req)
