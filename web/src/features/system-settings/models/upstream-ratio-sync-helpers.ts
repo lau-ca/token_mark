@@ -1,3 +1,5 @@
+export const RATIO_SYNC_FIELDS = ["model_ratio","completion_ratio","cache_ratio","create_cache_ratio","image_ratio","audio_ratio","audio_completion_ratio"] as const
+export const NUMERIC_SYNC_FIELDS = new Set<string>(RATIO_SYNC_FIELDS)
 /*
 Copyright (C) 2023-2026 QuantumNous
 
