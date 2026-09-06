@@ -126,6 +126,7 @@ type TaskBillingContext struct {
 	QuotaClamp            *common.QuotaClamp           `json:"quota_clamp,omitempty"`
 	Resolution            string                       `json:"resolution,omitempty"`
 	Duration              int                          `json:"duration,omitempty"`
+	HasReferenceVideo     bool                         `json:"has_reference_video,omitempty"`
 }
 
 // GetUpstreamTaskID 获取上游真实 task ID（用于与 provider 通信）
@@ -367,6 +368,14 @@ func GetByTaskIds(userId int, taskIds []any) ([]*Task, error) {
 		return nil, err
 	}
 	return task, nil
+}
+
+func GetUserTasksByPlatform(userID int, platform constant.TaskPlatform) ([]*Task, error) {
+	var tasks []*Task
+	err := DB.Where("user_id = ? and platform = ?", userID, platform).
+		Order("id desc").
+		Find(&tasks).Error
+	return tasks, err
 }
 
 func (Task *Task) Insert() error {

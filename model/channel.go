@@ -1027,6 +1027,9 @@ func (channel *Channel) ValidateSettings() error {
 	if err := channelParams.ValidateHTTPTransport(); err != nil {
 		return err
 	}
+	if err := channelParams.ValidateRetryTimes(); err != nil {
+		return err
+	}
 	if channelParams.ImagePromptParameterAppend != nil {
 		if err := channelParams.ImagePromptParameterAppend.Validate(); err != nil {
 			return fmt.Errorf("image_prompt_parameter_append: %w", err)

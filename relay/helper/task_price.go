@@ -15,8 +15,19 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+type normalizedTaskBillingRequest struct {
+	Model             string `json:"model"`
+	Operation         string `json:"operation,omitempty"`
+	Resolution        string `json:"resolution,omitempty"`
+	Duration          int    `json:"duration,omitempty"`
+	Mode              string `json:"mode,omitempty"`
+	Sound             *bool  `json:"sound,omitempty"`
+	HasReferenceVideo *bool  `json:"has_reference_video,omitempty"`
+	HasVoice          *bool  `json:"has_voice,omitempty"`
+}
+
 // ModelPriceHelperTask keeps legacy Task/MJ per-call pricing isolated while
-// allowing request-aware tiered expressions to opt in through per_request().
+// allowing request-aware expressions to opt in through per_request() or task_tokens().
 func ModelPriceHelperTask(c *gin.Context, info *relaycommon.RelayInfo) (types.PriceData, error) {
 	if info == nil {
 		return types.PriceData{}, fmt.Errorf("relay info is required")
@@ -34,41 +45,41 @@ func ModelPriceHelperTask(c *gin.Context, info *relaycommon.RelayInfo) (types.Pr
 	if _, err := billingexpr.CompileFromCache(exprStr); err != nil {
 		return types.PriceData{}, fmt.Errorf("model %s tiered expr compile failed: %w", info.OriginModelName, err)
 	}
-	if !billingexpr.UsedVars(exprStr)["per_request"] {
+	usedVars := billingexpr.UsedVars(exprStr)
+	if info.TaskRelayInfo != nil && info.Action == constant.TaskActionRemix {
+		if usedVars["per_request"] || usedVars["task_tokens"] {
+			return types.PriceData{}, fmt.Errorf("remix is not supported for expression-billed task models")
+		}
+	}
+	switch {
+	case usedVars["task_tokens"]:
+		return modelPriceHelperTaskTokens(c, info, exprStr)
+	case usedVars["per_request"]:
+		return modelPriceHelperTaskTiered(c, info, exprStr)
+	default:
 		return ModelPriceHelperPerCall(c, info)
 	}
-	if info.TaskRelayInfo != nil && info.Action == constant.TaskActionRemix {
-		return types.PriceData{}, fmt.Errorf("remix is not supported for expression-billed task models")
-	}
-
-	return modelPriceHelperTaskTiered(c, info, exprStr)
 }
 
-func modelPriceHelperTaskTiered(c *gin.Context, info *relaycommon.RelayInfo, exprStr string) (types.PriceData, error) {
+func buildTaskBillingRequestInput(c *gin.Context, info *relaycommon.RelayInfo) (billingexpr.RequestInput, error) {
 	taskRequest, err := relaycommon.GetTaskRequest(c)
 	if err != nil {
-		return types.PriceData{}, fmt.Errorf("resolve normalized task billing request: %w", err)
+		return billingexpr.RequestInput{}, fmt.Errorf("resolve normalized task billing request: %w", err)
 	}
 	duration, err := relaycommon.ResolveTaskDuration(taskRequest)
 	if err != nil {
-		return types.PriceData{}, fmt.Errorf("resolve normalized task billing duration: %w", err)
+		return billingexpr.RequestInput{}, fmt.Errorf("resolve normalized task billing duration: %w", err)
 	}
 
-	type normalizedTaskBillingRequest struct {
-		Model             string `json:"model"`
-		Operation         string `json:"operation,omitempty"`
-		Resolution        string `json:"resolution,omitempty"`
-		Duration          int    `json:"duration,omitempty"`
-		Mode              string `json:"mode,omitempty"`
-		Sound             *bool  `json:"sound,omitempty"`
-		HasReferenceVideo *bool  `json:"has_reference_video,omitempty"`
-		HasVoice          *bool  `json:"has_voice,omitempty"`
-	}
 	normalizedRequest := normalizedTaskBillingRequest{
 		Model:      info.OriginModelName,
 		Resolution: taskRequest.Resolution,
 		Duration:   duration,
 		Mode:       taskRequest.Mode,
+	}
+	if info.ChannelType != constant.ChannelTypeBaiduV2 {
+		hasReferenceVideo := taskRequest.HasReferenceVideo()
+		normalizedRequest.HasReferenceVideo = &hasReferenceVideo
 	}
 	if info.ChannelType == constant.ChannelTypeBaiduV2 && taskRequest.Metadata != nil {
 		if operation, ok := taskRequest.Metadata["qianfan_operation"].(string); ok {
@@ -87,7 +98,15 @@ func modelPriceHelperTaskTiered(c *gin.Context, info *relaycommon.RelayInfo, exp
 
 	requestInput, err := BuildBillingExprRequestInputFromRequest(normalizedRequest, info.RequestHeaders)
 	if err != nil {
-		return types.PriceData{}, fmt.Errorf("build normalized task billing request: %w", err)
+		return billingexpr.RequestInput{}, fmt.Errorf("build normalized task billing request: %w", err)
+	}
+	return requestInput, nil
+}
+
+func modelPriceHelperTaskTiered(c *gin.Context, info *relaycommon.RelayInfo, exprStr string) (types.PriceData, error) {
+	requestInput, err := buildTaskBillingRequestInput(c, info)
+	if err != nil {
+		return types.PriceData{}, err
 	}
 
 	rawCost, trace, err := billingexpr.RunExprWithRequest(exprStr, billingexpr.TokenParams{}, requestInput)
@@ -135,6 +154,49 @@ func modelPriceHelperTaskTiered(c *gin.Context, info *relaycommon.RelayInfo, exp
 		EstimatedTier:             trace.MatchedTier,
 		QuotaPerUnit:              common.QuotaPerUnit,
 		ExprVersion:               billingexpr.ExprVersion(exprStr),
+	}
+
+	info.PriceData = priceData
+	info.TieredBillingSnapshot = snapshot
+	info.BillingRequestInput = &requestInput
+	return priceData, nil
+}
+
+func modelPriceHelperTaskTokens(c *gin.Context, info *relaycommon.RelayInfo, exprStr string) (types.PriceData, error) {
+	priceData, err := ModelPriceHelperPerCall(c, info)
+	if err != nil {
+		return types.PriceData{}, err
+	}
+	requestInput, err := buildTaskBillingRequestInput(c, info)
+	if err != nil {
+		return types.PriceData{}, err
+	}
+	rawCost, trace, err := billingexpr.RunExprWithRequest(exprStr, billingexpr.TokenParams{}, requestInput)
+	if err != nil {
+		return types.PriceData{}, fmt.Errorf("model %s token task expr run failed: %w", info.OriginModelName, err)
+	}
+	if math.IsNaN(rawCost) || math.IsInf(rawCost, 0) || rawCost < 0 {
+		return types.PriceData{}, fmt.Errorf("model %s token task expr returned invalid cost %g", info.OriginModelName, rawCost)
+	}
+
+	quotaBeforeGroup := 0.0
+	if priceData.GroupRatioInfo.GroupRatio > 0 {
+		quotaBeforeGroup = float64(priceData.Quota) / priceData.GroupRatioInfo.GroupRatio
+	}
+	snapshot := &billingexpr.BillingSnapshot{
+		BillingMode:               billing_setting.BillingModeTieredExpr,
+		ModelName:                 info.OriginModelName,
+		ExprString:                exprStr,
+		ExprHash:                  billingexpr.ExprHashString(exprStr),
+		GroupRatio:                priceData.GroupRatioInfo.GroupRatio,
+		EstimatedPromptTokens:     0,
+		EstimatedCompletionTokens: 0,
+		EstimatedQuotaBeforeGroup: quotaBeforeGroup,
+		EstimatedQuotaAfterGroup:  priceData.Quota,
+		EstimatedTier:             trace.MatchedTier,
+		QuotaPerUnit:              common.QuotaPerUnit,
+		ExprVersion:               billingexpr.ExprVersion(exprStr),
+		TaskTokenBilling:          true,
 	}
 
 	info.PriceData = priceData

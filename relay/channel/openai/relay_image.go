@@ -3,6 +3,7 @@ package openai
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -40,21 +41,29 @@ func OpenaiImageHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 		return nil, types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
 	}
 
-	var usageResp dto.SimpleResponse
-	err = common.Unmarshal(responseBody, &usageResp)
+	normalizeResponse := shouldNormalizeOpenAIImageResponse(info) &&
+		resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices
+	usageResp, oaiError, err := decodeOpenAIImageResponse(responseBody, normalizeResponse)
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
-
-	if oaiError := usageResp.GetOpenAIError(); oaiError != nil && oaiError.Type != "" {
+	if oaiError != nil && oaiError.Type != "" {
 		return nil, types.WithOpenAIError(*oaiError, resp.StatusCode)
 	}
-
 	updateOpenAIImageCount(info, gjson.GetBytes(responseBody, "data.#").Int())
 	responseBody = stripChannelImageURLs(responseBody, info)
 	responseBody, err = relaycommon.ApplyResponseParamOverrideWithRelayInfo(responseBody, info)
 	if err != nil {
 		return nil, types.NewError(err, types.ErrorCodeChannelParamOverrideInvalid, types.ErrOptionWithSkipRetry())
+	}
+	if normalizeResponse {
+		responseBody, err = normalizeOpenAIImageResponse(responseBody, info)
+		if err != nil {
+			return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+		}
+	}
+	if validationErr := validateChannelImageResponseURLs(responseBody, info); validationErr != nil {
+		return nil, validationErr
 	}
 
 	// 写入新的 response body
@@ -63,6 +72,169 @@ func OpenaiImageHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 	normalizeOpenAIUsage(&usageResp.Usage)
 	applyUsagePostProcessing(info, &usageResp.Usage, responseBody)
 	return &usageResp.Usage, nil
+}
+
+type normalizedImageTokenDetails struct {
+	ImageTokens int `json:"image_tokens"`
+	TextTokens  int `json:"text_tokens"`
+}
+
+type normalizedImageUsage struct {
+	InputTokens         int                         `json:"input_tokens"`
+	InputTokensDetails  normalizedImageTokenDetails `json:"input_tokens_details"`
+	OutputTokens        int                         `json:"output_tokens"`
+	TotalTokens         int                         `json:"total_tokens"`
+	OutputTokensDetails normalizedImageTokenDetails `json:"output_tokens_details"`
+}
+
+func decodeOpenAIImageResponse(body []byte, normalizeResponse bool) (dto.SimpleResponse, *types.OpenAIError, error) {
+	var response dto.SimpleResponse
+	if !normalizeResponse {
+		if err := common.Unmarshal(body, &response); err != nil {
+			return response, nil, err
+		}
+		return response, response.GetOpenAIError(), nil
+	}
+
+	var envelope struct {
+		Error any `json:"error"`
+	}
+	if err := common.Unmarshal(body, &envelope); err != nil {
+		return response, nil, err
+	}
+	response.Usage = normalizedImageUsageToDTO(buildNormalizedImageUsage(body))
+	return response, dto.GetOpenAIError(envelope.Error), nil
+}
+
+func normalizedImageUsageToDTO(usage normalizedImageUsage) dto.Usage {
+	return dto.Usage{
+		InputTokens:  usage.InputTokens,
+		OutputTokens: usage.OutputTokens,
+		TotalTokens:  usage.TotalTokens,
+		InputTokensDetails: &dto.InputTokenDetails{
+			ImageTokens: usage.InputTokensDetails.ImageTokens,
+			TextTokens:  usage.InputTokensDetails.TextTokens,
+		},
+		CompletionTokenDetails: dto.OutputTokenDetails{
+			ImageTokens: usage.OutputTokensDetails.ImageTokens,
+			TextTokens:  usage.OutputTokensDetails.TextTokens,
+		},
+	}
+}
+
+func normalizeOpenAIImageResponse(body []byte, info *relaycommon.RelayInfo) ([]byte, error) {
+	if !shouldNormalizeOpenAIImageResponse(info) {
+		return body, nil
+	}
+	if !gjson.ParseBytes(body).IsObject() {
+		return nil, fmt.Errorf("invalid OpenAI image response: expected JSON object")
+	}
+
+	request := &dto.ImageRequest{}
+	if info != nil {
+		if imageRequest, ok := info.Request.(*dto.ImageRequest); ok && imageRequest != nil {
+			request = imageRequest
+		}
+	}
+
+	requestOutputFormat := ""
+	if len(request.OutputFormat) > 0 {
+		_ = common.Unmarshal(request.OutputFormat, &requestOutputFormat)
+	}
+	outputFormat := imageResponseString(body, "output_format", requestOutputFormat, "png")
+	size := imageResponseString(body, "size", request.Size, "auto")
+	created, ok := imageResponseInt64(body, "created")
+	if !ok {
+		created = time.Now().Unix()
+	}
+
+	usageJSON, err := common.Marshal(buildNormalizedImageUsage(body))
+	if err != nil {
+		return nil, err
+	}
+	body, err = sjson.SetBytes(body, "created", created)
+	if err != nil {
+		return nil, err
+	}
+	body, err = sjson.SetBytes(body, "output_format", outputFormat)
+	if err != nil {
+		return nil, err
+	}
+	if !gjson.GetBytes(body, "quality").Exists() {
+		quality := request.Quality
+		if strings.TrimSpace(quality) == "" {
+			quality = "medium"
+		}
+		body, err = sjson.SetBytes(body, "quality", quality)
+		if err != nil {
+			return nil, err
+		}
+	}
+	body, err = sjson.SetBytes(body, "size", size)
+	if err != nil {
+		return nil, err
+	}
+	return sjson.SetRawBytes(body, "usage", usageJSON)
+}
+
+func shouldNormalizeOpenAIImageResponse(info *relaycommon.RelayInfo) bool {
+	return info != nil && info.ChannelMeta != nil && info.ChannelOtherSettings.NormalizeOpenAIImageResponse
+}
+
+func imageResponseString(body []byte, path string, requestValue string, defaultValue string) string {
+	upstreamValue := gjson.GetBytes(body, path)
+	if upstreamValue.Type == gjson.String && strings.TrimSpace(upstreamValue.String()) != "" {
+		return upstreamValue.String()
+	}
+	if strings.TrimSpace(requestValue) != "" {
+		return requestValue
+	}
+	return defaultValue
+}
+
+func imageResponseInt64(body []byte, path string) (int64, bool) {
+	value := gjson.GetBytes(body, path)
+	if value.Type != gjson.Number {
+		return 0, false
+	}
+	parsed, err := strconv.ParseInt(value.Raw, 10, 64)
+	if err != nil || parsed < 0 {
+		return 0, false
+	}
+	return parsed, true
+}
+
+func buildNormalizedImageUsage(body []byte) normalizedImageUsage {
+	return normalizedImageUsage{
+		InputTokens: imageUsageInt(body, "usage.input_tokens", "usage.prompt_tokens"),
+		InputTokensDetails: normalizedImageTokenDetails{
+			ImageTokens: imageUsageInt(body, "usage.input_tokens_details.image_tokens", "usage.prompt_tokens_details.image_tokens"),
+			TextTokens:  imageUsageInt(body, "usage.input_tokens_details.text_tokens", "usage.prompt_tokens_details.text_tokens"),
+		},
+		OutputTokens: imageUsageInt(body, "usage.output_tokens", "usage.completion_tokens"),
+		TotalTokens:  imageUsageInt(body, "usage.total_tokens", ""),
+		OutputTokensDetails: normalizedImageTokenDetails{
+			ImageTokens: imageUsageInt(body, "usage.output_tokens_details.image_tokens", "usage.completion_tokens_details.image_tokens"),
+			TextTokens:  imageUsageInt(body, "usage.output_tokens_details.text_tokens", "usage.completion_tokens_details.text_tokens"),
+		},
+	}
+}
+
+func imageUsageInt(body []byte, primaryPath string, fallbackPath string) int {
+	for _, path := range []string{primaryPath, fallbackPath} {
+		if path == "" {
+			continue
+		}
+		value := gjson.GetBytes(body, path)
+		if value.Type != gjson.Number {
+			continue
+		}
+		parsed, err := strconv.ParseInt(value.Raw, 10, 0)
+		if err == nil && parsed >= 0 {
+			return int(parsed)
+		}
+	}
+	return 0
 }
 
 // normalizeOpenAIUsage maps the OpenAI Images usage shape (input_tokens /
@@ -108,6 +280,16 @@ func OpenaiImageStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp 
 	}
 	if !strings.Contains(contentType, "text/event-stream") {
 		return openaiImageJSONAsStreamHandler(c, info, resp)
+	}
+	if shouldValidateChannelImageResponseURL(info) {
+		responseBody, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
+		}
+		if validationErr := validateChannelImageResponseURLs(responseBody, info); validationErr != nil {
+			return nil, validationErr
+		}
+		resp.Body = io.NopCloser(bytes.NewReader(responseBody))
 	}
 	// Reuse the shared streaming engine (helper.StreamScannerHandler) so the
 	// image streaming path gets the same ping keepalive, streaming-timeout
@@ -245,6 +427,9 @@ func openaiImageJSONAsStreamHandler(c *gin.Context, info *relaycommon.RelayInfo,
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
 	}
+	if validationErr := validateChannelImageResponseURLs(responseBody, info); validationErr != nil {
+		return nil, validationErr
+	}
 
 	responseBody = stripChannelImageURLs(responseBody, info)
 	// Only decode usage/error. Do not Unmarshal data[] into dto.ImageResponse —
@@ -348,6 +533,61 @@ func shouldStripChannelImageURL(info *relaycommon.RelayInfo) bool {
 		return false
 	}
 	return info.ChannelOtherSettings.ForceImageB64JSONNoURL
+}
+
+func shouldValidateChannelImageResponseURL(info *relaycommon.RelayInfo) bool {
+	return info != nil &&
+		info.ChannelMeta != nil &&
+		!info.ChannelOtherSettings.ForceImageB64JSONNoURL &&
+		strings.TrimSpace(info.ChannelOtherSettings.ImageResponseURLPrefix) != ""
+}
+
+func validateChannelImageResponseURLs(data []byte, info *relaycommon.RelayInfo) *types.NewAPIError {
+	if !shouldValidateChannelImageResponseURL(info) || len(data) == 0 {
+		return nil
+	}
+
+	prefix := strings.TrimSpace(info.ChannelOtherSettings.ImageResponseURLPrefix)
+	for i := 0; i < len(data); {
+		if data[i] != '"' {
+			i++
+			continue
+		}
+
+		matchedFieldLength := 0
+		for _, field := range [][]byte{[]byte(`"url"`), []byte(`"_provider_image_url"`)} {
+			if matchesJSONField(data, i, field) {
+				matchedFieldLength = len(field)
+				break
+			}
+		}
+		if matchedFieldLength == 0 {
+			next := skipJSONString(data, i)
+			if next <= i {
+				i++
+			} else {
+				i = next
+			}
+			continue
+		}
+
+		colon := skipJSONSpaces(data, i+matchedFieldLength)
+		valueStart := skipJSONSpaces(data, colon+1)
+		valueEnd := skipJSONValue(data, valueStart)
+		if valueEnd <= valueStart || data[valueStart] != '"' {
+			return invalidChannelImageResponseURLError()
+		}
+		urlValue := ""
+		if err := common.Unmarshal(data[valueStart:valueEnd], &urlValue); err != nil || !strings.HasPrefix(urlValue, prefix) {
+			return invalidChannelImageResponseURLError()
+		}
+		i = valueEnd
+	}
+	return nil
+}
+
+func invalidChannelImageResponseURLError() *types.NewAPIError {
+	return types.NewOpenAIError(errors.New("openai error."), types.ErrorCodeBadResponse, http.StatusBadGateway)
 }
 
 func stripJSONFields(data []byte, fields ...string) []byte {

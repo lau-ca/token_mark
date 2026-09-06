@@ -77,6 +77,7 @@ Powered by [expr-lang/expr](https://github.com/expr-lang/expr). Expressions are 
 |----------|-----------|---------|
 | `tier` | `tier(name, value) → float64` | Records which pricing tier matched; must wrap the cost expression |
 | `per_request` | `per_request(amount) → float64` | Converts a per-request price into expression units (`amount * 1,000,000`) |
+| `task_tokens` | `task_tokens(cost) → float64` | Explicitly opts an asynchronous Task into settlement with actual completion tokens |
 | `param` | `param(path) → any` | Reads a JSON path from the request body (uses gjson) |
 | `header` | `header(key) → string` | Reads a request header value |
 | `has` | `has(source, substr) → bool` | Substring check |
@@ -93,7 +94,9 @@ Powered by [expr-lang/expr](https://github.com/expr-lang/expr). Expressions are 
 
 `per_request(2.5)` represents a price of `2.5` for one request. It scales the amount by `1,000,000` so the existing quota conversion produces the same final charge as other per-call billing paths. Multiplying it by a normalized request parameter supports per-unit pricing; for example, `per_request(0.9) * param("duration")` represents `0.9` per second.
 
-Request-dependent Task expressions must contain `per_request()` as an explicit opt-in marker. Expressions without it retain the existing token and legacy Task billing behavior.
+Fixed-price request-dependent Task expressions must contain `per_request()` as an explicit opt-in marker. Token-priced asynchronous Task expressions use `task_tokens()` as a separate explicit opt-in marker. Expressions without either marker retain the existing legacy Task billing behavior.
+
+For `task_tokens()` expressions, normalized request fields and the selected tier are frozen at submission. After the task succeeds, the frozen expression is evaluated again with `c` set to the upstream `completion_tokens`, and the pre-consumed quota is supplemented or refunded through normal Task settlement.
 
 ### Expression Examples
 

@@ -90,17 +90,8 @@ describe('model capability catalog', () => {
           model_name: 'saved-image-model',
           supported_endpoint_types: ['image-generation'],
           available: false,
-          metadata: {
-            id: 17,
-            model_name: 'saved-image-model',
-            endpoints:
-              '{"image-generation":{"playground":{"capabilities":["image.generate"]}}}',
-            status: 1,
-            sync_official: 1,
-            created_time: 1,
-            updated_time: 1,
-            name_rule: 0,
-          },
+          config:
+            '{"endpoints":{"image-generation":{"capabilities":["image.generate"]}}}',
         },
       ],
     })

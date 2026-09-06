@@ -144,6 +144,42 @@ type ModelPlaygroundConfig struct {
 	Integration  *PlaygroundIntegrationConfig `json:"integration,omitempty"`
 }
 
+type ModelCapabilityConfig struct {
+	Endpoints map[string]ModelPlaygroundConfig `json:"endpoints"`
+}
+
+func ParseModelCapabilityConfig(raw string) (ModelCapabilityConfig, error) {
+	config := ModelCapabilityConfig{Endpoints: map[string]ModelPlaygroundConfig{}}
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return config, nil
+	}
+	if err := common.UnmarshalJsonStr(raw, &config); err != nil {
+		return ModelCapabilityConfig{}, err
+	}
+	if config.Endpoints == nil {
+		config.Endpoints = map[string]ModelPlaygroundConfig{}
+	}
+	for endpointName, endpoint := range config.Endpoints {
+		if strings.TrimSpace(endpointName) == "" {
+			return ModelCapabilityConfig{}, fmt.Errorf("endpoint name cannot be empty")
+		}
+		if err := validateModelPlaygroundConfig(&endpoint); err != nil {
+			return ModelCapabilityConfig{}, fmt.Errorf("endpoint %s: %w", endpointName, err)
+		}
+	}
+	return config, nil
+}
+
+func (config ModelCapabilityConfig) EndpointConfigs() map[string]ModelEndpointConfig {
+	endpoints := make(map[string]ModelEndpointConfig, len(config.Endpoints))
+	for endpointName, playground := range config.Endpoints {
+		playgroundCopy := playground
+		endpoints[endpointName] = ModelEndpointConfig{Playground: &playgroundCopy}
+	}
+	return endpoints
+}
+
 type PlaygroundIntegrationInterface struct {
 	Key                string   `json:"key"`
 	Title              string   `json:"title"`

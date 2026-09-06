@@ -1,12 +1,21 @@
 package controller
 
 import (
+	"bytes"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/gin-gonic/gin"
+	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 func TestBuildModelCapabilityCatalogMergesConfiguredAndRuntimeModels(t *testing.T) {
@@ -16,85 +25,77 @@ func TestBuildModelCapabilityCatalogMergesConfiguredAndRuntimeModels(t *testing.
 			SupportedEndpointTypes: []constant.EndpointType{constant.EndpointTypeOpenAI},
 		},
 		{
-			ModelName:              "square-rule-model",
+			ModelName:              "square-runtime-model",
 			SupportedEndpointTypes: []constant.EndpointType{constant.EndpointTypeGemini},
 		},
 	}
-	metadata := []*model.Model{
+	capabilities := []*model.ModelCapability{
 		{
-			Id:        11,
 			ModelName: "square-exact-model",
-			NameRule:  model.NameRuleExact,
-			Endpoints: `{"image-generation":{"playground":{"capabilities":["image.generate"]}}}`,
+			Config:    `{"endpoints":{"image-generation":{"capabilities":["image.generate"]}}}`,
 		},
 		{
-			Id:        12,
-			ModelName: "square-",
-			NameRule:  model.NameRulePrefix,
-		},
-		{
-			Id:        13,
-			ModelName: "metadata-only-model",
-			NameRule:  model.NameRuleExact,
-			Endpoints: `{"openai":{"playground":{"capabilities":["chat"]}}}`,
+			ModelName: "configured-only-model",
+			Config:    `{"endpoints":{"openai-video":{"capabilities":["video.text_to_video"]}}}`,
 		},
 	}
 
-	items := buildModelCapabilityCatalog(pricings, metadata)
+	items := buildModelCapabilityCatalog(pricings, capabilities)
 
 	require.Len(t, items, 3)
-	assert.Equal(t, "metadata-only-model", items[0].ModelName)
+	assert.Equal(t, "configured-only-model", items[0].ModelName)
 	assert.False(t, items[0].Available)
-	require.NotNil(t, items[0].Metadata)
-	assert.Equal(t, 13, items[0].Metadata.Id)
+	assert.JSONEq(t, capabilities[1].Config, items[0].Config)
+	assert.Equal(t, []constant.EndpointType{constant.EndpointTypeOpenAIVideo}, items[0].SupportedEndpointTypes)
 	assert.Equal(t, "square-exact-model", items[1].ModelName)
-	require.NotNil(t, items[1].Metadata)
 	assert.True(t, items[1].Available)
-	assert.Equal(t, 11, items[1].Metadata.Id)
+	assert.JSONEq(t, capabilities[0].Config, items[1].Config)
 	assert.Equal(t, []constant.EndpointType{
 		constant.EndpointTypeOpenAI,
 		constant.EndpointTypeImageGeneration,
 	}, items[1].SupportedEndpointTypes)
-	assert.Equal(t, "square-rule-model", items[2].ModelName)
+	assert.Equal(t, "square-runtime-model", items[2].ModelName)
 	assert.True(t, items[2].Available)
-	assert.Nil(t, items[2].Metadata)
+	assert.Empty(t, items[2].Config)
 }
 
-func TestBuildModelCapabilityCatalogKeepsConfiguredUnavailableModels(t *testing.T) {
-	metadata := []*model.Model{
-		{
-			Id:        21,
-			ModelName: "saved-video-model",
-			NameRule:  model.NameRuleExact,
-			Endpoints: `{"openai-video":{"playground":{"capabilities":["video.text_to_video"]}}}`,
-		},
-	}
-
-	items := buildModelCapabilityCatalog(nil, metadata)
-
-	require.Len(t, items, 1)
-	assert.Equal(t, "saved-video-model", items[0].ModelName)
-	assert.False(t, items[0].Available)
-	require.NotNil(t, items[0].Metadata)
-	assert.Equal(t, metadata[0].Endpoints, items[0].Metadata.Endpoints)
-	assert.Equal(t, []constant.EndpointType{constant.EndpointTypeOpenAIVideo}, items[0].SupportedEndpointTypes)
+func setupModelCapabilityControllerTest(t *testing.T) *gorm.DB {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	db, err := gorm.Open(sqlite.Open(fmt.Sprintf("file:%s?mode=memory&cache=shared", strings.ReplaceAll(t.Name(), "/", "_"))), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&model.Model{}, &model.ModelCapability{}))
+	previousDB := model.DB
+	model.DB = db
+	t.Cleanup(func() {
+		model.DB = previousDB
+		sqlDB, closeErr := db.DB()
+		if closeErr == nil {
+			_ = sqlDB.Close()
+		}
+	})
+	return db
 }
 
-func TestBuildModelCapabilityCatalogDoesNotAttachRuleMetadata(t *testing.T) {
-	pricings := []model.Pricing{{
-		ModelName:              "rule-derived-model",
-		SupportedEndpointTypes: []constant.EndpointType{constant.EndpointTypeGemini},
-	}}
-	metadata := []*model.Model{{
-		Id:        31,
-		ModelName: "rule-",
-		NameRule:  model.NameRulePrefix,
-	}}
+func TestUpdateModelCapabilityDoesNotCreateModelMetadata(t *testing.T) {
+	db := setupModelCapabilityControllerTest(t)
+	payload, err := common.Marshal(updateModelCapabilityRequest{
+		ModelName: "runtime-only-model",
+		Config:    `{"endpoints":{"image-generation":{"capabilities":["image.generate"]}}}`,
+	})
+	require.NoError(t, err)
+	recorder := httptest.NewRecorder()
+	context, _ := gin.CreateTestContext(recorder)
+	context.Request = httptest.NewRequest(http.MethodPut, "/api/models/capabilities", bytes.NewReader(payload))
+	context.Request.Header.Set("Content-Type", "application/json")
 
-	items := buildModelCapabilityCatalog(pricings, metadata)
+	UpdateModelCapability(context)
 
-	require.Len(t, items, 1)
-	assert.Equal(t, "rule-derived-model", items[0].ModelName)
-	assert.True(t, items[0].Available)
-	assert.Nil(t, items[0].Metadata)
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	var metadataCount int64
+	require.NoError(t, db.Model(&model.Model{}).Count(&metadataCount).Error)
+	assert.Zero(t, metadataCount)
+	var capability model.ModelCapability
+	require.NoError(t, db.Where("model_name = ?", "runtime-only-model").First(&capability).Error)
+	assert.JSONEq(t, `{"endpoints":{"image-generation":{"capabilities":["image.generate"]}}}`, capability.Config)
 }

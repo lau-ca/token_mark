@@ -866,25 +866,61 @@ type TaskRelayInfo struct {
 }
 
 type TaskSubmitReq struct {
-	Prompt          string                 `json:"prompt"`
-	Model           string                 `json:"model,omitempty"`
-	Mode            string                 `json:"mode,omitempty"`
-	Image           string                 `json:"image,omitempty"`
-	Images          []string               `json:"images,omitempty"`
-	Size            string                 `json:"size,omitempty"`
-	Duration        int                    `json:"duration,omitempty"`
-	Seconds         string                 `json:"seconds,omitempty"`
-	AspectRatio     string                 `json:"aspect_ratio,omitempty"`
-	Ratio           string                 `json:"ratio,omitempty"`
-	Resolution      string                 `json:"resolution,omitempty"`
-	ReferenceImages []string               `json:"referenceImages,omitempty"`
-	ReferenceVideos []string               `json:"referenceVideos,omitempty"`
-	ReferenceAudios []string               `json:"referenceAudios,omitempty"`
-	InputReference  string                 `json:"input_reference,omitempty"`
-	Metadata        map[string]interface{} `json:"metadata,omitempty"`
+	Prompt                string                 `json:"prompt"`
+	Model                 string                 `json:"model,omitempty"`
+	Content               []TaskContentItem      `json:"content,omitempty"`
+	CallbackURL           string                 `json:"callback_url,omitempty"`
+	ReturnLastFrame       *bool                  `json:"return_last_frame,omitempty"`
+	ServiceTier           string                 `json:"service_tier,omitempty"`
+	ExecutionExpiresAfter *int                   `json:"execution_expires_after,omitempty"`
+	GenerateAudio         *bool                  `json:"generate_audio,omitempty"`
+	Draft                 *bool                  `json:"draft,omitempty"`
+	Tools                 []TaskTool             `json:"tools,omitempty"`
+	SafetyIdentifier      string                 `json:"safety_identifier,omitempty"`
+	Priority              *int                   `json:"priority,omitempty"`
+	Mode                  string                 `json:"mode,omitempty"`
+	Image                 string                 `json:"image,omitempty"`
+	Images                []string               `json:"images,omitempty"`
+	Size                  string                 `json:"size,omitempty"`
+	Duration              int                    `json:"duration,omitempty"`
+	Seconds               string                 `json:"seconds,omitempty"`
+	AspectRatio           string                 `json:"aspect_ratio,omitempty"`
+	Ratio                 string                 `json:"ratio,omitempty"`
+	Resolution            string                 `json:"resolution,omitempty"`
+	Frames                *int                   `json:"frames,omitempty"`
+	Seed                  *int                   `json:"seed,omitempty"`
+	CameraFixed           *bool                  `json:"camera_fixed,omitempty"`
+	Watermark             *bool                  `json:"watermark,omitempty"`
+	ReferenceImages       []string               `json:"referenceImages,omitempty"`
+	ReferenceVideos       []string               `json:"referenceVideos,omitempty"`
+	ReferenceAudios       []string               `json:"referenceAudios,omitempty"`
+	InputReference        string                 `json:"input_reference,omitempty"`
+	Metadata              map[string]interface{} `json:"metadata,omitempty"`
 
 	durationProvided bool
 	durationParseErr error
+}
+
+type TaskContentItem struct {
+	Type      string         `json:"type,omitempty"`
+	Text      string         `json:"text,omitempty"`
+	ImageURL  *TaskMediaURL  `json:"image_url,omitempty"`
+	VideoURL  *TaskMediaURL  `json:"video_url,omitempty"`
+	AudioURL  *TaskMediaURL  `json:"audio_url,omitempty"`
+	DraftTask *TaskDraftTask `json:"draft_task,omitempty"`
+	Role      string         `json:"role,omitempty"`
+}
+
+type TaskMediaURL struct {
+	URL string `json:"url,omitempty"`
+}
+
+type TaskDraftTask struct {
+	ID string `json:"id,omitempty"`
+}
+
+type TaskTool struct {
+	Type string `json:"type,omitempty"`
 }
 
 func (t *TaskSubmitReq) GetPrompt() string {
@@ -893,6 +929,39 @@ func (t *TaskSubmitReq) GetPrompt() string {
 
 func (t *TaskSubmitReq) HasImage() bool {
 	return len(t.Images) > 0
+}
+
+func (t *TaskSubmitReq) HasReferenceVideo() bool {
+	if t == nil {
+		return false
+	}
+	for _, videoURL := range t.ReferenceVideos {
+		if strings.TrimSpace(videoURL) != "" {
+			return true
+		}
+	}
+	for _, item := range t.Content {
+		if item.Type == "video_url" && item.VideoURL != nil && strings.TrimSpace(item.VideoURL.URL) != "" {
+			return true
+		}
+	}
+	content, ok := t.Metadata["content"].([]interface{})
+	if !ok {
+		return false
+	}
+	for _, item := range content {
+		entry, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if entry["type"] == "video_url" {
+			return true
+		}
+		if _, ok := entry["video_url"]; ok {
+			return true
+		}
+	}
+	return false
 }
 
 func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {

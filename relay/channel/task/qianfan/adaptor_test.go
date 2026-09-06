@@ -5,15 +5,32 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func newQianfanCompatibilityContext(t *testing.T, body, upstreamModel string) (*gin.Context, *relaycommon.RelayInfo) {
+	t.Helper()
+	recorder := httptest.NewRecorder()
+	context, _ := gin.CreateTestContext(recorder)
+	context.Request = httptest.NewRequest(http.MethodPost, "/v1/videos", strings.NewReader(body))
+	context.Request.Header.Set("Content-Type", "application/json")
+	return context, &relaycommon.RelayInfo{
+		OriginModelName: upstreamModel,
+		TaskRelayInfo:   &relaycommon.TaskRelayInfo{PublicTaskID: "task-public"},
+		ChannelMeta: &relaycommon.ChannelMeta{
+			UpstreamModelName: upstreamModel,
+		},
+	}
+}
 
 func TestValidateModelType(t *testing.T) {
 	t.Parallel()
@@ -70,6 +87,107 @@ func TestNormalizeAdvancedBillingUsesOfficialFields(t *testing.T) {
 	assert.Equal(t, true, normalized.Metadata[metadataSound])
 	assert.Equal(t, true, normalized.Metadata[metadataHasReferenceVideo])
 	assert.Equal(t, true, normalized.Metadata[metadataHasVoice])
+}
+
+func TestNormalizeAdvancedBillingAcceptsOfficialStringDuration(t *testing.T) {
+	t.Parallel()
+
+	normalized, err := normalizeAdvancedBilling(qianfanRequest{
+		Model: "K3O",
+		Type:  "omni-video",
+		ModelParameters: map[string]any{
+			"duration": "3",
+			"mode":     "std",
+		},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, 3, normalized.Duration)
+}
+
+func TestNormalizeAdvancedBillingRejectsUnsupportedGenerationDuration(t *testing.T) {
+	t.Parallel()
+
+	for _, duration := range []string{"2", "16"} {
+		_, err := normalizeAdvancedBilling(qianfanRequest{
+			Model: "K3O",
+			Type:  "omni-video",
+			ModelParameters: map[string]any{
+				"duration": duration,
+				"mode":     "std",
+			},
+		})
+		require.Error(t, err)
+	}
+}
+
+func TestValidateCompatibilityRequestNormalizesOfficialQualityFields(t *testing.T) {
+	tests := []struct {
+		name           string
+		upstreamModel  string
+		body           string
+		wantMode       string
+		wantResolution string
+	}{
+		{
+			name:          "K3 resolution compatibility",
+			upstreamModel: "K3.0",
+			body:          `{"model":"Kling 3.0","prompt":"lake","duration":3,"resolution":"1080p"}`,
+			wantMode:      "pro",
+		},
+		{
+			name:          "Omni resolution compatibility",
+			upstreamModel: "K3O",
+			body:          `{"model":"Kling 3.0 Omni","prompt":"lake","duration":3,"resolution":"720p"}`,
+			wantMode:      "std",
+		},
+		{
+			name:          "Omni official default",
+			upstreamModel: "K3O",
+			body:          `{"model":"Kling 3.0 Omni","prompt":"lake","duration":3}`,
+			wantMode:      "pro",
+		},
+		{
+			name:           "Turbo resolution",
+			upstreamModel:  "k3.0-turbo",
+			body:           `{"model":"Kling 3.0 Turbo","prompt":"lake","duration":3,"resolution":"1080p"}`,
+			wantResolution: "1080p",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			context, info := newQianfanCompatibilityContext(t, test.body, test.upstreamModel)
+			adaptor := &TaskAdaptor{}
+			require.Nil(t, adaptor.ValidateRequestAndSetAction(context, info))
+			request, err := relaycommon.GetTaskRequest(context)
+			require.NoError(t, err)
+			assert.Equal(t, test.wantMode, request.Mode)
+			assert.Equal(t, test.wantResolution, request.Resolution)
+		})
+	}
+}
+
+func TestValidateCompatibilityRequestRejectsUnsupportedValues(t *testing.T) {
+	tests := []struct {
+		name          string
+		upstreamModel string
+		body          string
+	}{
+		{name: "duration below minimum", upstreamModel: "K3.0", body: `{"model":"Kling 3.0","prompt":"lake","duration":2,"mode":"std"}`},
+		{name: "duration above maximum", upstreamModel: "K3.0", body: `{"model":"Kling 3.0","prompt":"lake","duration":16,"mode":"std"}`},
+		{name: "invalid K3 mode", upstreamModel: "K3.0", body: `{"model":"Kling 3.0","prompt":"lake","duration":3,"mode":"cinema"}`},
+		{name: "invalid K3 resolution", upstreamModel: "K3.0", body: `{"model":"Kling 3.0","prompt":"lake","duration":3,"resolution":"999p"}`},
+		{name: "invalid Turbo resolution", upstreamModel: "k3.0-turbo", body: `{"model":"Kling 3.0 Turbo","prompt":"lake","duration":3,"resolution":"999p"}`},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			context, info := newQianfanCompatibilityContext(t, test.body, test.upstreamModel)
+			taskErr := (&TaskAdaptor{}).ValidateRequestAndSetAction(context, info)
+			require.NotNil(t, taskErr)
+			assert.Equal(t, http.StatusBadRequest, taskErr.StatusCode)
+		})
+	}
 }
 
 func TestNormalizeAdvancedLipSyncBillingDuration(t *testing.T) {
@@ -157,6 +275,35 @@ func TestBuildRequestBodyUsesOmniShape(t *testing.T) {
 	assert.Equal(t, "std", request.ModelParameters["mode"])
 	assert.Equal(t, "16:9", request.ModelParameters["aspect_ratio"])
 	assert.Equal(t, "off", request.ModelParameters["sound"])
+}
+
+func TestBuildRequestBodyUsesOfficialOmniImageList(t *testing.T) {
+	t.Parallel()
+
+	context, _ := gin.CreateTestContext(httptest.NewRecorder())
+	context.Set("task_request", relaycommon.TaskSubmitReq{
+		Prompt:   "animate the first frame",
+		Image:    "https://example.com/first.png",
+		Duration: 3,
+		Mode:     "std",
+	})
+	body, err := (&TaskAdaptor{}).BuildRequestBody(context, &relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "K3O"},
+	})
+	require.NoError(t, err)
+
+	data, err := io.ReadAll(body)
+	require.NoError(t, err)
+	var request qianfanRequest
+	require.NoError(t, common.Unmarshal(data, &request))
+	imageList, ok := request.ModelParameters["image_list"].([]any)
+	require.True(t, ok)
+	require.Len(t, imageList, 1)
+	image, ok := imageList[0].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "first_frame", image["type"])
+	assert.Equal(t, "https://example.com/first.png", image["image_url"])
+	assert.NotContains(t, request.ModelParameters, "image")
 }
 
 func TestBuildRequestBodyUsesTurboShape(t *testing.T) {
@@ -247,6 +394,38 @@ func TestParseTaskResultAcceptsTurboSuccessMessage(t *testing.T) {
 	assert.Equal(t, string(model.TaskStatusSuccess), result.Status)
 	assert.Equal(t, "https://example.com/turbo.mp4", result.Url)
 	assert.Equal(t, 2.4, result.FinalPrice)
+}
+
+func TestConvertToOpenAIVideoReturnsCompletePublicResponse(t *testing.T) {
+	t.Parallel()
+
+	task := &model.Task{
+		TaskID:   "task-public",
+		Status:   model.TaskStatusSuccess,
+		Progress: "100%",
+		Properties: model.Properties{
+			OriginModelName: "Kling 3.0",
+		},
+		Data: []byte(`{
+			"code":0,
+			"data":{
+				"created_at":1786287263000,
+				"updated_at":1786287328000,
+				"task_result":{"videos":[{"duration":"3.041","url":"https://example.com/video.mp4"}]}
+			}
+		}`),
+	}
+
+	body, err := (&TaskAdaptor{}).ConvertToOpenAIVideo(task)
+	require.NoError(t, err)
+	var response dto.OpenAIVideo
+	require.NoError(t, common.Unmarshal(body, &response))
+	assert.Equal(t, "Kling 3.0", response.Model)
+	assert.Equal(t, "https://example.com/video.mp4", response.URL)
+	assert.Equal(t, "https://example.com/video.mp4", response.VideoURL)
+	assert.Equal(t, "https://example.com/video.mp4", response.Metadata["url"])
+	assert.Equal(t, int64(1786287263), response.CreatedAt)
+	assert.Equal(t, int64(1786287328), response.CompletedAt)
 }
 
 func TestReplaceQianfanTaskIDPreservesProviderFields(t *testing.T) {

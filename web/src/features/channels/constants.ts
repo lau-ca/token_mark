@@ -23,6 +23,27 @@ For commercial licensing, please contact support@quantumnous.com
 
 export const CHANNEL_TYPE_NEW_API = 60;
 
+export const OPENAI_IMAGE_RESPONSE_CHANNEL_TYPES = new Set([
+  1, // OpenAI
+  3, // Azure
+  6, // OpenAIMax
+  7, // OhMyGPT
+  8, // Custom (OpenAI-compatible fallback)
+  9, // AILS
+  10, // AI Proxy
+  12, // API2GPT
+  13, // AIGC2D
+  19, // 360
+  20, // OpenRouter
+  22, // FastGPT
+  31, // LingYiWanWu
+  47, // Xinference
+  48, // xAI
+  58, // Advanced Custom
+  59, // Sub2API
+  CHANNEL_TYPE_NEW_API,
+]);
+
 export const CHANNEL_TYPES = {
   0: "Unknown",
   1: "OpenAI",

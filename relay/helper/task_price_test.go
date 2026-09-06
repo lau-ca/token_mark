@@ -21,6 +21,7 @@ const (
 	testVideosMiniExpr     = `param("resolution") == "480p" ? tier("480p", per_request(2.5)) : param("resolution") == "720p" ? tier("720p", per_request(3.5)) : tier("invalid", -1)`
 	testVideosFastExpr     = `param("resolution") == "480p" ? tier("480p", per_request(4)) : param("resolution") == "720p" ? tier("720p", per_request(6)) : tier("invalid", -1)`
 	testVideosStandardExpr = `param("resolution") == "480p" ? tier("480p", per_request(5.5)) : param("resolution") == "720p" ? tier("720p", per_request(8)) : param("resolution") == "1080p" ? tier("1080p", per_request(0.9) * param("duration")) : param("resolution") == "4k" ? tier("4k", per_request(2) * param("duration")) : tier("invalid", -1)`
+	testTaskTokenExpr      = `task_tokens(param("resolution") == "1080p" ? tier("1080p", c * (param("has_reference_video") ? 31 : 51)) : tier("base", c * (param("has_reference_video") ? 28 : 46)))`
 )
 
 func loadTaskPriceTestConfig(t *testing.T, modes, expressions map[string]string, modelPrices map[string]float64) {
@@ -170,6 +171,34 @@ func TestModelPriceHelperTaskFreezesFirstAttempt(t *testing.T) {
 	assert.Equal(t, first.Quota, second.Quota)
 	assert.Equal(t, firstHash, info.TieredBillingSnapshot.ExprHash)
 	assert.Equal(t, "first", info.TieredBillingSnapshot.EstimatedTier)
+	assert.False(t, info.TieredBillingSnapshot.TaskTokenBilling)
+}
+
+func TestModelPriceHelperTaskFreezesTokenExpressionRequest(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	const modelName = "Doubao-Seedance-2.0"
+	loadTaskPriceTestConfig(t,
+		map[string]string{modelName: billing_setting.BillingModeTieredExpr},
+		map[string]string{modelName: testTaskTokenExpr},
+		map[string]float64{modelName: 11.5},
+	)
+	request := relaycommon.TaskSubmitReq{
+		Model:           modelName,
+		Resolution:      "1080p",
+		ReferenceVideos: []string{"https://example.com/reference.mp4"},
+	}
+	ctx := newTaskPriceTestContext("Seedance2.0", request)
+	info := newTaskPriceTestInfo(modelName, "Seedance2.0")
+
+	priceData, err := ModelPriceHelperTask(ctx, info)
+
+	require.NoError(t, err)
+	assert.Positive(t, priceData.Quota)
+	require.NotNil(t, info.TieredBillingSnapshot)
+	require.NotNil(t, info.BillingRequestInput)
+	assert.True(t, info.TieredBillingSnapshot.TaskTokenBilling)
+	assert.True(t, billingexpr.UsedVars(info.TieredBillingSnapshot.ExprString)["task_tokens"])
+	assert.JSONEq(t, `{"model":"Doubao-Seedance-2.0","resolution":"1080p","has_reference_video":true}`, string(info.BillingRequestInput.Body))
 }
 
 func TestModelPriceHelperTaskRequiresPerRequestOptIn(t *testing.T) {

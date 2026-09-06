@@ -56,27 +56,6 @@ func SeedanceAssetProxy(c *gin.Context) {
 		return
 	}
 
-	upstreamBaseURL := strings.TrimSpace(os.Getenv("SEEDANCE_ASSET_PROXY_BASE_URL"))
-	upstreamAPIKey := strings.TrimSpace(os.Getenv("SEEDANCE_ASSET_PROXY_API_KEY"))
-	upstreamURL, err := url.Parse(upstreamBaseURL)
-	if err != nil || (upstreamURL.Scheme != "http" && upstreamURL.Scheme != "https") || upstreamURL.Host == "" || upstreamURL.User != nil {
-		logger.LogError(c, "invalid SEEDANCE_ASSET_PROXY_BASE_URL")
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": gin.H{
-			"message": "asset upstream is not configured",
-			"type":    "server_error",
-		}})
-		return
-	}
-	if upstreamAPIKey == "" {
-		logger.LogError(c, "SEEDANCE_ASSET_PROXY_API_KEY is empty")
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": gin.H{
-			"message": "asset upstream is not configured",
-			"type":    "server_error",
-		}})
-		return
-	}
-	upstreamURL.RawQuery = c.Request.URL.RawQuery
-
 	relayInfo, err := relaycommon.GenRelayInfo(c, types.RelayFormatTask, nil, nil)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{
@@ -89,6 +68,16 @@ func SeedanceAssetProxy(c *gin.Context) {
 	relayInfo.BillingModelName = constant.SeedanceAssetBillingModel
 	relayInfo.Action = action
 	relayInfo.ForcePreConsume = true
+
+	upstreamURL, upstreamAPIKey, upstreamProxy, err := resolveSeedanceAssetUpstream(c, relayInfo)
+	if err != nil {
+		logger.LogError(c, err.Error())
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": gin.H{
+			"message": "asset upstream is not configured",
+			"type":    "server_error",
+		}})
+		return
+	}
 
 	priceData, err := helper.ModelPriceHelperPerCall(c, relayInfo)
 	if err != nil {
@@ -125,7 +114,15 @@ func SeedanceAssetProxy(c *gin.Context) {
 	copySeedanceAssetHeaders(request.Header, c.Request.Header)
 	request.Header.Set("Authorization", "Bearer "+upstreamAPIKey)
 
-	response, err := service.GetHttpClient().Do(request)
+	httpClient, err := service.GetHttpClientWithProxy(upstreamProxy)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{
+			"message": "failed to initialize asset upstream client",
+			"type":    "server_error",
+		}})
+		return
+	}
+	response, err := httpClient.Do(request)
 	if err != nil {
 		logger.LogError(c, fmt.Sprintf("seedance asset upstream request failed: %s", err.Error()))
 		c.JSON(http.StatusBadGateway, gin.H{"error": gin.H{
@@ -164,6 +161,35 @@ func SeedanceAssetProxy(c *gin.Context) {
 	if _, err := io.Copy(c.Writer, response.Body); err != nil {
 		logger.LogError(c, fmt.Sprintf("failed to stream seedance asset response: %s", err.Error()))
 	}
+}
+
+func resolveSeedanceAssetUpstream(c *gin.Context, relayInfo *relaycommon.RelayInfo) (*url.URL, string, string, error) {
+	registeredRoute := c.Request.URL.Path == "/v1/volc/ark"
+	baseURL := strings.TrimSpace(os.Getenv("SEEDANCE_ASSET_PROXY_BASE_URL"))
+	apiKey := strings.TrimSpace(os.Getenv("SEEDANCE_ASSET_PROXY_API_KEY"))
+	proxy := ""
+	if registeredRoute {
+		if relayInfo == nil || relayInfo.ChannelMeta == nil || relayInfo.ChannelType != constant.ChannelTypeDoubaoVideo {
+			return nil, "", "", fmt.Errorf("registered asset route requires a Doubao Video channel")
+		}
+		baseURL = strings.TrimSpace(relayInfo.ChannelBaseUrl)
+		apiKey = strings.TrimSpace(relayInfo.ApiKey)
+		proxy = relayInfo.ChannelSetting.Proxy
+	}
+	upstreamURL, err := url.Parse(baseURL)
+	if err != nil || (upstreamURL.Scheme != "http" && upstreamURL.Scheme != "https") || upstreamURL.Host == "" || upstreamURL.User != nil {
+		return nil, "", "", fmt.Errorf("invalid seedance asset upstream base URL")
+	}
+	if registeredRoute {
+		if !strings.HasSuffix(strings.TrimRight(upstreamURL.Path, "/"), "/v1/volc/ark") {
+			upstreamURL.Path = strings.TrimRight(upstreamURL.Path, "/") + "/v1/volc/ark"
+		}
+	}
+	if apiKey == "" {
+		return nil, "", "", fmt.Errorf("seedance asset upstream API key is empty")
+	}
+	upstreamURL.RawQuery = c.Request.URL.RawQuery
+	return upstreamURL, apiKey, proxy, nil
 }
 
 func copySeedanceAssetHeaders(destination, source http.Header) {

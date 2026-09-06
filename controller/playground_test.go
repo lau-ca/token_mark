@@ -3,8 +3,10 @@ package controller
 import (
 	"testing"
 
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestEndpointSupportsPlaygroundCapability(t *testing.T) {
@@ -63,4 +65,24 @@ func TestHasPlaygroundReference(t *testing.T) {
 			},
 		},
 	}))
+}
+
+func TestBuildPlaygroundEndpointConfigsCombinesMetadataRuntimeAndCapabilities(t *testing.T) {
+	endpointTypes, endpoints, err := buildPlaygroundEndpointConfigs(
+		`{"openai":{"path":"/custom/chat","method":"POST","future":"kept"}}`,
+		`{"endpoints":{"image-generation":{"capabilities":["image.generate"]}}}`,
+		[]constant.EndpointType{constant.EndpointTypeOpenAI},
+	)
+
+	require.NoError(t, err)
+	assert.Equal(t, []constant.EndpointType{
+		constant.EndpointTypeOpenAI,
+		constant.EndpointTypeImageGeneration,
+	}, endpointTypes)
+	assert.Equal(t, "/custom/chat", endpoints[string(constant.EndpointTypeOpenAI)].Path)
+	imageEndpoint := endpoints[string(constant.EndpointTypeImageGeneration)]
+	require.NotNil(t, imageEndpoint.Playground)
+	assert.Equal(t, []string{"image.generate"}, imageEndpoint.Playground.Capabilities)
+	assert.NotEmpty(t, imageEndpoint.Path)
+	assert.Equal(t, "POST", imageEndpoint.Method)
 }

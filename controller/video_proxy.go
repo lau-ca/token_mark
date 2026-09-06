@@ -80,6 +80,7 @@ func VideoProxy(c *gin.Context) {
 	if replaceVideoURLsWithProxy {
 		c.Writer.Header().Set("Cache-Control", "private, no-store")
 	}
+	forwardRange := replaceVideoURLsWithProxy || channel.Type == constant.ChannelTypeBaiduV2
 	baseURL := channel.GetBaseURL()
 	if baseURL == "" {
 		baseURL = "https://api.openai.com"
@@ -120,7 +121,7 @@ func VideoProxy(c *gin.Context) {
 		videoProxyError(c, http.StatusInternalServerError, "server_error", "Failed to create proxy request")
 		return
 	}
-	if replaceVideoURLsWithProxy {
+	if forwardRange {
 		req.Header.Set("Accept-Encoding", "identity")
 		if value := c.GetHeader("Range"); value != "" {
 			req.Header.Set("Range", value)
@@ -214,7 +215,7 @@ func VideoProxy(c *gin.Context) {
 		return
 	}
 	defer resp.Body.Close()
-	if replaceVideoURLsWithProxy {
+	if forwardRange {
 		switch resp.StatusCode {
 		case http.StatusOK, http.StatusPartialContent:
 		case http.StatusRequestedRangeNotSatisfiable:

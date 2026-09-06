@@ -154,6 +154,47 @@ function describeGroup(
     .join(' && ')
 }
 
+type TaskTokenPriceRow = {
+  resolution: string
+  tierLabel: string
+  withoutReferenceVideo: number | null
+  withReferenceVideo: number | null
+}
+
+function getTaskTokenPriceRows(tiers: ParsedTier[]): TaskTokenPriceRow[] {
+  const rows = new Map<string, TaskTokenPriceRow>()
+  for (const tier of tiers) {
+    if (!tier.isTaskTokenPrice || !tier.taskResolution) continue
+    const row = rows.get(tier.taskResolution) || {
+      resolution: tier.taskResolution,
+      tierLabel: tier.label,
+      withoutReferenceVideo: null,
+      withReferenceVideo: null,
+    }
+    const price = Number(tier.outputPrice)
+    if (Number.isFinite(price) && price > 0) {
+      if (tier.hasReferenceVideo) {
+        row.withReferenceVideo = price
+      } else {
+        row.withoutReferenceVideo = price
+      }
+    }
+    rows.set(tier.taskResolution, row)
+  }
+  const resolutionOrder: Record<string, number> = {
+    '480p / 720p': 1,
+    '720p': 1,
+    '1080p': 2,
+    '4k': 3,
+  }
+  return [...rows.values()].sort((left, right) => {
+    const leftOrder = resolutionOrder[left.resolution.toLowerCase()] ?? 99
+    const rightOrder = resolutionOrder[right.resolution.toLowerCase()] ?? 99
+    if (leftOrder !== rightOrder) return leftOrder - rightOrder
+    return left.resolution.localeCompare(right.resolution)
+  })
+}
+
 export function DynamicPricingBreakdown({
   billingExpr,
   matchedTierLabel,
@@ -189,6 +230,7 @@ export function DynamicPricingBreakdown({
 
   const hasTiers = tiers.length > 0
   const hasRules = ruleGroups.length > 0
+  const taskTokenPriceRows = useMemo(() => getTaskTokenPriceRows(tiers), [tiers])
   const normalizedMatchedTierLabel = normalizeTierLabel(
     matchedTierLabel ?? undefined
   )
@@ -219,6 +261,115 @@ export function DynamicPricingBreakdown({
         <code className='text-muted-foreground block text-xs break-all'>
           {expr}
         </code>
+      </section>
+    )
+  }
+
+  if (taskTokenPriceRows.length > 0) {
+    const formatTaskTokenPrice = (price: number | null) => {
+      if (price === null) return '-'
+      return `${symbol}${Number((price * rate).toFixed(4)).toLocaleString()}`
+    }
+
+    return (
+      <section className={cn('min-w-0', !compact && 'py-3 sm:py-4')}>
+        {!compact && (
+          <div className='mb-3 flex items-start gap-2 sm:mb-4'>
+            <span className='mt-0.5 inline-flex size-6 items-center justify-center rounded-lg bg-amber-100 text-amber-700 shadow-sm dark:bg-amber-500/20 dark:text-amber-300'>
+              <TagIcon className='size-3.5' />
+            </span>
+            <div>
+              <div className='text-foreground text-base font-medium'>
+                {t('Task token pricing')}
+              </div>
+              <div className='text-muted-foreground text-xs'>
+                {t('Prices depend on resolution and reference video')}
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className='space-y-1.5 sm:hidden'>
+          {taskTokenPriceRows.map((row) => (
+            <div key={row.resolution} className='rounded-md border p-2.5'>
+              <Badge
+                variant='secondary'
+                className='mb-2 bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300'
+              >
+                {row.resolution}
+              </Badge>
+              <div className='grid grid-cols-2 gap-3'>
+                <div>
+                  <div className='text-muted-foreground text-[10px] font-medium tracking-wider uppercase'>
+                    {t('Without reference video')}
+                  </div>
+                  <div className='font-mono text-sm font-semibold'>
+                    {formatTaskTokenPrice(row.withoutReferenceVideo)}
+                  </div>
+                </div>
+                <div>
+                  <div className='text-muted-foreground text-[10px] font-medium tracking-wider uppercase'>
+                    {t('With reference video')}
+                  </div>
+                  <div className='font-mono text-sm font-semibold'>
+                    {formatTaskTokenPrice(row.withReferenceVideo)}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <StaticDataTable
+          className='hidden rounded-none border-0 sm:block'
+          tableClassName={compact ? 'text-xs' : 'text-sm'}
+          headerRowClassName='hover:bg-transparent'
+          data={taskTokenPriceRows}
+          getRowKey={(row) => row.resolution}
+          getRowClassName={(row) => {
+            const isMatched =
+              normalizedMatchedTierLabel !== '' &&
+              normalizeTierLabel(row.tierLabel) === normalizedMatchedTierLabel
+            return cn(
+              isMatched &&
+                'bg-emerald-50/70 hover:bg-emerald-50/70 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/10'
+            )
+          }}
+          columns={[
+            {
+              id: 'resolution',
+              header: t('Resolution'),
+              className: 'text-muted-foreground py-2 font-medium',
+              cellClassName: 'py-2.5',
+              cell: (row) => (
+                <Badge
+                  variant='secondary'
+                  className='bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300'
+                >
+                  {row.resolution}
+                </Badge>
+              ),
+            },
+            {
+              id: 'withoutReferenceVideo',
+              header: t('Without reference video'),
+              className: 'text-muted-foreground py-2 text-right font-medium',
+              cellClassName: 'py-2.5 text-right font-mono font-semibold',
+              cell: (row) =>
+                formatTaskTokenPrice(row.withoutReferenceVideo),
+            },
+            {
+              id: 'withReferenceVideo',
+              header: t('With reference video'),
+              className: 'text-muted-foreground py-2 text-right font-medium',
+              cellClassName: 'py-2.5 text-right font-mono font-semibold',
+              cell: (row) => formatTaskTokenPrice(row.withReferenceVideo),
+            },
+          ]}
+        />
+        <p className='text-muted-foreground/50 mt-2 text-[10px]'>
+          {t('Prices shown per 1M task output tokens')}
+        </p>
       </section>
     )
   }

@@ -76,6 +76,24 @@ export async function getModelCapabilityCatalog(): Promise<GetModelCapabilityCat
   return res.data
 }
 
+export async function updateModelCapability(data: {
+  model_name: string
+  config: string
+}): Promise<{
+  success: boolean
+  message?: string
+  data?: {
+    id: number
+    model_name: string
+    config: string
+    created_time: number
+    updated_time: number
+  }
+}> {
+  const res = await api.put('/api/models/capabilities', data)
+  return res.data
+}
+
 /**
  * Create new model
  */

@@ -58,7 +58,7 @@ export interface ModelCapabilityCatalogItem {
   model_name: string
   supported_endpoint_types: string[]
   available: boolean
-  metadata?: Model
+  config?: string
 }
 
 /**

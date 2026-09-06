@@ -256,6 +256,39 @@ func TestVideoProxyPrivacyForwardsRangesAndFiltersResponseHeaders(t *testing.T) 
 	}
 }
 
+func TestVideoProxyBaiduV2ForwardsRange(t *testing.T) {
+	db := setupVideoProxyTestDB(t)
+	var upstreamHeaders http.Header
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upstreamHeaders = r.Header.Clone()
+		w.Header().Set("Content-Type", "video/mp4")
+		w.Header().Set("Content-Length", "4")
+		w.Header().Set("Content-Range", "bytes 2-5/10")
+		w.Header().Set("Accept-Ranges", "bytes")
+		w.WriteHeader(http.StatusPartialContent)
+		_, _ = w.Write([]byte("2345"))
+	}))
+	defer server.Close()
+
+	seedVideoProxyTest(t, db, videoProxyTestOptions{
+		channelType: constant.ChannelTypeBaiduV2,
+		resultURL:   server.URL,
+	})
+	recorder := performVideoProxyRequest(t, videoProxyTestUserID, map[string]string{
+		"Range":    "bytes=2-5",
+		"If-Range": `"video-v1"`,
+	})
+
+	require.NotNil(t, upstreamHeaders)
+	assert.Equal(t, "bytes=2-5", upstreamHeaders.Get("Range"))
+	assert.Equal(t, `"video-v1"`, upstreamHeaders.Get("If-Range"))
+	assert.Equal(t, "identity", upstreamHeaders.Get("Accept-Encoding"))
+	require.Equal(t, http.StatusPartialContent, recorder.Code)
+	assert.Equal(t, "2345", recorder.Body.String())
+	assert.Equal(t, "bytes 2-5/10", recorder.Header().Get("Content-Range"))
+	assert.Equal(t, "bytes", recorder.Header().Get("Accept-Ranges"))
+}
+
 func TestSeedanceVideoProxyStreamsStoredURLWithoutLeakingCredentials(t *testing.T) {
 	db := setupVideoProxyTestDB(t)
 	var contentHeaders http.Header

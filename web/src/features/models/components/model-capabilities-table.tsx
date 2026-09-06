@@ -81,7 +81,7 @@ export function ModelCapabilitiesTable() {
           </Empty>
         )}
         {models.map((model) => {
-          const capabilities = getModelCapabilities(model.metadata?.endpoints)
+          const capabilities = getModelCapabilities(model.config)
           return (
             <Card key={model.model_name}>
               <CardContent className='flex items-center justify-between gap-4 py-4'>

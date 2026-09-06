@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
@@ -333,4 +334,37 @@ func RecalculateTaskQuotaByTokens(ctx context.Context, task *model.Task, totalTo
 
 	reason := fmt.Sprintf("token重算：tokens=%d, modelRatio=%.2f, groupRatio=%.2f, otherMultiplier=%.4f", totalTokens, modelRatio, finalGroupRatio, otherMultiplier)
 	RecalculateTaskQuota(ctx, task, actualQuota, reason, clamp)
+}
+
+func RecalculateTaskQuotaByExpression(ctx context.Context, task *model.Task, completionTokens int) bool {
+	bc := task.PrivateData.BillingContext
+	if bc == nil || bc.TieredBillingSnapshot == nil || completionTokens <= 0 {
+		return false
+	}
+	snapshot := bc.TieredBillingSnapshot
+	if !snapshot.TaskTokenBilling {
+		return false
+	}
+	body, err := common.Marshal(map[string]interface{}{
+		"model":               bc.OriginModelName,
+		"resolution":          bc.Resolution,
+		"duration":            bc.Duration,
+		"has_reference_video": bc.HasReferenceVideo,
+	})
+	if err != nil {
+		logger.LogError(ctx, fmt.Sprintf("构建任务表达式输入失败 task %s: %s", task.TaskID, err.Error()))
+		return true
+	}
+	result, err := billingexpr.ComputeTieredQuotaWithRequest(
+		snapshot,
+		billingexpr.TokenParams{C: float64(completionTokens)},
+		billingexpr.RequestInput{Body: body},
+	)
+	if err != nil {
+		logger.LogError(ctx, fmt.Sprintf("任务表达式结算失败 task %s: %s", task.TaskID, err.Error()))
+		return true
+	}
+	snapshot.EstimatedTier = result.MatchedTier
+	RecalculateTaskQuota(ctx, task, result.ActualQuotaAfterGroup, "表达式 token 重算", result.Clamp)
+	return true
 }

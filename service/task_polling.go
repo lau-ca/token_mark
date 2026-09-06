@@ -410,10 +410,10 @@ func updateVideoTasks(ctx context.Context, platform constant.TaskPlatform, chann
 	if adaptor == nil {
 		return fmt.Errorf("video adaptor not found")
 	}
-	info := &relaycommon.RelayInfo{}
-	info.ChannelMeta = &relaycommon.ChannelMeta{
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{
+		ChannelType:    cacheGetChannel.Type,
 		ChannelBaseUrl: cacheGetChannel.GetBaseURL(),
-	}
+	}}
 	info.ApiKey = cacheGetChannel.Key
 	adaptor.Init(info)
 	disablePollingSleep := cacheGetChannel.GetOtherSettings().DisableTaskPollingSleep
@@ -664,12 +664,16 @@ func settleTaskBillingOnComplete(ctx context.Context, adaptor TaskPollingAdaptor
 		RecalculateTaskQuota(ctx, task, actualQuota, "adaptor计费调整")
 		return
 	}
-	// 2. 表达式计费任务没有上游最终费用时保留预扣额度
-	if billingContext != nil && billingContext.TieredBillingSnapshot != nil {
-		logger.LogInfo(ctx, fmt.Sprintf("任务 %s 按次计费，跳过差额结算", task.TaskID))
+	// 2. Token 表达式任务按上游实际 completion_tokens 结算
+	if RecalculateTaskQuotaByExpression(ctx, task, taskResult.CompletionTokens) {
 		return
 	}
-	// 3. 回退到 token 重算
+	// 3. 按次表达式任务没有上游最终费用时保留预扣额度
+	if billingContext != nil && billingContext.TieredBillingSnapshot != nil {
+		logger.LogInfo(ctx, fmt.Sprintf("任务 %s 按次表达式计费，跳过差额结算", task.TaskID))
+		return
+	}
+	// 4. 回退到传统 token 重算
 	if taskResult.TotalTokens > 0 {
 		RecalculateTaskQuotaByTokens(ctx, task, taskResult.TotalTokens)
 		return

@@ -1,6 +1,7 @@
 package billingexpr_test
 
 import (
+	"fmt"
 	"math"
 	"testing"
 
@@ -8,6 +9,50 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestTaskTokensMarker(t *testing.T) {
+	expression := `task_tokens(tier("video", c * 46))`
+
+	result, trace, err := billingexpr.RunExpr(expression, billingexpr.TokenParams{C: 100_000})
+
+	require.NoError(t, err)
+	assert.Equal(t, 4_600_000.0, result)
+	assert.Equal(t, "video", trace.MatchedTier)
+	assert.True(t, billingexpr.UsedVars(expression)["task_tokens"])
+}
+
+func TestTaskTokensSeedancePriceMatrix(t *testing.T) {
+	expression := `task_tokens(param("resolution") == "4k" ? tier("4k", c * (param("has_reference_video") ? 16 : 26)) : param("resolution") == "1080p" ? tier("1080p", c * (param("has_reference_video") ? 31 : 51)) : tier("480p_720p", c * (param("has_reference_video") ? 28 : 46)))`
+	const completionTokens = 100_000
+	tests := []struct {
+		name       string
+		resolution string
+		hasVideo   bool
+		price      float64
+		tier       string
+	}{
+		{name: "720p no video", resolution: "720p", price: 46, tier: "480p_720p"},
+		{name: "720p video", resolution: "720p", hasVideo: true, price: 28, tier: "480p_720p"},
+		{name: "1080p no video", resolution: "1080p", price: 51, tier: "1080p"},
+		{name: "1080p video", resolution: "1080p", hasVideo: true, price: 31, tier: "1080p"},
+		{name: "4k no video", resolution: "4k", price: 26, tier: "4k"},
+		{name: "4k video", resolution: "4k", hasVideo: true, price: 16, tier: "4k"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			body := []byte(fmt.Sprintf(`{"resolution":%q,"has_reference_video":%t}`, tt.resolution, tt.hasVideo))
+			cost, trace, err := billingexpr.RunExprWithRequest(
+				expression,
+				billingexpr.TokenParams{C: completionTokens},
+				billingexpr.RequestInput{Body: body},
+			)
+			require.NoError(t, err)
+			assert.Equal(t, float64(completionTokens)*tt.price, cost)
+			assert.Equal(t, tt.tier, trace.MatchedTier)
+		})
+	}
+}
 
 // ---------------------------------------------------------------------------
 // Claude-style: fixed tiers, input > 200K changes both input & output price

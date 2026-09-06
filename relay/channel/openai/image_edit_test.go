@@ -108,6 +108,7 @@ func TestConvertImageEditRequestMultipartAppliesParamOverride(t *testing.T) {
 	require.NoError(t, writer.WriteField("prompt", "edit this image"))
 	require.NoError(t, writer.WriteField("quality", "low"))
 	require.NoError(t, writer.WriteField("size", "2048x1152"))
+	require.NoError(t, writer.WriteField("response_format", "b64_json"))
 	require.NoError(t, writer.WriteField("custom_option", "preserved"))
 	part, err := writer.CreateFormFile("image", "input.png")
 	require.NoError(t, err)
@@ -158,15 +159,21 @@ func TestConvertImageEditRequestMultipartAppliesParamOverride(t *testing.T) {
 						"mode":  "set",
 						"value": "high",
 					},
+					map[string]interface{}{
+						"path":  "response_format",
+						"mode":  "set",
+						"value": "url",
+					},
 				},
 			},
 		},
 	}
 	request := dto.ImageRequest{
-		Model:   "gpt-image-2-adobe-t",
-		Prompt:  "edit this image",
-		Quality: "low",
-		Size:    "2048x1152",
+		Model:          "gpt-image-2-adobe-t",
+		Prompt:         "edit this image",
+		Quality:        "low",
+		Size:           "2048x1152",
+		ResponseFormat: "b64_json",
 	}
 
 	converted, err := (&Adaptor{}).ConvertImageRequest(c, info, request)
@@ -182,6 +189,7 @@ func TestConvertImageEditRequestMultipartAppliesParamOverride(t *testing.T) {
 	require.Equal(t, "edit this image\n\nOutput image requirements: size=2048x1152; quality=low.", replayedRequest.PostForm.Get("prompt"))
 	require.Equal(t, "high", replayedRequest.PostForm.Get("quality"))
 	require.Equal(t, "1024x640", replayedRequest.PostForm.Get("size"))
+	require.Equal(t, "url", replayedRequest.PostForm.Get("response_format"))
 	require.Equal(t, "preserved", replayedRequest.PostForm.Get("custom_option"))
 	require.Len(t, replayedRequest.MultipartForm.File["image"], 1)
 	file, err := replayedRequest.MultipartForm.File["image"][0].Open()

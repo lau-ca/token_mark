@@ -125,3 +125,18 @@ func TestValidateModelBillingConfigKeepsLegacyTokenExpressions(t *testing.T) {
 		map[string]string{"legacy-model": `tier("base", p * 2.5 + c * 10)`},
 	))
 }
+
+func TestValidateModelBillingConfigTaskTokens(t *testing.T) {
+	const modelName = "Doubao-Seedance-2.0"
+	valid := `task_tokens(param("has_reference_video") ? tier("video", c * 28) : tier("text", c * 46))`
+	invalid := `task_tokens(param("has_reference_video") ? tier("video", -1) : tier("text", c * 46))`
+
+	require.NoError(t, ValidateModelBillingConfig(
+		map[string]string{modelName: BillingModeTieredExpr},
+		map[string]string{modelName: valid},
+	))
+	require.Error(t, ValidateModelBillingConfig(
+		map[string]string{modelName: BillingModeTieredExpr},
+		map[string]string{modelName: invalid},
+	))
+}

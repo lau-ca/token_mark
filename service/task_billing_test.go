@@ -873,6 +873,92 @@ func TestSettle_TieredSnapshot_SkipsCompletionRecalculation(t *testing.T) {
 	assert.Equal(t, 4000, task.Quota)
 }
 
+func TestRecalculateTaskQuotaByExpressionSeedancePriceMatrix(t *testing.T) {
+	expression := `task_tokens(param("resolution") == "4k" ? tier("4k", c * (param("has_reference_video") ? 16 : 26)) : param("resolution") == "1080p" ? tier("1080p", c * (param("has_reference_video") ? 31 : 51)) : tier("480p_720p", c * (param("has_reference_video") ? 28 : 46)))`
+	const completionTokens = 100_000
+	tests := []struct {
+		name       string
+		resolution string
+		hasVideo   bool
+		price      float64
+		tier       string
+	}{
+		{name: "720p no video", resolution: "720p", price: 46, tier: "480p_720p"},
+		{name: "720p video", resolution: "720p", hasVideo: true, price: 28, tier: "480p_720p"},
+		{name: "1080p no video", resolution: "1080p", price: 51, tier: "1080p"},
+		{name: "1080p video", resolution: "1080p", hasVideo: true, price: 31, tier: "1080p"},
+		{name: "4k no video", resolution: "4k", price: 26, tier: "4k"},
+		{name: "4k video", resolution: "4k", hasVideo: true, price: 16, tier: "4k"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			wantQuota := common.QuotaRound(float64(completionTokens) * tt.price / 1_000_000 * common.QuotaPerUnit)
+			task := makeTask(1, 1, wantQuota, 0, BillingSourceWallet, 0)
+			task.PrivateData.BillingContext.Resolution = tt.resolution
+			task.PrivateData.BillingContext.HasReferenceVideo = tt.hasVideo
+			task.PrivateData.BillingContext.TieredBillingSnapshot = &billingexpr.BillingSnapshot{
+				BillingMode:      "tiered_expr",
+				ModelName:        "Doubao-Seedance-2.0",
+				ExprString:       expression,
+				ExprHash:         billingexpr.ExprHashString(expression),
+				GroupRatio:       1,
+				QuotaPerUnit:     common.QuotaPerUnit,
+				ExprVersion:      billingexpr.DefaultExprVersion,
+				TaskTokenBilling: true,
+			}
+
+			applied := RecalculateTaskQuotaByExpression(context.Background(), task, completionTokens)
+
+			assert.True(t, applied)
+			assert.Equal(t, wantQuota, task.Quota)
+			assert.Equal(t, tt.tier, task.PrivateData.BillingContext.TieredBillingSnapshot.EstimatedTier)
+		})
+	}
+}
+
+func TestRecalculateTaskQuotaByExpressionKeepsReservationOnError(t *testing.T) {
+	const preConsumed = 4000
+	task := makeTask(1, 1, preConsumed, 0, BillingSourceWallet, 0)
+	task.PrivateData.BillingContext.TieredBillingSnapshot = &billingexpr.BillingSnapshot{
+		BillingMode:      "tiered_expr",
+		ExprString:       `task_tokens(`,
+		ExprHash:         billingexpr.ExprHashString(`task_tokens(`),
+		GroupRatio:       1,
+		QuotaPerUnit:     common.QuotaPerUnit,
+		TaskTokenBilling: true,
+	}
+
+	applied := RecalculateTaskQuotaByExpression(context.Background(), task, 100_000)
+
+	assert.True(t, applied)
+	assert.Equal(t, preConsumed, task.Quota)
+}
+
+func TestSettleTaskTokenExpressionUsesCompletionTokens(t *testing.T) {
+	expression := `task_tokens(tier("base", c * 46))`
+	const completionTokens = 100_000
+	wantQuota := common.QuotaRound(float64(completionTokens) * 46 / 1_000_000 * common.QuotaPerUnit)
+	task := makeTask(1, 1, wantQuota, 0, BillingSourceWallet, 0)
+	task.PrivateData.BillingContext.TieredBillingSnapshot = &billingexpr.BillingSnapshot{
+		BillingMode:      "tiered_expr",
+		ExprString:       expression,
+		ExprHash:         billingexpr.ExprHashString(expression),
+		GroupRatio:       1,
+		QuotaPerUnit:     common.QuotaPerUnit,
+		ExprVersion:      billingexpr.DefaultExprVersion,
+		TaskTokenBilling: true,
+	}
+
+	settleTaskBillingOnComplete(context.Background(), &mockAdaptor{}, task, &relaycommon.TaskInfo{
+		Status:           model.TaskStatusSuccess,
+		CompletionTokens: completionTokens,
+		TotalTokens:      1,
+	})
+
+	assert.Equal(t, wantQuota, task.Quota)
+}
+
 func TestSettle_TieredSnapshot_AppliesUpstreamFinalPrice(t *testing.T) {
 	truncate(t)
 	ctx := context.Background()

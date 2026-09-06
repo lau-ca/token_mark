@@ -14,6 +14,7 @@ type ChannelSettings struct {
 	ForceFormat                bool                              `json:"force_format,omitempty"`
 	ThinkingToContent          bool                              `json:"thinking_to_content,omitempty"`
 	Proxy                      string                            `json:"proxy"`
+	RetryTimes                 int                               `json:"retry_times,omitempty"`
 	PassThroughBodyEnabled     bool                              `json:"pass_through_body_enabled,omitempty"`
 	SystemPrompt               string                            `json:"system_prompt,omitempty"`
 	SystemPromptOverride       bool                              `json:"system_prompt_override,omitempty"`
@@ -127,7 +128,18 @@ const (
 	HTTPProtocolAuto         = "auto"
 	HTTPProtocolHTTP1        = "http1"
 	MaxHTTP2ConnectionShards = 8
+	MaxChannelRetryTimes     = 3
 )
+
+func (s *ChannelSettings) ValidateRetryTimes() error {
+	if s == nil {
+		return nil
+	}
+	if s.RetryTimes < 0 || s.RetryTimes > MaxChannelRetryTimes {
+		return fmt.Errorf("retry_times must be between 0 and %d", MaxChannelRetryTimes)
+	}
+	return nil
+}
 
 // ValidateHTTPTransport validates save-time HTTP transport channel settings.
 func (s *ChannelSettings) ValidateHTTPTransport() error {
@@ -176,6 +188,8 @@ type ChannelOtherSettings struct {
 	AllowIncludeObfuscation               bool                  `json:"allow_include_obfuscation,omitempty"`  // 是否允许 stream_options.include_obfuscation 透传（默认过滤以避免关闭流混淆保护）
 	DisableTaskPollingSleep               bool                  `json:"disable_task_polling_sleep,omitempty"` // 是否跳过异步任务轮询间隔
 	ForceImageB64JSONNoURL                bool                  `json:"force_image_b64_json_no_url,omitempty"`
+	ImageResponseURLPrefix                string                `json:"image_response_url_prefix,omitempty"`
+	NormalizeOpenAIImageResponse          bool                  `json:"normalize_openai_image_response,omitempty"`
 	AwsKeyType                            AwsKeyType            `json:"aws_key_type,omitempty"`
 	UpstreamModelUpdateCheckEnabled       bool                  `json:"upstream_model_update_check_enabled,omitempty"`        // 是否检测上游模型更新
 	UpstreamModelUpdateAutoSyncEnabled    bool                  `json:"upstream_model_update_auto_sync_enabled,omitempty"`    // 是否自动同步上游模型更新

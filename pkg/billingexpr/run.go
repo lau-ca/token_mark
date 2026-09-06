@@ -69,6 +69,7 @@ func runProgram(prog *vm.Program, params TokenParams, request RequestInput) (flo
 			return value
 		},
 		"per_request": perRequest,
+		"task_tokens": taskTokens,
 		"header": func(key string) string {
 			return headers[strings.ToLower(strings.TrimSpace(key))]
 		},

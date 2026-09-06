@@ -278,6 +278,7 @@ func migrateDB() error {
 		&QuotaData{},
 		&Task{},
 		&Model{},
+		&ModelCapability{},
 		&Vendor{},
 		&PrefillGroup{},
 		&Setup{},
@@ -302,6 +303,9 @@ func migrateDB() error {
 		&AgentSettlement{},
 	)
 	if err != nil {
+		return err
+	}
+	if err := MigrateLegacyModelCapabilities(DB); err != nil {
 		return err
 	}
 	if err := MigrateAgentGroupRetentionRates(DB); err != nil {
@@ -352,6 +356,7 @@ func migrateDBFast() error {
 		{&QuotaData{}, "QuotaData"},
 		{&Task{}, "Task"},
 		{&Model{}, "Model"},
+		{&ModelCapability{}, "ModelCapability"},
 		{&Vendor{}, "Vendor"},
 		{&PrefillGroup{}, "PrefillGroup"},
 		{&Setup{}, "Setup"},
@@ -395,6 +400,9 @@ func migrateDBFast() error {
 		if err != nil {
 			return err
 		}
+	}
+	if err := MigrateLegacyModelCapabilities(DB); err != nil {
+		return err
 	}
 	if err := MigrateAgentGroupRetentionRates(DB); err != nil {
 		return err

@@ -54,7 +54,9 @@ export type DynamicPricingSummary = {
   tiers: ParsedTier[]
   tier: ParsedTier | null
   tierCount: number
+  taskResolutionCount: number
   hasRequestRules: boolean
+  isTaskTokenPricing: boolean
   isSpecialExpression: boolean
   rawExpression: string
   entries: DynamicPriceEntry[]
@@ -229,13 +231,22 @@ export function getDynamicPricingSummary(
   const tier = tiers[0] || null
   const entries = getDynamicPriceEntries(tier, options)
   const rawExpression = model.billing_expr || ''
+  const isTaskTokenPricing = tiers.some((item) => item.isTaskTokenPrice)
+  const taskResolutionCount = new Set(
+    tiers
+      .map((item) => item.taskResolution)
+      .filter((resolution): resolution is string => Boolean(resolution))
+  ).size
 
   return {
     tiers,
     tier,
     tierCount: tiers.length,
+    taskResolutionCount,
     hasRequestRules: hasDynamicRequestRules(model),
-    isSpecialExpression: rawExpression.trim().length > 0 && tiers.length === 0,
+    isTaskTokenPricing,
+    isSpecialExpression:
+      rawExpression.trim().length > 0 && tiers.length === 0,
     rawExpression,
     entries,
     primaryEntries: entries.filter((entry) =>

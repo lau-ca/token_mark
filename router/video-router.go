@@ -8,6 +8,16 @@ import (
 )
 
 func SetVideoRouter(router *gin.Engine) {
+	seedanceV3Router := router.Group("/v3")
+	seedanceV3Router.Use(middleware.RouteTag("relay"))
+	seedanceV3Router.Use(middleware.TokenAuth())
+	{
+		seedanceV3Router.POST("/contents/generations/tasks", middleware.Distribute(), controller.RelayTask)
+		seedanceV3Router.GET("/contents/generations/tasks", controller.SeedanceTaskList)
+		seedanceV3Router.GET("/contents/generations/tasks/:task_id", controller.SeedanceTaskFetch)
+		seedanceV3Router.DELETE("/contents/generations/tasks/:task_id", controller.SeedanceTaskDelete)
+	}
+
 	qianfanVideoRouter := router.Group("/qianfan/v1")
 	qianfanVideoRouter.Use(middleware.RouteTag("relay"))
 	qianfanVideoRouter.Use(middleware.TokenAuth(), middleware.Distribute())
@@ -21,6 +31,13 @@ func SetVideoRouter(router *gin.Engine) {
 	seedanceAssetRouter.Use(middleware.TokenAuth())
 	{
 		seedanceAssetRouter.POST("/ark", controller.SeedanceAssetProxy)
+	}
+
+	seedanceRegisteredAssetRouter := router.Group("/v1/volc")
+	seedanceRegisteredAssetRouter.Use(middleware.RouteTag("relay"))
+	seedanceRegisteredAssetRouter.Use(middleware.TokenAuth(), middleware.Distribute())
+	{
+		seedanceRegisteredAssetRouter.POST("/ark", controller.SeedanceAssetProxy)
 	}
 
 	// Video proxy: accepts either session auth (dashboard) or token auth (API clients)

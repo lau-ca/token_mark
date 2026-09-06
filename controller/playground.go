@@ -67,14 +67,15 @@ func validatePlaygroundRequest(c *gin.Context, endpointName string, capability s
 		return nil, errors.New("model is required")
 	}
 
-	metadata, err := model.GetModelMetadataByNames([]string{modelName})
+	capabilities, err := model.GetModelCapabilitiesByNames([]string{modelName})
 	if err != nil {
 		return nil, err
 	}
-	item := metadata[modelName]
 	endpoints := map[string]dto.ModelEndpointConfig{}
-	if item != nil {
-		endpoints, err = dto.ParseModelEndpointConfigs(item.Endpoints)
+	if item := capabilities[modelName]; item != nil {
+		config, parseErr := dto.ParseModelCapabilityConfig(item.Config)
+		endpoints = config.EndpointConfigs()
+		err = parseErr
 		if err != nil {
 			return nil, err
 		}

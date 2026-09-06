@@ -27,6 +27,10 @@ const (
 	channelName = "Baidu Qianfan Video"
 	videoPath   = "/beta/video/generations/qianfan-video"
 
+	minimumVideoDurationSeconds = 3
+	maximumVideoDurationSeconds = 15
+	defaultVideoDurationSeconds = 5
+
 	metadataOperation         = "qianfan_operation"
 	metadataSound             = "qianfan_sound"
 	metadataHasReferenceVideo = "qianfan_has_reference_video"
@@ -61,11 +65,17 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 	if err != nil {
 		return service.TaskErrorWrapperLocal(err, "invalid_seconds", http.StatusBadRequest)
 	}
-	if duration < 0 || duration > relaycommon.MaxTaskDurationSeconds {
-		return service.TaskErrorWrapperLocal(fmt.Errorf("duration must be between 1 and %d", relaycommon.MaxTaskDurationSeconds), "invalid_seconds", http.StatusBadRequest)
+	if duration == 0 {
+		duration = defaultVideoDurationSeconds
+	}
+	if duration < minimumVideoDurationSeconds || duration > maximumVideoDurationSeconds {
+		return service.TaskErrorWrapperLocal(fmt.Errorf("duration must be between %d and %d", minimumVideoDurationSeconds, maximumVideoDurationSeconds), "invalid_seconds", http.StatusBadRequest)
 	}
 	request.Duration = duration
 	request.Seconds = ""
+	if err := normalizeCompatibilityQuality(&request, info.UpstreamModelName); err != nil {
+		return service.TaskErrorWrapperLocal(err, "invalid_quality", http.StatusBadRequest)
+	}
 	if request.Metadata == nil {
 		request.Metadata = make(map[string]any)
 	}
@@ -77,6 +87,64 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 	request.Metadata[metadataHasReferenceVideo] = false
 	request.Metadata[metadataHasVoice] = false
 	c.Set("task_request", request)
+	return nil
+}
+
+func normalizeCompatibilityQuality(request *relaycommon.TaskSubmitReq, upstreamModel string) error {
+	mode := strings.ToLower(strings.TrimSpace(request.Mode))
+	resolution := strings.ToLower(strings.TrimSpace(request.Resolution))
+
+	if strings.EqualFold(upstreamModel, "k3.0-turbo") {
+		if resolution == "" && mode != "" {
+			switch mode {
+			case "std":
+				resolution = "720p"
+			case "pro":
+				resolution = "1080p"
+			default:
+				return fmt.Errorf("mode %q is not supported by model k3.0-turbo", request.Mode)
+			}
+		}
+		if resolution == "" {
+			resolution = "720p"
+		}
+		if resolution != "720p" && resolution != "1080p" {
+			return fmt.Errorf("resolution %q is not supported by model k3.0-turbo", request.Resolution)
+		}
+		request.Mode = ""
+		request.Resolution = resolution
+		return nil
+	}
+
+	if resolution != "" {
+		mappedMode := ""
+		switch resolution {
+		case "720p":
+			mappedMode = "std"
+		case "1080p":
+			mappedMode = "pro"
+		case "4k":
+			mappedMode = "4k"
+		default:
+			return fmt.Errorf("resolution %q is not supported by model %s", request.Resolution, upstreamModel)
+		}
+		if mode != "" && mode != mappedMode {
+			return fmt.Errorf("mode %q conflicts with resolution %q", request.Mode, request.Resolution)
+		}
+		mode = mappedMode
+	}
+	if mode == "" {
+		if strings.EqualFold(upstreamModel, "K3O") {
+			mode = "pro"
+		} else {
+			mode = "std"
+		}
+	}
+	if mode != "std" && mode != "pro" && mode != "4k" {
+		return fmt.Errorf("mode %q is not supported by model %s", request.Mode, upstreamModel)
+	}
+	request.Mode = mode
+	request.Resolution = ""
 	return nil
 }
 
@@ -152,6 +220,10 @@ func normalizeAdvancedBilling(request qianfanRequest) (relaycommon.TaskSubmitReq
 		if err != nil {
 			return normalized, err
 		}
+		if (request.Type == "text2video" || request.Type == "img2video" || request.Type == "omni-video") &&
+			(duration < minimumVideoDurationSeconds || duration > maximumVideoDurationSeconds) {
+			return normalized, fmt.Errorf("duration must be between %d and %d", minimumVideoDurationSeconds, maximumVideoDurationSeconds)
+		}
 		if duration > relaycommon.MaxTaskDurationSeconds {
 			return normalized, fmt.Errorf("duration must be between 1 and %d", relaycommon.MaxTaskDurationSeconds)
 		}
@@ -220,6 +292,12 @@ func positiveInteger(value any, field string) (int, error) {
 			return 0, fmt.Errorf("%s must be between 1 and %d", field, relaycommon.MaxTaskDurationSeconds)
 		}
 		return typed, nil
+	case string:
+		integer, err := strconv.Atoi(strings.TrimSpace(typed))
+		if err != nil || integer <= 0 || integer > relaycommon.MaxTaskDurationSeconds {
+			return 0, fmt.Errorf("%s must be between 1 and %d", field, relaycommon.MaxTaskDurationSeconds)
+		}
+		return integer, nil
 	default:
 		return 0, fmt.Errorf("%s must be a positive integer", field)
 	}
@@ -394,10 +472,15 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		}
 		parameters["prompt"] = request.Prompt
 		if imageURL != "" {
-			if requestType != "omni-video" {
+			if requestType == "omni-video" {
+				parameters["image_list"] = []any{map[string]any{
+					"type":      "first_frame",
+					"image_url": imageURL,
+				}}
+			} else {
 				requestType = "img2video"
+				parameters["image"] = imageURL
 			}
-			parameters["image"] = imageURL
 		}
 		if duration > 0 {
 			parameters["duration"] = strconv.Itoa(duration)
@@ -584,14 +667,23 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
 	video := dto.NewOpenAIVideo()
 	video.ID = task.TaskID
 	video.TaskID = task.TaskID
+	video.Model = task.Properties.OriginModelName
 	video.Status = task.Status.ToVideoStatus()
 	video.SetProgressStr(task.Progress)
 	video.CreatedAt = response.Data.CreatedAt
+	if video.CreatedAt >= 1_000_000_000_000 {
+		video.CreatedAt /= 1000
+	}
 	video.CompletedAt = response.Data.UpdatedAt
+	if video.CompletedAt >= 1_000_000_000_000 {
+		video.CompletedAt /= 1000
+	}
 	if len(response.Data.TaskResult.Videos) > 0 {
 		result := response.Data.TaskResult.Videos[0]
 		video.Seconds = result.Duration
 		if result.URL != "" {
+			video.URL = result.URL
+			video.VideoURL = result.URL
 			video.SetMetadata("url", result.URL)
 		}
 	}

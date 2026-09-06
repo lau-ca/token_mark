@@ -529,11 +529,13 @@ func TestChannelSettingsHTTPTransportJSONRoundTrip(t *testing.T) {
 	assert.True(t, settings.ForceFormat)
 	assert.Empty(t, settings.HTTPProtocol)
 	assert.Zero(t, settings.HTTP2ConnectionShards)
+	assert.Zero(t, settings.RetryTimes)
 
 	encoded, err := json.Marshal(settings)
 	require.NoError(t, err)
 	assert.NotContains(t, string(encoded), "http_protocol")
 	assert.NotContains(t, string(encoded), "http2_connection_shards")
+	assert.NotContains(t, string(encoded), "retry_times")
 
 	explicit := ChannelSettings{
 		Proxy:                 "socks5://127.0.0.1:1080",
@@ -554,6 +556,26 @@ func TestChannelSettingsHTTPTransportJSONRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(encoded), `"http2_connection_shards":4`)
 	assert.NotContains(t, string(encoded), "http_protocol")
+
+	retrying := ChannelSettings{RetryTimes: 2}
+	encoded, err = json.Marshal(retrying)
+	require.NoError(t, err)
+	assert.Contains(t, string(encoded), `"retry_times":2`)
+	require.NoError(t, json.Unmarshal(encoded, &decoded))
+	assert.Equal(t, 2, decoded.RetryTimes)
+}
+
+func TestChannelSettingsValidateRetryTimes(t *testing.T) {
+	require.NoError(t, (&ChannelSettings{}).ValidateRetryTimes())
+	require.NoError(t, (&ChannelSettings{RetryTimes: MaxChannelRetryTimes}).ValidateRetryTimes())
+
+	err := (&ChannelSettings{RetryTimes: -1}).ValidateRetryTimes()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "retry_times")
+
+	err = (&ChannelSettings{RetryTimes: MaxChannelRetryTimes + 1}).ValidateRetryTimes()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "retry_times")
 }
 
 func TestChannelSettingsValidateHTTPTransport(t *testing.T) {

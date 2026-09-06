@@ -203,9 +203,9 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	}
 	relayInfo.RetryIndex = 0
 	relayInfo.LastError = nil
+	relayAttemptIndex := 0
 
 	for ; retryParam.GetRetry() <= common.RetryTimes; retryParam.IncreaseRetry() {
-		relayInfo.RetryIndex = retryParam.GetRetry()
 		channel, channelErr := getChannel(c, relayInfo, retryParam)
 		if channelErr != nil {
 			logger.LogError(c, channelErr.Error())
@@ -218,42 +218,68 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			break
 		}
 
-		bodyStorage, bodyErr := common.GetBodyStorage(c)
-		if bodyErr != nil {
-			// Ensure consistent 413 for oversized bodies even when error occurs later (e.g., retry path)
-			if common.IsRequestBodyTooLargeError(bodyErr) || errors.Is(bodyErr, common.ErrRequestBodyTooLarge) {
-				newAPIError = types.NewErrorWithStatusCode(bodyErr, types.ErrorCodeReadRequestBodyFailed, http.StatusRequestEntityTooLarge, types.ErrOptionWithSkipRetry())
-			} else {
-				newAPIError = types.NewErrorWithStatusCode(bodyErr, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+		channelRetryTimes := getChannelRetryTimes(c)
+		if relayFormat == types.RelayFormatOpenAIRealtime {
+			channelRetryTimes = 0
+		}
+		for channelRetry := 0; channelRetry <= channelRetryTimes; channelRetry++ {
+			relayInfo.RetryIndex = relayAttemptIndex
+			if channelRetry > 0 {
+				retryChannel, retryErr := getChannelForRetry(channel)
+				if retryErr != nil {
+					newAPIError = types.NewError(retryErr, types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
+					break
+				}
+				channel = retryChannel
+				if setupErr := middleware.SetupContextForSelectedChannel(c, channel, relayInfo.OriginModelName); setupErr != nil {
+					newAPIError = setupErr
+					break
+				}
+				addUsedChannel(c, channel.Id)
 			}
-			break
+
+			bodyStorage, bodyErr := common.GetBodyStorage(c)
+			if bodyErr != nil {
+				// Ensure consistent 413 for oversized bodies even when error occurs later (e.g., retry path)
+				if common.IsRequestBodyTooLargeError(bodyErr) || errors.Is(bodyErr, common.ErrRequestBodyTooLarge) {
+					newAPIError = types.NewErrorWithStatusCode(bodyErr, types.ErrorCodeReadRequestBodyFailed, http.StatusRequestEntityTooLarge, types.ErrOptionWithSkipRetry())
+				} else {
+					newAPIError = types.NewErrorWithStatusCode(bodyErr, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+				}
+				break
+			}
+			c.Request.Body = io.NopCloser(bodyStorage)
+
+			switch relayFormat {
+			case types.RelayFormatOpenAIRealtime:
+				newAPIError = relay.WssHelper(c, relayInfo)
+			case types.RelayFormatClaude:
+				newAPIError = relay.ClaudeHelper(c, relayInfo)
+			case types.RelayFormatGemini:
+				newAPIError = geminiRelayHandler(c, relayInfo)
+			default:
+				newAPIError = relayHandler(c, relayInfo)
+			}
+
+			if newAPIError == nil {
+				relayInfo.LastError = nil
+				return
+			}
+
+			newAPIError = service.NormalizeViolationFeeError(newAPIError)
+			relayInfo.LastError = newAPIError
+			processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
+
+			if !shouldRetrySameChannel(c, newAPIError, channelRetryTimes-channelRetry) {
+				break
+			}
+			relayAttemptIndex++
 		}
-		c.Request.Body = io.NopCloser(bodyStorage)
-
-		switch relayFormat {
-		case types.RelayFormatOpenAIRealtime:
-			newAPIError = relay.WssHelper(c, relayInfo)
-		case types.RelayFormatClaude:
-			newAPIError = relay.ClaudeHelper(c, relayInfo)
-		case types.RelayFormatGemini:
-			newAPIError = geminiRelayHandler(c, relayInfo)
-		default:
-			newAPIError = relayHandler(c, relayInfo)
-		}
-
-		if newAPIError == nil {
-			relayInfo.LastError = nil
-			return
-		}
-
-		newAPIError = service.NormalizeViolationFeeError(newAPIError)
-		relayInfo.LastError = newAPIError
-
-		processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
 
 		if !shouldRetry(c, newAPIError, common.RetryTimes-retryParam.GetRetry()) {
 			break
 		}
+		relayAttemptIndex++
 	}
 
 	useChannel := c.GetStringSlice("use_channel")
@@ -266,6 +292,34 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			perfmetrics.RecordRelaySample(relayInfo, false, 0)
 		})
 	}
+}
+
+func getChannelRetryTimes(c *gin.Context) int {
+	setting, ok := common.GetContextKeyType[dto.ChannelSettings](c, constant.ContextKeyChannelSetting)
+	if !ok || setting.RetryTimes <= 0 {
+		return 0
+	}
+	return min(setting.RetryTimes, dto.MaxChannelRetryTimes)
+}
+
+func getChannelForRetry(channel *model.Channel) (*model.Channel, error) {
+	if channel == nil {
+		return nil, errors.New("channel is nil")
+	}
+	if channel.Key != "" {
+		return channel, nil
+	}
+	return model.CacheGetChannel(channel.Id)
+}
+
+func shouldRetrySameChannel(c *gin.Context, openaiErr *types.NewAPIError, remainingRetries int) bool {
+	if remainingRetries <= 0 || openaiErr == nil || c.Writer.Written() {
+		return false
+	}
+	if c.Request != nil && c.Request.Context().Err() != nil {
+		return false
+	}
+	return true
 }
 
 var upgrader = websocket.Upgrader{
@@ -600,6 +654,9 @@ func RelayTask(c *gin.Context) {
 
 	// ── 成功：结算 + 日志 + 插入任务 ──
 	if taskErr == nil {
+		if c.Request.URL.Path == "/v3/contents/generations/tasks" {
+			relayInfo.PublicTaskID = result.UpstreamTaskID
+		}
 		if settleErr := service.SettleBilling(c, relayInfo, result.Quota); settleErr != nil {
 			common.SysError("settle task billing error: " + settleErr.Error())
 		}
@@ -658,6 +715,7 @@ func buildTaskBillingContext(info *relaycommon.RelayInfo, request relaycommon.Ta
 		QuotaClamp:            quotaClampCopy,
 		Resolution:            request.Resolution,
 		Duration:              request.Duration,
+		HasReferenceVideo:     request.HasReferenceVideo(),
 	}
 }
 

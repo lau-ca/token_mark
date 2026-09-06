@@ -1,6 +1,10 @@
 package doubao
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/QuantumNous/new-api/constant"
+)
 
 var ModelList = []string{
 	"doubao-seedance-1-0-pro-250528",
@@ -9,6 +13,7 @@ var ModelList = []string{
 	"doubao-seedance-1-5-pro-251215",
 	"doubao-seedance-2-0-260128",
 	"doubao-seedance-2-0-fast-260128",
+	constant.SeedanceAssetBillingModel,
 }
 
 var ChannelName = "doubao-video"

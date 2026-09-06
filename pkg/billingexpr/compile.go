@@ -54,6 +54,7 @@ var compileEnvPrototypeV1 = map[string]interface{}{
 	"ao":              float64(0),
 	"tier":            func(string, float64) float64 { return 0 },
 	"per_request":     perRequest,
+	"task_tokens":     taskTokens,
 	"header":          func(string) string { return "" },
 	"param":           func(string) interface{} { return nil },
 	"has":             func(interface{}, string) bool { return false },
@@ -72,6 +73,10 @@ var compileEnvPrototypeV1 = map[string]interface{}{
 
 func perRequest(amount float64) float64 {
 	return amount * perRequestScale
+}
+
+func taskTokens(cost float64) float64 {
+	return cost
 }
 
 func getCompileEnv(version int) map[string]interface{} {

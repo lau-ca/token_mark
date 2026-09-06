@@ -2,6 +2,7 @@ package openai
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -9,13 +10,15 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 )
 
 func newImageTestContext(t *testing.T, body, contentType string, isStream bool) (*gin.Context, *httptest.ResponseRecorder, *http.Response, *relaycommon.RelayInfo) {
@@ -417,6 +420,125 @@ func TestOpenaiImageHandlerKeepsOtherChannelImageURL(t *testing.T) {
 	require.Contains(t, recorder.Body.String(), `"url":"https://upstream.example/image.png"`)
 }
 
+func TestValidateChannelImageResponseURLs(t *testing.T) {
+	tests := []struct {
+		name     string
+		settings dto.ChannelOtherSettings
+		body     string
+		wantErr  bool
+	}{
+		{
+			name: "hide switch ignores prefix and strips later",
+			settings: dto.ChannelOtherSettings{
+				ForceImageB64JSONNoURL: true,
+				ImageResponseURLPrefix: "https://trusted.example/",
+			},
+			body: `{"data":[{"url":"https://changed.example/image.png"}]}`,
+		},
+		{
+			name:     "empty prefix allows any URL",
+			settings: dto.ChannelOtherSettings{},
+			body:     `{"data":[{"url":"https://changed.example/image.png"}]}`,
+		},
+		{
+			name: "matching fields are allowed",
+			settings: dto.ChannelOtherSettings{
+				ImageResponseURLPrefix: "  https://trusted.example/images/  ",
+			},
+			body: `{"data":[{"url":"https://trusted.example/images/one.png","_provider_image_url":"https://trusted.example/images/two.png"}]}`,
+		},
+		{
+			name: "escaped matching URL is allowed",
+			settings: dto.ChannelOtherSettings{
+				ImageResponseURLPrefix: "https://trusted.example/images/",
+			},
+			body: `{"data":[{"url":"https:\/\/trusted.example\/images\/one.png"}]}`,
+		},
+		{
+			name: "url mismatch is rejected",
+			settings: dto.ChannelOtherSettings{
+				ImageResponseURLPrefix: "https://trusted.example/images/",
+			},
+			body:    `{"data":[{"url":"https://changed.example/image.png"}]}`,
+			wantErr: true,
+		},
+		{
+			name: "provider URL mismatch is rejected",
+			settings: dto.ChannelOtherSettings{
+				ImageResponseURLPrefix: "https://trusted.example/images/",
+			},
+			body:    `{"data":[{"url":"https://trusted.example/images/one.png"},{"_provider_image_url":"https://changed.example/two.png"}]}`,
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			info := &relaycommon.RelayInfo{
+				ChannelMeta: &relaycommon.ChannelMeta{ChannelOtherSettings: tt.settings},
+			}
+
+			err := validateChannelImageResponseURLs([]byte(tt.body), info)
+			if !tt.wantErr {
+				require.Nil(t, err)
+				return
+			}
+			require.NotNil(t, err)
+			require.Equal(t, http.StatusBadGateway, err.StatusCode)
+			require.Equal(t, "openai error.", err.Error())
+			require.Equal(t, "openai error.", err.ToOpenAIError().Message)
+		})
+	}
+}
+
+func TestOpenaiImageHandlersRejectUntrustedResponseURL(t *testing.T) {
+	settings := dto.ChannelOtherSettings{ImageResponseURLPrefix: "https://trusted.example/images/"}
+	jsonBody := `{"created":1710000000,"data":[{"url":"https://changed.example/image.png"}],"usage":{"total_tokens":7}}`
+
+	for _, relayMode := range []int{relayconstant.RelayModeImagesGenerations, relayconstant.RelayModeImagesEdits} {
+		t.Run(fmt.Sprintf("json relay mode %d", relayMode), func(t *testing.T) {
+			c, recorder, resp, info := newImageTestContext(t, jsonBody, "application/json", false)
+			info.RelayMode = relayMode
+			info.ChannelMeta.ChannelOtherSettings = settings
+
+			usage, err := OpenaiImageHandler(c, info, resp)
+
+			require.Nil(t, usage)
+			require.NotNil(t, err)
+			require.Equal(t, http.StatusBadGateway, err.StatusCode)
+			require.Equal(t, "openai error.", err.Error())
+			require.Empty(t, recorder.Body.String())
+		})
+	}
+
+	t.Run("JSON converted to stream", func(t *testing.T) {
+		c, recorder, resp, info := newImageTestContext(t, jsonBody, "application/json", true)
+		info.ChannelMeta.ChannelOtherSettings = settings
+
+		usage, err := OpenaiImageStreamHandler(c, info, resp)
+
+		require.Nil(t, usage)
+		require.NotNil(t, err)
+		require.Equal(t, http.StatusBadGateway, err.StatusCode)
+		require.Equal(t, "openai error.", err.Error())
+		require.Empty(t, recorder.Body.String())
+	})
+
+	t.Run("native SSE", func(t *testing.T) {
+		streamBody := "data: {\"type\":\"image_generation.completed\",\"url\":\"https://changed.example/image.png\"}\n\ndata: [DONE]\n\n"
+		c, recorder, resp, info := newImageTestContext(t, streamBody, "text/event-stream", true)
+		info.ChannelMeta.ChannelOtherSettings = settings
+
+		usage, err := OpenaiImageStreamHandler(c, info, resp)
+
+		require.Nil(t, usage)
+		require.NotNil(t, err)
+		require.Equal(t, http.StatusBadGateway, err.StatusCode)
+		require.Equal(t, "openai error.", err.Error())
+		require.Empty(t, recorder.Body.String())
+	})
+}
+
 func TestOpenaiImageHandlerCopiesRequestedQualityToTopLevel(t *testing.T) {
 	oldMode := gin.Mode()
 	gin.SetMode(gin.TestMode)
@@ -470,6 +592,171 @@ func TestOpenaiImageHandlerLeavesQualityWithoutResponseOperation(t *testing.T) {
 	require.JSONEq(t, body, recorder.Body.String())
 }
 
+func TestOpenaiImageHandlerNormalizesTopLevelFieldsWithoutChangingData(t *testing.T) {
+	oldMode := gin.Mode()
+	gin.SetMode(gin.TestMode)
+	t.Cleanup(func() { gin.SetMode(oldMode) })
+
+	tests := []struct {
+		name         string
+		body         string
+		request      *dto.ImageRequest
+		wantCreated  int64
+		wantFormat   string
+		wantQuality  string
+		wantSize     string
+		createdByNow bool
+	}{
+		{
+			name:        "upstream values take precedence",
+			body:        `{"created":1787414536,"data":[{"url":"https://example.com/image.png","provider_metadata":{"seed":7},"b64_json":"YWJj"}],"output_format":"png","quality":"medium","size":"3840x2160"}`,
+			request:     &dto.ImageRequest{OutputFormat: json.RawMessage(`"webp"`), Quality: "high", Size: "1536x1024"},
+			wantCreated: 1787414536,
+			wantFormat:  "png",
+			wantQuality: "medium",
+			wantSize:    "3840x2160",
+		},
+		{
+			name:        "request values fill missing fields",
+			body:        `{"created":1787414536,"data":[{"custom":"kept","b64_json":"YWJj"}]}`,
+			request:     &dto.ImageRequest{OutputFormat: json.RawMessage(`"webp"`), Quality: "high", Size: "1536x1024"},
+			wantCreated: 1787414536,
+			wantFormat:  "webp",
+			wantQuality: "high",
+			wantSize:    "1536x1024",
+		},
+		{
+			name:         "defaults fill missing request values",
+			body:         `{"data":[{"custom":"kept","b64_json":"YWJj"}]}`,
+			request:      &dto.ImageRequest{},
+			wantFormat:   "png",
+			wantQuality:  "medium",
+			wantSize:     "auto",
+			createdByNow: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for _, relayMode := range []int{relayconstant.RelayModeImagesGenerations, relayconstant.RelayModeImagesEdits} {
+				t.Run(fmt.Sprintf("relay mode %d", relayMode), func(t *testing.T) {
+					c, recorder, resp, info := newImageTestContext(t, tt.body, "application/json", false)
+					info.RelayMode = relayMode
+					info.Request = tt.request
+					info.ChannelMeta.ChannelOtherSettings = dto.ChannelOtherSettings{NormalizeOpenAIImageResponse: true}
+					before := time.Now().Unix()
+
+					_, apiErr := OpenaiImageHandler(c, info, resp)
+
+					require.Nil(t, apiErr)
+					output := recorder.Body.Bytes()
+					require.Equal(t, gjson.Get(tt.body, "data").Raw, gjson.GetBytes(output, "data").Raw)
+					require.Equal(t, tt.wantFormat, gjson.GetBytes(output, "output_format").String())
+					require.Equal(t, tt.wantQuality, gjson.GetBytes(output, "quality").String())
+					require.Equal(t, tt.wantSize, gjson.GetBytes(output, "size").String())
+					if tt.createdByNow {
+						require.GreaterOrEqual(t, gjson.GetBytes(output, "created").Int(), before)
+						require.LessOrEqual(t, gjson.GetBytes(output, "created").Int(), time.Now().Unix())
+					} else {
+						require.Equal(t, tt.wantCreated, gjson.GetBytes(output, "created").Int())
+					}
+				})
+			}
+		})
+	}
+}
+
+func TestOpenaiImageHandlerNormalizesQuality(t *testing.T) {
+	tests := []struct {
+		name           string
+		upstreamField  string
+		requestQuality string
+		wantQualityRaw string
+	}{
+		{name: "preserves upstream string", upstreamField: `,"quality":"upstream-quality"`, requestQuality: "high", wantQualityRaw: `"upstream-quality"`},
+		{name: "preserves upstream empty string", upstreamField: `,"quality":""`, requestQuality: "high", wantQualityRaw: `""`},
+		{name: "preserves upstream null", upstreamField: `,"quality":null`, requestQuality: "high", wantQualityRaw: `null`},
+		{name: "uses request value when upstream field is missing", requestQuality: "custom", wantQualityRaw: `"custom"`},
+		{name: "uses medium when both values are missing", wantQualityRaw: `"medium"`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for _, relayMode := range []int{relayconstant.RelayModeImagesGenerations, relayconstant.RelayModeImagesEdits} {
+				t.Run(fmt.Sprintf("relay mode %d", relayMode), func(t *testing.T) {
+					body := `{"data":[{"url":"https://example.com/image.png"}]` + tt.upstreamField + `}`
+					c, recorder, resp, info := newImageTestContext(t, body, "application/json", false)
+					info.RelayMode = relayMode
+					info.Request = &dto.ImageRequest{Quality: tt.requestQuality}
+					info.ChannelMeta.ChannelOtherSettings = dto.ChannelOtherSettings{NormalizeOpenAIImageResponse: true}
+
+					_, apiErr := OpenaiImageHandler(c, info, resp)
+
+					require.Nil(t, apiErr)
+					require.Equal(t, tt.wantQualityRaw, gjson.GetBytes(recorder.Body.Bytes(), "quality").Raw)
+				})
+			}
+		})
+	}
+}
+
+func TestOpenaiImageHandlerNormalizesUsageLeaves(t *testing.T) {
+	tests := []struct {
+		name      string
+		usage     string
+		wantUsage string
+	}{
+		{
+			name:      "native image usage fills missing details",
+			usage:     `{"input_tokens":60,"output_tokens":1756,"total_tokens":1816,"input_tokens_details":{"text_tokens":60}}`,
+			wantUsage: `{"input_tokens":60,"input_tokens_details":{"image_tokens":0,"text_tokens":60},"output_tokens":1756,"total_tokens":1816,"output_tokens_details":{"image_tokens":0,"text_tokens":0}}`,
+		},
+		{
+			name:      "legacy aliases map leaf by leaf",
+			usage:     `{"prompt_tokens":60,"completion_tokens":1756,"total_tokens":1816,"prompt_tokens_details":{"text_tokens":60,"image_tokens":4},"completion_tokens_details":{"text_tokens":2,"image_tokens":1754},"claude_cache_creation_5_m_tokens":9}`,
+			wantUsage: `{"input_tokens":60,"input_tokens_details":{"image_tokens":4,"text_tokens":60},"output_tokens":1756,"total_tokens":1816,"output_tokens_details":{"image_tokens":1754,"text_tokens":2}}`,
+		},
+		{
+			name:      "explicit primary zero wins per leaf",
+			usage:     `{"input_tokens":0,"prompt_tokens":99,"input_tokens_details":{"text_tokens":0},"prompt_tokens_details":{"text_tokens":88,"image_tokens":7}}`,
+			wantUsage: `{"input_tokens":0,"input_tokens_details":{"image_tokens":7,"text_tokens":0},"output_tokens":0,"total_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0}}`,
+		},
+		{
+			name:      "invalid primary values use valid aliases or zero",
+			usage:     `{"input_tokens":-1,"prompt_tokens":12,"output_tokens":1.5,"completion_tokens":13,"total_tokens":9223372036854775808,"input_tokens_details":{"image_tokens":"3","text_tokens":{}},"prompt_tokens_details":{"image_tokens":4,"text_tokens":5},"output_tokens_details":{"image_tokens":-2,"text_tokens":"7"},"completion_tokens_details":{"image_tokens":6,"text_tokens":7}}`,
+			wantUsage: `{"input_tokens":12,"input_tokens_details":{"image_tokens":4,"text_tokens":5},"output_tokens":13,"total_tokens":0,"output_tokens_details":{"image_tokens":6,"text_tokens":7}}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			body := `{"data":[],"usage":` + tt.usage + `}`
+			c, recorder, resp, info := newImageTestContext(t, body, "application/json", false)
+			info.Request = &dto.ImageRequest{}
+			info.ChannelMeta.ChannelOtherSettings = dto.ChannelOtherSettings{NormalizeOpenAIImageResponse: true}
+
+			_, apiErr := OpenaiImageHandler(c, info, resp)
+
+			require.Nil(t, apiErr)
+			require.JSONEq(t, tt.wantUsage, gjson.Get(recorder.Body.String(), "usage").Raw)
+		})
+	}
+}
+
+func TestOpenaiImageHandlerDoesNotNormalizeJSONStreamFallback(t *testing.T) {
+	body := `{"created":1710000000,"data":[{"b64_json":"first"}]}`
+	c, recorder, resp, info := newImageTestContext(t, body, "application/json", true)
+	info.ChannelMeta.ChannelOtherSettings = dto.ChannelOtherSettings{NormalizeOpenAIImageResponse: true}
+	info.Request = &dto.ImageRequest{}
+
+	_, apiErr := OpenaiImageStreamHandler(c, info, resp)
+
+	require.Nil(t, apiErr)
+	require.NotContains(t, recorder.Body.String(), `"output_format"`)
+	require.NotContains(t, recorder.Body.String(), `"quality"`)
+	require.NotContains(t, recorder.Body.String(), `"size"`)
+}
+
 func TestOpenaiImageStreamHandlerStripsChannelJSONFallbackURL(t *testing.T) {
 	oldMode := gin.Mode()
 	gin.SetMode(gin.TestMode)
@@ -500,6 +787,7 @@ func TestOpenaiImageHandlersReturnJSONError(t *testing.T) {
 
 	t.Run("non-streaming handler", func(t *testing.T) {
 		c, recorder, resp, info := newImageTestContext(t, body, "application/json", false)
+		info.ChannelMeta.ChannelOtherSettings = dto.ChannelOtherSettings{NormalizeOpenAIImageResponse: true}
 
 		usage, err := OpenaiImageHandler(c, info, resp)
 		require.Nil(t, usage)
@@ -510,6 +798,18 @@ func TestOpenaiImageHandlersReturnJSONError(t *testing.T) {
 		require.Equal(t, "upstream_error", oaiError.Type)
 		require.Equal(t, "content_moderation_failed", oaiError.Code)
 		require.Empty(t, recorder.Body.String())
+	})
+
+	t.Run("non-2xx response without OpenAI error is not normalized", func(t *testing.T) {
+		plainBody := `{"message":"upstream unavailable"}`
+		c, recorder, resp, info := newImageTestContext(t, plainBody, "application/json", false)
+		resp.StatusCode = http.StatusBadGateway
+		info.ChannelMeta.ChannelOtherSettings = dto.ChannelOtherSettings{NormalizeOpenAIImageResponse: true}
+
+		_, err := OpenaiImageHandler(c, info, resp)
+
+		require.Nil(t, err)
+		require.JSONEq(t, plainBody, recorder.Body.String())
 	})
 
 	t.Run("stream handler JSON fallback", func(t *testing.T) {

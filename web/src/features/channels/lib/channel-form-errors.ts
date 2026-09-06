@@ -48,6 +48,8 @@ const ADVANCED_SETTINGS_FIELDS = new Set<FieldPath<ChannelFormValues>>([
   'allow_safety_identifier',
   'allow_include_obfuscation',
   'force_image_b64_json_no_url',
+  'image_response_url_prefix',
+  'normalize_openai_image_response',
   'replace_video_urls_with_proxy',
   'allow_inference_geo',
   'allow_speed',

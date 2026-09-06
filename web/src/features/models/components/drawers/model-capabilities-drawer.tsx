@@ -51,11 +51,11 @@ import {
 } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
 
-import { createModel, updateModel } from "../../api";
+import { updateModelCapability } from "../../api";
 import {
-  getEndpointDefinition,
-  parseModelEndpointDefinitions,
-  serializeModelEndpointDefinitions,
+  getCapabilityEndpointDefinition,
+  parseModelCapabilityConfig,
+  serializeModelCapabilityConfig,
   type PlaygroundCapability,
   type PlaygroundIntegrationDefinition,
   type PlaygroundParameterDefinition,
@@ -96,12 +96,10 @@ export function ModelCapabilitiesDrawer(props: Props) {
   const [isSaving, setIsSaving] = useState(false);
   const endpointOptions = useMemo(() => {
     if (!props.catalogItem) return [];
-    const endpoints = parseModelEndpointDefinitions(
-      props.catalogItem.metadata?.endpoints,
-    );
+    const config = parseModelCapabilityConfig(props.catalogItem.config);
     return [
       ...new Set([
-        ...Object.keys(endpoints),
+        ...Object.keys(config.endpoints),
         ...props.catalogItem.supported_endpoint_types.map(String),
       ]),
     ];
@@ -109,42 +107,39 @@ export function ModelCapabilitiesDrawer(props: Props) {
 
   useEffect(() => {
     if (!props.catalogItem || !props.open) return;
-    const endpoints = parseModelEndpointDefinitions(
-      props.catalogItem.metadata?.endpoints,
-    );
+    const config = parseModelCapabilityConfig(props.catalogItem.config);
     const nextEndpoint =
       endpointOptions.find(
-        (key) => getEndpointDefinition(endpoints, key).playground,
+        (key) =>
+          Object.keys(getCapabilityEndpointDefinition(config, key)).length > 0,
       ) ??
       endpointOptions[0] ??
       "";
-    const definition = getEndpointDefinition(endpoints, nextEndpoint);
+    const definition = getCapabilityEndpointDefinition(config, nextEndpoint);
     setEndpointName(nextEndpoint);
-    setCapabilities(definition.playground?.capabilities ?? []);
+    setCapabilities(definition.capabilities ?? []);
     setParameters(
-      (definition.playground?.parameters ?? []).map((parameter) => ({
+      (definition.parameters ?? []).map((parameter) => ({
         ...parameter,
         editorId: nanoid(),
       })),
     );
-    setIntegration(definition.playground?.integration);
+    setIntegration(definition.integration);
   }, [endpointOptions, props.catalogItem, props.open]);
 
   const selectEndpoint = (name: string) => {
     if (!props.catalogItem) return;
-    const endpoints = parseModelEndpointDefinitions(
-      props.catalogItem.metadata?.endpoints,
-    );
-    const definition = getEndpointDefinition(endpoints, name);
+    const config = parseModelCapabilityConfig(props.catalogItem.config);
+    const definition = getCapabilityEndpointDefinition(config, name);
     setEndpointName(name);
-    setCapabilities(definition.playground?.capabilities ?? []);
+    setCapabilities(definition.capabilities ?? []);
     setParameters(
-      (definition.playground?.parameters ?? []).map((parameter) => ({
+      (definition.parameters ?? []).map((parameter) => ({
         ...parameter,
         editorId: nanoid(),
       })),
     );
-    setIntegration(definition.playground?.integration);
+    setIntegration(definition.integration);
   };
 
   const toggleCapability = (capability: PlaygroundCapability) => {
@@ -226,10 +221,8 @@ export function ModelCapabilitiesDrawer(props: Props) {
         return;
       }
     }
-    const endpoints = parseModelEndpointDefinitions(
-      props.catalogItem.metadata?.endpoints,
-    );
-    const current = getEndpointDefinition(endpoints, endpointName);
+    const config = parseModelCapabilityConfig(props.catalogItem.config);
+    const current = getCapabilityEndpointDefinition(config, endpointName);
     const savedParameters = parameters.map((parameter) => ({
       key: parameter.key,
       label: parameter.label,
@@ -241,30 +234,19 @@ export function ModelCapabilitiesDrawer(props: Props) {
       min: parameter.min,
       max: parameter.max,
     }));
-    endpoints[endpointName] = {
+    config.endpoints[endpointName] = {
       ...current,
-      playground: {
-        capabilities,
-        parameters: savedParameters,
-        integration,
-      },
+      capabilities,
+      parameters: savedParameters,
+      integration,
     };
 
     try {
       setIsSaving(true);
-      const serializedEndpoints = serializeModelEndpointDefinitions(endpoints);
-      const response = props.catalogItem.metadata
-        ? await updateModel({
-            ...props.catalogItem.metadata,
-            endpoints: serializedEndpoints,
-          })
-        : await createModel({
-            model_name: props.catalogItem.model_name,
-            endpoints: serializedEndpoints,
-            name_rule: 0,
-            status: 1,
-            sync_official: 1,
-          });
+      const response = await updateModelCapability({
+        model_name: props.catalogItem.model_name,
+        config: serializeModelCapabilityConfig(config),
+      });
       if (!response.success) {
         toast.error(response.message || t("Operation failed"));
         return;

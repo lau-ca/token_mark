@@ -237,7 +237,8 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	finalQuota := finalizeTaskBillingOnSubmit(info, adaptor, taskData)
 	initialStatus := model.TaskStatus("")
 	initialProgress := ""
-	if info.ChannelType == constant.ChannelTypeSeedance || info.ChannelType == constant.ChannelTypeBaiduV2 {
+	if info.ChannelType == constant.ChannelTypeSeedance || info.ChannelType == constant.ChannelTypeBaiduV2 ||
+		(info.ChannelType == constant.ChannelTypeDoubaoVideo && c.Request.URL.Path == "/v3/contents/generations/tasks") {
 		if taskResult, parseErr := adaptor.ParseTaskResult(taskData); parseErr == nil {
 			initialStatus = model.TaskStatus(taskResult.Status)
 			initialProgress = taskResult.Progress

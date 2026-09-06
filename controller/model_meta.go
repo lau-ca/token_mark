@@ -18,26 +18,31 @@ import (
 type modelCapabilityCatalogItem struct {
 	ModelName              string                  `json:"model_name"`
 	SupportedEndpointTypes []constant.EndpointType `json:"supported_endpoint_types"`
-	Metadata               *model.Model            `json:"metadata,omitempty"`
+	Config                 string                  `json:"config,omitempty"`
 	Available              bool                    `json:"available"`
 }
 
-func buildModelCapabilityCatalog(pricings []model.Pricing, metadata []*model.Model) []modelCapabilityCatalogItem {
+type updateModelCapabilityRequest struct {
+	ModelName string `json:"model_name"`
+	Config    string `json:"config"`
+}
+
+func buildModelCapabilityCatalog(pricings []model.Pricing, capabilities []*model.ModelCapability) []modelCapabilityCatalogItem {
 	pricingByModel := make(map[string]model.Pricing, len(pricings))
 	for _, pricing := range pricings {
 		pricingByModel[pricing.ModelName] = pricing
 	}
 
-	itemsByModel := make(map[string]modelCapabilityCatalogItem, len(pricings)+len(metadata))
-	for _, exact := range metadata {
-		if exact == nil || exact.NameRule != model.NameRuleExact || exact.ModelName == "" {
+	itemsByModel := make(map[string]modelCapabilityCatalogItem, len(pricings)+len(capabilities))
+	for _, capability := range capabilities {
+		if capability == nil || capability.ModelName == "" {
 			continue
 		}
-		pricing, available := pricingByModel[exact.ModelName]
+		pricing, available := pricingByModel[capability.ModelName]
 		endpointTypes := append([]constant.EndpointType(nil), pricing.SupportedEndpointTypes...)
-		if endpoints, err := dto.ParseModelEndpointConfigs(exact.Endpoints); err == nil {
-			endpointNames := make([]string, 0, len(endpoints))
-			for endpointName := range endpoints {
+		if config, err := dto.ParseModelCapabilityConfig(capability.Config); err == nil {
+			endpointNames := make([]string, 0, len(config.Endpoints))
+			for endpointName := range config.Endpoints {
 				endpointNames = append(endpointNames, endpointName)
 			}
 			sort.Strings(endpointNames)
@@ -48,10 +53,10 @@ func buildModelCapabilityCatalog(pricings []model.Pricing, metadata []*model.Mod
 				}
 			}
 		}
-		itemsByModel[exact.ModelName] = modelCapabilityCatalogItem{
-			ModelName:              exact.ModelName,
+		itemsByModel[capability.ModelName] = modelCapabilityCatalogItem{
+			ModelName:              capability.ModelName,
 			SupportedEndpointTypes: endpointTypes,
-			Metadata:               exact,
+			Config:                 capability.Config,
 			Available:              available,
 		}
 	}
@@ -79,13 +84,36 @@ func buildModelCapabilityCatalog(pricings []model.Pricing, metadata []*model.Mod
 
 func GetModelCapabilityCatalog(c *gin.Context) {
 	pricings := model.GetPricing()
-	metadata, err := model.GetExactModelMetadata()
+	capabilities, err := model.GetAllModelCapabilities()
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
 
-	common.ApiSuccess(c, buildModelCapabilityCatalog(pricings, metadata))
+	common.ApiSuccess(c, buildModelCapabilityCatalog(pricings, capabilities))
+}
+
+func UpdateModelCapability(c *gin.Context) {
+	var request updateModelCapabilityRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	request.ModelName = strings.TrimSpace(request.ModelName)
+	if request.ModelName == "" {
+		common.ApiErrorMsg(c, "模型名称不能为空")
+		return
+	}
+	if _, err := dto.ParseModelCapabilityConfig(request.Config); err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return
+	}
+	capability, err := model.UpsertModelCapability(request.ModelName, request.Config)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, capability)
 }
 
 // GetAllModelsMeta 获取模型列表（分页）

@@ -41,6 +41,33 @@ func TestChannelValidateSettingsRejectsInvalidHTTPTransport(t *testing.T) {
 	}
 }
 
+func TestChannelValidateSettingsRejectsInvalidRetryTimes(t *testing.T) {
+	tests := []struct {
+		name       string
+		retryTimes int
+		wantErr    bool
+	}{
+		{name: "disabled", retryTimes: 0},
+		{name: "maximum", retryTimes: dto.MaxChannelRetryTimes},
+		{name: "negative", retryTimes: -1, wantErr: true},
+		{name: "above maximum", retryTimes: dto.MaxChannelRetryTimes + 1, wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			channel := &Channel{}
+			channel.SetSetting(dto.ChannelSettings{RetryTimes: tt.retryTimes})
+			err := channel.ValidateSettings()
+			if !tt.wantErr {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "retry_times")
+		})
+	}
+}
+
 func TestAdvancedCustomChannelRequiresModelListRouteOnlyWhenUpdateChecksEnabled(t *testing.T) {
 	inferenceRoute := dto.AdvancedCustomRoute{
 		IncomingPath: "/v1/chat/completions",

@@ -65,71 +65,63 @@ export interface PlaygroundIntegrationDefinition {
   complete_example?: string;
 }
 
-export interface PlaygroundEndpointDefinition {
-  path?: string;
-  method?: string;
-  playground?: {
-    capabilities?: PlaygroundCapability[];
-    parameters?: PlaygroundParameterDefinition[];
-    integration?: PlaygroundIntegrationDefinition;
-  };
+export interface ModelCapabilityEndpointDefinition {
+  capabilities?: PlaygroundCapability[];
+  parameters?: PlaygroundParameterDefinition[];
+  integration?: PlaygroundIntegrationDefinition;
   [key: string]: unknown;
 }
 
-export type ModelEndpointDefinitions = Record<
-  string,
-  string | PlaygroundEndpointDefinition
->;
+export interface ModelCapabilityConfigDocument {
+  endpoints: Record<string, ModelCapabilityEndpointDefinition>;
+  [key: string]: unknown;
+}
 
-export function parseModelEndpointDefinitions(
+export function parseModelCapabilityConfig(
   raw?: string,
-): ModelEndpointDefinitions {
-  if (!raw?.trim()) return {};
+): ModelCapabilityConfigDocument {
+  if (!raw?.trim()) return { endpoints: {} };
 
   try {
     const parsed = JSON.parse(raw) as unknown;
-    if (Array.isArray(parsed)) {
-      return Object.fromEntries(
-        parsed
-          .filter((value): value is string => typeof value === "string")
-          .map((endpoint) => [endpoint, {}]),
-      );
-    }
     if (parsed && typeof parsed === "object") {
-      return parsed as ModelEndpointDefinitions;
+      const document = parsed as Partial<ModelCapabilityConfigDocument>;
+      return {
+        ...document,
+        endpoints:
+          document.endpoints && typeof document.endpoints === "object"
+            ? document.endpoints
+            : {},
+      } as ModelCapabilityConfigDocument;
     }
   } catch {
-    return {};
+    return { endpoints: {} };
   }
-  return {};
+  return { endpoints: {} };
 }
 
-export function getEndpointDefinition(
-  endpoints: ModelEndpointDefinitions,
+export function getCapabilityEndpointDefinition(
+  config: ModelCapabilityConfigDocument,
   endpointName: string,
-): PlaygroundEndpointDefinition {
-  const current = endpoints[endpointName];
-  if (typeof current === "string") {
-    return { path: current, method: "POST" };
-  }
+): ModelCapabilityEndpointDefinition {
+  const current = config.endpoints[endpointName];
   return current ? { ...current } : {};
 }
 
 export function getModelCapabilities(raw?: string): PlaygroundCapability[] {
   const capabilities = new Set<PlaygroundCapability>();
-  const endpoints = parseModelEndpointDefinitions(raw);
+  const config = parseModelCapabilityConfig(raw);
 
-  for (const value of Object.values(endpoints)) {
-    const definition = typeof value === "string" ? { path: value } : value;
-    for (const capability of definition.playground?.capabilities ?? []) {
+  for (const endpoint of Object.values(config.endpoints)) {
+    for (const capability of endpoint.capabilities ?? []) {
       capabilities.add(capability);
     }
   }
   return [...capabilities];
 }
 
-export function serializeModelEndpointDefinitions(
-  endpoints: ModelEndpointDefinitions,
+export function serializeModelCapabilityConfig(
+  config: ModelCapabilityConfigDocument,
 ): string {
-  return JSON.stringify(endpoints, null, 2);
+  return JSON.stringify(config, null, 2);
 }

@@ -488,7 +488,7 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 					key == "prompt" ||
 					key == "size" ||
 					key == "quality" ||
-					(shouldForceChannelImageResponseFormat(info) && key == "response_format") {
+					key == "response_format" {
 					continue
 				}
 				for _, value := range values {
@@ -502,7 +502,7 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 		if request.Quality != "" {
 			writer.WriteField("quality", request.Quality)
 		}
-		if shouldForceChannelImageResponseFormat(info) {
+		if request.ResponseFormat != "" {
 			writer.WriteField("response_format", request.ResponseFormat)
 		}
 

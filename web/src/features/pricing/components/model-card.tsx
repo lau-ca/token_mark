@@ -94,7 +94,19 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
 
   let priceSummary: ReactNode
   if (dynamicSummary) {
-    if (dynamicSummary.isSpecialExpression) {
+    if (dynamicSummary.isTaskTokenPricing) {
+      priceSummary = (
+        <span className='min-w-0'>
+          <span className='text-foreground'>{t('Task token pricing')}</span>
+          <span className='text-muted-foreground mt-0.5 block text-xs'>
+            {t('{{resolutionCount}} resolutions · {{priceCount}} prices', {
+              resolutionCount: dynamicSummary.taskResolutionCount,
+              priceCount: dynamicSummary.tierCount,
+            })}
+          </span>
+        </span>
+      )
+    } else if (dynamicSummary.isSpecialExpression) {
       priceSummary = (
         <span className='min-w-0'>
           <span className='text-amber-700 dark:text-amber-300'>

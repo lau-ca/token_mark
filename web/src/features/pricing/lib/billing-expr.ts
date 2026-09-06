@@ -238,6 +238,9 @@ export type ParsedTier = {
   requestPrice?: number
   secondPrice?: number
   imageRequestPrice?: number
+  taskResolution?: string
+  hasReferenceVideo?: boolean
+  isTaskTokenPrice?: boolean
   [field: string]: unknown
 }
 
@@ -461,6 +464,166 @@ function parseCompleteFunctionCall(
   return calls[0]
 }
 
+type ConditionalExpression = {
+  condition: string
+  consequent: string
+  alternate: string
+}
+
+function splitTopLevelConditional(expr: string): ConditionalExpression | null {
+  const body = unwrapOuterParens(expr)
+  let depth = 0
+  let quote = ''
+  let escaped = false
+  let questionIndex = -1
+  let nestedConditionalDepth = 0
+
+  for (let index = 0; index < body.length; index += 1) {
+    const char = body[index]
+    if (quote) {
+      if (escaped) {
+        escaped = false
+      } else if (char === '\\') {
+        escaped = true
+      } else if (char === quote) {
+        quote = ''
+      }
+      continue
+    }
+    if (char === '"' || char === "'") {
+      quote = char
+      continue
+    }
+    if (char === '(') {
+      depth += 1
+      continue
+    }
+    if (char === ')') {
+      depth -= 1
+      continue
+    }
+    if (depth !== 0) continue
+    if (char === '?') {
+      if (questionIndex === -1) {
+        questionIndex = index
+      } else {
+        nestedConditionalDepth += 1
+      }
+      continue
+    }
+    if (char !== ':' || questionIndex === -1) continue
+    if (nestedConditionalDepth > 0) {
+      nestedConditionalDepth -= 1
+      continue
+    }
+    return {
+      condition: body.slice(0, questionIndex).trim(),
+      consequent: body.slice(questionIndex + 1, index).trim(),
+      alternate: body.slice(index + 1).trim(),
+    }
+  }
+  return null
+}
+
+function parseResolutionCondition(condition: string): string | null {
+  const match = unwrapOuterParens(condition).match(
+    /^param\(\s*["']resolution["']\s*\)\s*==\s*(["'])([^"']+)\1$/
+  )
+  return match?.[2] || null
+}
+
+function parseTaskTokenTier(
+  expression: string,
+  resolution: string | null
+): ParsedTier[] | null {
+  const tierCall = parseCompleteFunctionCall(expression, 'tier')
+  if (!tierCall || tierCall.args.length !== 2) return null
+
+  const label = parseStringLiteral(tierCall.args[0])
+  if (!label) return null
+
+  const factors = splitTopLevelMultiply(unwrapOuterParens(tierCall.args[1]))
+  if (factors.length !== 2 || unwrapOuterParens(factors[0]) !== 'c') {
+    return null
+  }
+
+  const priceCondition = splitTopLevelConditional(factors[1])
+  if (
+    !priceCondition ||
+    !/^param\(\s*["']has_reference_video["']\s*\)$/.test(
+      unwrapOuterParens(priceCondition.condition)
+    )
+  ) {
+    return null
+  }
+
+  const referencePriceSource = unwrapOuterParens(priceCondition.consequent)
+  const noReferencePriceSource = unwrapOuterParens(priceCondition.alternate)
+  if (
+    !NUMERIC_LITERAL_REGEX.test(referencePriceSource) ||
+    !NUMERIC_LITERAL_REGEX.test(noReferencePriceSource)
+  ) {
+    return null
+  }
+
+  const referencePrice = Number(referencePriceSource)
+  const noReferencePrice = Number(noReferencePriceSource)
+  if (
+    !Number.isFinite(referencePrice) ||
+    referencePrice <= 0 ||
+    !Number.isFinite(noReferencePrice) ||
+    noReferencePrice <= 0
+  ) {
+    return null
+  }
+
+  const taskResolution = resolution || label.replaceAll('_', ' / ')
+  const commonTier = {
+    label,
+    conditions: [],
+    taskResolution,
+    isTaskTokenPrice: true,
+  }
+  return [
+    {
+      ...commonTier,
+      outputPrice: noReferencePrice,
+      hasReferenceVideo: false,
+    },
+    {
+      ...commonTier,
+      outputPrice: referencePrice,
+      hasReferenceVideo: true,
+    },
+  ]
+}
+
+function parseTaskTokenTiers(exprStr: string): ParsedTier[] | null {
+  const { body } = stripExprVersion(exprStr)
+  const taskTokensCall = parseCompleteFunctionCall(body, 'task_tokens')
+  if (!taskTokensCall || taskTokensCall.args.length !== 1) return null
+
+  const tiers: ParsedTier[] = []
+  let branch = taskTokensCall.args[0]
+  while (true) {
+    const conditional = splitTopLevelConditional(branch)
+    if (!conditional) {
+      const defaultTiers = parseTaskTokenTier(branch, null)
+      return defaultTiers ? [...tiers, ...defaultTiers] : []
+    }
+
+    const resolution = parseResolutionCondition(conditional.condition)
+    if (!resolution) return []
+    const resolutionTiers = parseTaskTokenTier(
+      conditional.consequent,
+      resolution
+    )
+    if (!resolutionTiers) return []
+    tiers.push(...resolutionTiers)
+    branch = conditional.alternate
+  }
+}
+
 function parsePerRequestUnitPrice(bodyStr: string): TierUnitPrice | null {
   const factors = splitTopLevelMultiply(unwrapOuterParens(bodyStr))
   let price: number | null = null
@@ -642,6 +805,9 @@ function parseTierConditions(prefix: string): TierCondition[] {
 export function parseTiersFromExpr(exprStr: string): ParsedTier[] {
   if (!exprStr) return []
   try {
+    const taskTokenTiers = parseTaskTokenTiers(exprStr)
+    if (taskTokenTiers !== null) return taskTokenTiers
+
     const { body } = stripExprVersion(exprStr)
     const calls = findFunctionCalls(body, 'tier')
     if (calls.some((call) => !isDirectTierBranch(body, call.start, call.end))) {

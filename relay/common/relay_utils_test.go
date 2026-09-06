@@ -26,6 +26,85 @@ func newTaskValidationContext(t *testing.T, body string) (*gin.Context, *RelayIn
 	return context, &RelayInfo{TaskRelayInfo: &TaskRelayInfo{}}
 }
 
+func newNativeSeedanceValidationContext(t *testing.T, body string) (*gin.Context, *RelayInfo) {
+	t.Helper()
+	request := httptest.NewRequest(http.MethodPost, "/v3/contents/generations/tasks", strings.NewReader(body))
+	request.Header.Set("Content-Type", "application/json")
+	context, _ := gin.CreateTestContext(httptest.NewRecorder())
+	context.Request = request
+	return context, &RelayInfo{TaskRelayInfo: &TaskRelayInfo{}}
+}
+
+func TestValidateBasicTaskRequestAcceptsNativeSeedanceFields(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	context, info := newNativeSeedanceValidationContext(t, `{
+		"model":"doubao-seedance-2-0-260128",
+		"content":[
+			{"type":"text","text":"animate"},
+			{"type":"image_url","image_url":{"url":"https://example.com/image.png"},"role":"reference_image"},
+			{"type":"draft_task","draft_task":{"id":"draft-1"}}
+		],
+		"callback_url":"https://example.com/callback",
+		"return_last_frame":false,
+		"service_tier":"default",
+		"execution_expires_after":3600,
+		"generate_audio":false,
+		"draft":false,
+		"tools":[{"type":"web_search"}],
+		"safety_identifier":"user-1",
+		"priority":0,
+		"resolution":"4K",
+		"ratio":"16:9",
+		"duration":-1,
+		"frames":0,
+		"seed":0,
+		"camera_fixed":false,
+		"watermark":false
+	}`)
+
+	taskErr := ValidateBasicTaskRequest(context, info, constant.TaskActionGenerate)
+
+	require.Nil(t, taskErr)
+	request, err := GetTaskRequest(context)
+	require.NoError(t, err)
+	assert.Len(t, request.Content, 3)
+	assert.Equal(t, "draft-1", request.Content[2].DraftTask.ID)
+	assert.Equal(t, -1, request.Duration)
+	assert.Equal(t, "4k", request.Resolution)
+	require.NotNil(t, request.ReturnLastFrame)
+	assert.False(t, *request.ReturnLastFrame)
+	require.NotNil(t, request.Priority)
+	assert.Zero(t, *request.Priority)
+	require.NotNil(t, request.Frames)
+	assert.Zero(t, *request.Frames)
+	require.NotNil(t, request.Watermark)
+	assert.False(t, *request.Watermark)
+}
+
+func TestValidateBasicTaskRequestRejectsInvalidNativeSeedanceFields(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	tests := []struct {
+		name     string
+		body     string
+		wantCode string
+	}{
+		{name: "missing content", body: `{"model":"doubao-seedance-2-0-260128","content":[]}`, wantCode: "invalid_content"},
+		{name: "duration zero", body: `{"model":"doubao-seedance-2-0-260128","content":[{"type":"text","text":"x"}],"duration":0}`, wantCode: "invalid_duration"},
+		{name: "priority too high", body: `{"model":"doubao-seedance-2-0-260128","content":[{"type":"text","text":"x"}],"priority":10}`, wantCode: "invalid_priority"},
+		{name: "expiry too short", body: `{"model":"doubao-seedance-2-0-260128","content":[{"type":"text","text":"x"}],"execution_expires_after":3599}`, wantCode: "invalid_execution_expires_after"},
+		{name: "invalid ratio", body: `{"model":"doubao-seedance-2-0-260128","content":[{"type":"text","text":"x"}],"ratio":"2:1"}`, wantCode: "invalid_ratio"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			context, info := newNativeSeedanceValidationContext(t, tt.body)
+			taskErr := ValidateBasicTaskRequest(context, info, constant.TaskActionGenerate)
+			require.NotNil(t, taskErr)
+			assert.Equal(t, tt.wantCode, taskErr.Code)
+		})
+	}
+}
+
 func TestSanitizeURLForLogMasksSensitiveQueryValues(t *testing.T) {
 	rawURL := "https://example.test/v1beta/models/gemini:streamGenerateContent?alt=sse&key=sk-secret&access_token=ya29-secret&api-version=2024-02-01"
 
@@ -375,6 +454,53 @@ func TestTaskDurationBounds(t *testing.T) {
 			} else {
 				require.Nil(t, taskErr)
 			}
+		})
+	}
+}
+
+func TestTaskSubmitReqHasReferenceVideo(t *testing.T) {
+	tests := []struct {
+		name string
+		req  TaskSubmitReq
+		want bool
+	}{
+		{
+			name: "reference videos",
+			req:  TaskSubmitReq{ReferenceVideos: []string{"https://example.com/reference.mp4"}},
+			want: true,
+		},
+		{
+			name: "native content",
+			req: TaskSubmitReq{Content: []TaskContentItem{{
+				Type:     "video_url",
+				VideoURL: &TaskMediaURL{URL: "https://example.com/reference.mp4"},
+			}}},
+			want: true,
+		},
+		{
+			name: "metadata content",
+			req: TaskSubmitReq{Metadata: map[string]interface{}{
+				"content": []interface{}{
+					map[string]interface{}{
+						"type":      "video_url",
+						"video_url": map[string]interface{}{"url": "https://example.com/reference.mp4"},
+					},
+				},
+			}},
+			want: true,
+		},
+		{
+			name: "empty video url",
+			req: TaskSubmitReq{Content: []TaskContentItem{{
+				Type:     "video_url",
+				VideoURL: &TaskMediaURL{},
+			}}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, tt.req.HasReferenceVideo())
 		})
 	}
 }

@@ -146,11 +146,13 @@ import {
   FIELD_DESCRIPTIONS,
   FIELD_PLACEHOLDERS,
   MODEL_FETCHABLE_TYPES,
+  OPENAI_IMAGE_RESPONSE_CHANNEL_TYPES,
 } from '../../constants'
 import { useChannelMutateForm } from '../../hooks/use-channel-mutate-form'
 import {
   CHANNEL_FORM_DEFAULT_VALUES,
   CHANNEL_TYPE_ADVANCED_CUSTOM,
+  MAX_CHANNEL_RETRY_TIMES,
   channelFormSchema,
   channelsQueryKeys,
   getAdvancedCustomStats,
@@ -289,6 +291,7 @@ const SENSITIVE_FORM_FIELDS = [
   'azure_responses_version',
   'force_format',
   'thinking_to_content',
+  'retry_times',
   'proxy',
   'http_protocol',
   'http2_connection_shards',
@@ -304,6 +307,8 @@ const SENSITIVE_FORM_FIELDS = [
   'claude_beta_query',
   'disable_task_polling_sleep',
   'force_image_b64_json_no_url',
+  'image_response_url_prefix',
+  'normalize_openai_image_response',
   'replace_video_urls_with_proxy',
   'upstream_model_update_check_enabled',
   'upstream_model_update_auto_sync_enabled',
@@ -343,6 +348,7 @@ function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
     values.remark?.trim() ||
     values.priority ||
     values.weight ||
+    (values.retry_times ?? 0) > 0 ||
     values.proxy?.trim() ||
     values.system_prompt?.trim() ||
     values.force_format ||
@@ -354,6 +360,8 @@ function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
       values.http2_connection_shards > 1) ||
     values.claude_beta_query ||
     values.force_image_b64_json_no_url ||
+    values.image_response_url_prefix?.trim() ||
+    values.normalize_openai_image_response ||
     values.replace_video_urls_with_proxy ||
     values.upstream_model_update_check_enabled ||
     values.upstream_model_update_auto_sync_enabled ||
@@ -750,6 +758,7 @@ export function ChannelMutateDrawer({
   const currentAdvancedCustom = form.watch('advanced_custom')
   const currentPriority = form.watch('priority')
   const currentWeight = form.watch('weight')
+  const currentRetryTimes = form.watch('retry_times')
   const currentTestModel = form.watch('test_model')
   const currentAutoBan = form.watch('auto_ban')
   const currentTag = form.watch('tag')
@@ -772,6 +781,9 @@ export function ChannelMutateDrawer({
   const currentDisableStore = form.watch('disable_store')
   const currentAllowSafetyIdentifier = form.watch('allow_safety_identifier')
   const currentAllowIncludeObfuscation = form.watch('allow_include_obfuscation')
+  const currentForceImageB64JSONNoURL = form.watch(
+    'force_image_b64_json_no_url'
+  )
   const currentReplaceVideoUrlsWithProxy = form.watch(
     'replace_video_urls_with_proxy'
   )
@@ -1020,6 +1032,7 @@ export function ChannelMutateDrawer({
   const routingStrategyConfigured = Boolean(
     currentPriority ||
     currentWeight ||
+    (currentRetryTimes ?? 0) > 0 ||
     currentTestModel?.trim() ||
     (currentAutoBan ?? 1) !== 1
   )
@@ -1101,7 +1114,8 @@ export function ChannelMutateDrawer({
     currentType === 1 ||
     currentType === 14 ||
     currentType === 55 ||
-    currentType === 57
+    currentType === 57 ||
+    OPENAI_IMAGE_RESPONSE_CHANNEL_TYPES.has(currentType)
   ) {
     advancedNavChildren.push({
       id: ADVANCED_SETTINGS_SECTION_IDS.fieldPassthrough,
@@ -3826,7 +3840,7 @@ export function ChannelMutateDrawer({
                               icon={<Route className='h-3.5 w-3.5' />}
                               iconTone='info'
                             />
-                            <div className='grid gap-4 sm:grid-cols-2'>
+                            <div className='grid gap-4 sm:grid-cols-3'>
                               <FormField
                                 control={form.control}
                                 name='priority'
@@ -3874,6 +3888,41 @@ export function ChannelMutateDrawer({
                                   </FormItem>
                                 )}
                               />
+
+                              <fieldset
+                                disabled={sensitiveLocked}
+                                className='disabled:opacity-60'
+                              >
+                                <FormField
+                                  control={form.control}
+                                  name='retry_times'
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>{t('Retry Times')}</FormLabel>
+                                      <FormControl>
+                                        <Input
+                                          type='number'
+                                          min={0}
+                                          max={MAX_CHANNEL_RETRY_TIMES}
+                                          step={1}
+                                          value={field.value ?? 0}
+                                          onChange={(event) =>
+                                            field.onChange(
+                                              Number(event.target.value)
+                                            )
+                                          }
+                                        />
+                                      </FormControl>
+                                      <FormDescription>
+                                        {t(
+                                          'Retry the same channel for all models after any failed request. Retries exclude the initial request.'
+                                        )}
+                                      </FormDescription>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                              </fieldset>
                             </div>
 
                             <FormField
@@ -4421,9 +4470,7 @@ export function ChannelMutateDrawer({
                                         <SelectValue />
                                       </SelectTrigger>
                                     </FormControl>
-                                    <SelectContent
-                                      alignItemWithTrigger={false}
-                                    >
+                                    <SelectContent alignItemWithTrigger={false}>
                                       <SelectGroup>
                                         <SelectItem value='auto'>
                                           {t('Auto')}
@@ -4560,7 +4607,10 @@ export function ChannelMutateDrawer({
                         {(currentType === 1 ||
                           currentType === 14 ||
                           currentType === 55 ||
-                          currentType === 57) && (
+                          currentType === 57 ||
+                          OPENAI_IMAGE_RESPONSE_CHANNEL_TYPES.has(
+                            currentType
+                          )) && (
                           <div
                             id={ADVANCED_SETTINGS_SECTION_IDS.fieldPassthrough}
                             className={sideDrawerSectionClassName(
@@ -4717,6 +4767,36 @@ export function ChannelMutateDrawer({
                                       )}
                                     />
 
+                                    {!currentForceImageB64JSONNoURL && (
+                                      <FormField
+                                        control={form.control}
+                                        name='image_response_url_prefix'
+                                        render={({ field }) => (
+                                          <FormItem className='space-y-2 px-4 py-3'>
+                                            <FormLabel className='text-sm'>
+                                              {t(
+                                                'Allowed image response URL prefix'
+                                              )}
+                                            </FormLabel>
+                                            <FormControl>
+                                              <Input
+                                                placeholder={t(
+                                                  'Leave empty to allow all image response URLs'
+                                                )}
+                                                {...field}
+                                              />
+                                            </FormControl>
+                                            <FormDescription>
+                                              {t(
+                                                'URLs that do not start with this prefix return a 502 error'
+                                              )}
+                                            </FormDescription>
+                                            <FormMessage />
+                                          </FormItem>
+                                        )}
+                                      />
+                                    )}
+
                                     <FormField
                                       control={form.control}
                                       name='allow_inference_geo'
@@ -4744,6 +4824,37 @@ export function ChannelMutateDrawer({
                                       )}
                                     />
                                   </>
+                                )}
+
+                                {OPENAI_IMAGE_RESPONSE_CHANNEL_TYPES.has(
+                                  currentType
+                                ) && (
+                                  <FormField
+                                    control={form.control}
+                                    name='normalize_openai_image_response'
+                                    render={({ field }) => (
+                                      <FormItem className='flex items-center justify-between gap-3 px-4 py-3'>
+                                        <div className='space-y-0.5'>
+                                          <FormLabel className='text-sm'>
+                                            {t(
+                                              'Normalize OpenAI image responses'
+                                            )}
+                                          </FormLabel>
+                                          <FormDescription>
+                                            {t(
+                                              'Fill standard fields for non-streaming image generation and edits without changing data'
+                                            )}
+                                          </FormDescription>
+                                        </div>
+                                        <FormControl>
+                                          <Switch
+                                            checked={field.value}
+                                            onCheckedChange={field.onChange}
+                                          />
+                                        </FormControl>
+                                      </FormItem>
+                                    )}
+                                  />
                                 )}
 
                                 {(currentType === 1 || currentType === 55) && (

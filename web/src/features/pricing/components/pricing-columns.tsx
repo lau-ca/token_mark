@@ -127,6 +127,25 @@ export function usePricingColumns(
         })
 
         if (dynamicSummary) {
+          if (dynamicSummary.isTaskTokenPricing) {
+            return (
+              <div className='max-w-full min-w-0'>
+                <div className='text-sm font-medium'>
+                  {t('Task token pricing')}
+                </div>
+                <div className='text-muted-foreground text-[11px]'>
+                  {t(
+                    '{{resolutionCount}} resolutions · {{priceCount}} prices',
+                    {
+                      resolutionCount: dynamicSummary.taskResolutionCount,
+                      priceCount: dynamicSummary.tierCount,
+                    }
+                  )}
+                </div>
+              </div>
+            )
+          }
+
           if (dynamicSummary.isSpecialExpression) {
             return (
               <div className='max-w-full min-w-0'>

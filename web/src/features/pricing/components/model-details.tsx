@@ -626,6 +626,28 @@ function PriceSection(props: {
   ]
 
   if (dynamicSummary) {
+    if (dynamicSummary.isTaskTokenPricing) {
+      return (
+        <section>
+          <SectionTitle>{t('Base Price')}</SectionTitle>
+          <div className='bg-muted/20 rounded-lg border p-3'>
+            <div className='text-foreground text-sm font-medium'>
+              {t('Task token pricing')}
+            </div>
+            <p className='text-muted-foreground mt-1 text-xs'>
+              {t('Prices depend on resolution and reference video')}
+            </p>
+            <div className='text-muted-foreground mt-2 text-xs'>
+              {t('{{resolutionCount}} resolutions · {{priceCount}} prices', {
+                resolutionCount: dynamicSummary.taskResolutionCount,
+                priceCount: dynamicSummary.tierCount,
+              })}
+            </div>
+          </div>
+        </section>
+      )
+    }
+
     if (dynamicSummary.isSpecialExpression) {
       return (
         <section>
@@ -913,6 +935,9 @@ function GroupPricingSection(props: {
 
   if (isDynamicPricingModel(props.model)) {
     const dynamicTiers = getDynamicPricingTiers(props.model)
+    const isTaskTokenPricing = dynamicTiers.some(
+      (tier) => tier.isTaskTokenPrice
+    )
 
     if (dynamicTiers.length === 0) {
       return (
@@ -994,11 +1019,27 @@ function GroupPricingSection(props: {
                   columns={[
                     {
                       id: 'tier',
-                      header: t('Tier'),
+                      header: isTaskTokenPricing
+                        ? t('Resolution')
+                        : t('Tier'),
                       className: thClass,
                       cellClassName: 'text-muted-foreground py-2.5',
-                      cell: (tier) => tier.label || t('Default'),
+                      cell: (tier) =>
+                        tier.taskResolution || tier.label || t('Default'),
                     },
+                    ...(isTaskTokenPricing
+                      ? [
+                          {
+                            id: 'referenceVideo',
+                            header: t('Reference Video'),
+                            className: thClass,
+                            cellClassName:
+                              'text-muted-foreground py-2.5',
+                            cell: (tier: DynamicPricingTier) =>
+                              tier.hasReferenceVideo ? t('Yes') : t('No'),
+                          },
+                        ]
+                      : []),
                     ...priceFields.map((fieldEntry) => ({
                       id: fieldEntry.field,
                       header: t(fieldEntry.shortLabel),

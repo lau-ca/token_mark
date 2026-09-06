@@ -109,14 +109,6 @@ func GetAllModels(offset int, limit int) ([]*Model, error) {
 	return models, err
 }
 
-func GetExactModelMetadata() ([]*Model, error) {
-	var metadata []*Model
-	err := DB.Where("name_rule = ?", NameRuleExact).
-		Order("model_name ASC").
-		Find(&metadata).Error
-	return metadata, err
-}
-
 func GetModelMetadataByNames(modelNames []string) (map[string]*Model, error) {
 	modelNames = normalizeLookupValues(modelNames)
 	result := make(map[string]*Model, len(modelNames))

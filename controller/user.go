@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -683,32 +685,29 @@ func writeUserModelsResponse(c *gin.Context, modelNames []string, details bool) 
 		common.ApiError(c, err)
 		return
 	}
+	capabilities, err := model.GetModelCapabilitiesByNames(modelNames)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	options := make([]playgrounddto.PlaygroundModelOption, 0, len(modelNames))
 	for _, modelName := range modelNames {
-		endpointConfigs := map[string]playgrounddto.ModelEndpointConfig{}
+		metadataEndpoints := ""
 		if item := metadata[modelName]; item != nil {
-			endpointConfigs, err = playgrounddto.ParseModelEndpointConfigs(item.Endpoints)
-			if err != nil {
-				common.ApiError(c, err)
-				return
-			}
+			metadataEndpoints = item.Endpoints
 		}
-
-		endpointTypes := make([]constant.EndpointType, 0, len(endpointConfigs))
-		for endpointName := range endpointConfigs {
-			endpointTypes = append(endpointTypes, constant.EndpointType(endpointName))
+		capabilityConfig := ""
+		if item := capabilities[modelName]; item != nil {
+			capabilityConfig = item.Config
 		}
-		if len(endpointTypes) == 0 {
-			endpointTypes = model.GetModelSupportEndpointTypes(modelName)
-		}
-		for _, endpointType := range endpointTypes {
-			endpointName := string(endpointType)
-			if _, exists := endpointConfigs[endpointName]; exists {
-				continue
-			}
-			if config, ok := playgrounddto.GetDefaultModelEndpointConfig(endpointType); ok {
-				endpointConfigs[endpointName] = config
-			}
+		endpointTypes, endpointConfigs, err := buildPlaygroundEndpointConfigs(
+			metadataEndpoints,
+			capabilityConfig,
+			model.GetModelSupportEndpointTypes(modelName),
+		)
+		if err != nil {
+			common.ApiError(c, err)
+			return
 		}
 		options = append(options, playgrounddto.PlaygroundModelOption{
 			ModelName:              modelName,
@@ -722,6 +721,55 @@ func writeUserModelsResponse(c *gin.Context, modelNames []string, details bool) 
 		"message": "",
 		"data":    options,
 	})
+}
+
+func buildPlaygroundEndpointConfigs(
+	metadataRaw string,
+	capabilityRaw string,
+	runtimeEndpointTypes []constant.EndpointType,
+) ([]constant.EndpointType, map[string]playgrounddto.ModelEndpointConfig, error) {
+	endpointConfigs, err := playgrounddto.ParseModelEndpointConfigs(metadataRaw)
+	if err != nil {
+		return nil, nil, err
+	}
+	capabilityConfig, err := playgrounddto.ParseModelCapabilityConfig(capabilityRaw)
+	if err != nil {
+		return nil, nil, err
+	}
+	for endpointName, playground := range capabilityConfig.Endpoints {
+		endpoint := endpointConfigs[endpointName]
+		playgroundCopy := playground
+		endpoint.Playground = &playgroundCopy
+		endpointConfigs[endpointName] = endpoint
+	}
+
+	endpointTypes := append([]constant.EndpointType(nil), runtimeEndpointTypes...)
+	extraEndpointNames := make([]string, 0, len(endpointConfigs))
+	for endpointName := range endpointConfigs {
+		endpointType := constant.EndpointType(endpointName)
+		if !slices.Contains(endpointTypes, endpointType) {
+			extraEndpointNames = append(extraEndpointNames, endpointName)
+		}
+	}
+	sort.Strings(extraEndpointNames)
+	for _, endpointName := range extraEndpointNames {
+		endpointTypes = append(endpointTypes, constant.EndpointType(endpointName))
+	}
+
+	for _, endpointType := range endpointTypes {
+		endpointName := string(endpointType)
+		endpoint := endpointConfigs[endpointName]
+		if defaultEndpoint, ok := playgrounddto.GetDefaultModelEndpointConfig(endpointType); ok {
+			if endpoint.Path == "" {
+				endpoint.Path = defaultEndpoint.Path
+			}
+			if endpoint.Method == "" {
+				endpoint.Method = defaultEndpoint.Method
+			}
+		}
+		endpointConfigs[endpointName] = endpoint
+	}
+	return endpointTypes, endpointConfigs, nil
 }
 
 type updateUserRequest struct {

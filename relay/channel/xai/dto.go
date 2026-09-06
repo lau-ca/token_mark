@@ -13,11 +13,11 @@ type ChatCompletionResponse struct {
 	SystemFingerprint string                         `json:"system_fingerprint"`
 }
 
-// quality, size or style are not supported by xAI API at the moment.
 type ImageRequest struct {
-	Model  string `json:"model"`
-	Prompt string `json:"prompt" binding:"required"`
-	N      int    `json:"n,omitempty"`
+	Model       string `json:"model"`
+	Prompt      string `json:"prompt" binding:"required"`
+	N           int    `json:"n,omitempty"`
+	AspectRatio string `json:"aspect_ratio,omitempty"`
 	// Size           string          `json:"size,omitempty"`
 	// Quality        string          `json:"quality,omitempty"`
 	ResponseFormat string `json:"response_format,omitempty"`

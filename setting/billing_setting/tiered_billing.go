@@ -174,8 +174,9 @@ func ValidateModelBillingConfig(modes, expressions map[string]string) error {
 		if exprStr == "" {
 			return fmt.Errorf("model %s uses tiered_expr but has no billing expression", modelName)
 		}
-		if billingexpr.UsedVars(exprStr)["per_request"] {
-			if err := smokeTestTaskExpr(modelName, exprStr); err != nil {
+		usedVars := billingexpr.UsedVars(exprStr)
+		if usedVars["per_request"] || usedVars["task_tokens"] {
+			if err := smokeTestTaskExpr(modelName, exprStr, usedVars["task_tokens"]); err != nil {
 				return fmt.Errorf("model %s task billing expression failed validation: %w", modelName, err)
 			}
 			continue
@@ -187,7 +188,7 @@ func ValidateModelBillingConfig(modes, expressions map[string]string) error {
 	return nil
 }
 
-func smokeTestTaskExpr(modelName, exprStr string) error {
+func smokeTestTaskExpr(modelName, exprStr string, tokenBased bool) error {
 	var resolutions []string
 	switch modelName {
 	case "videos-mini", "videos-fast":
@@ -195,24 +196,38 @@ func smokeTestTaskExpr(modelName, exprStr string) error {
 	case "videos-standard":
 		resolutions = []string{"480p", "720p", "1080p", "4k"}
 	default:
-		return nil
+		if !tokenBased {
+			return nil
+		}
+		resolutions = []string{"480p", "720p", "1080p", "4k"}
 	}
 	for _, resolution := range resolutions {
 		for _, duration := range []int{4, 15} {
-			body, err := common.Marshal(map[string]interface{}{
-				"model":      modelName,
-				"resolution": resolution,
-				"duration":   duration,
-			})
-			if err != nil {
-				return err
+			hasVideoCases := []bool{false}
+			if tokenBased {
+				hasVideoCases = append(hasVideoCases, true)
 			}
-			result, _, err := billingexpr.RunExprWithRequest(exprStr, billingexpr.TokenParams{}, billingexpr.RequestInput{Body: body})
-			if err != nil {
-				return fmt.Errorf("resolution=%s duration=%d: %w", resolution, duration, err)
-			}
-			if math.IsNaN(result) || math.IsInf(result, 0) || result < 0 {
-				return fmt.Errorf("resolution=%s duration=%d: invalid result %g", resolution, duration, result)
+			for _, hasReferenceVideo := range hasVideoCases {
+				body, err := common.Marshal(map[string]interface{}{
+					"model":               modelName,
+					"resolution":          resolution,
+					"duration":            duration,
+					"has_reference_video": hasReferenceVideo,
+				})
+				if err != nil {
+					return err
+				}
+				params := billingexpr.TokenParams{}
+				if tokenBased {
+					params.C = 1
+				}
+				result, _, err := billingexpr.RunExprWithRequest(exprStr, params, billingexpr.RequestInput{Body: body})
+				if err != nil {
+					return fmt.Errorf("resolution=%s duration=%d has_reference_video=%t: %w", resolution, duration, hasReferenceVideo, err)
+				}
+				if math.IsNaN(result) || math.IsInf(result, 0) || result < 0 {
+					return fmt.Errorf("resolution=%s duration=%d has_reference_video=%t: invalid result %g", resolution, duration, hasReferenceVideo, result)
+				}
 			}
 		}
 	}

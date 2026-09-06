@@ -158,6 +158,24 @@ func TestParseModelEndpointConfigs(t *testing.T) {
 	}
 }
 
+func TestParseModelCapabilityConfig(t *testing.T) {
+	config, err := ParseModelCapabilityConfig(`{
+		"endpoints": {
+			"image-generation": {
+				"capabilities": ["image.generate"],
+				"parameters": [{"key":"size","type":"enum","options":["1024x1024"]}]
+			}
+		}
+	}`)
+
+	require.NoError(t, err)
+	endpoint, ok := config.Endpoints["image-generation"]
+	require.True(t, ok)
+	assert.Equal(t, []string{"image.generate"}, endpoint.Capabilities)
+	require.Len(t, endpoint.Parameters, 1)
+	assert.Equal(t, "size", endpoint.Parameters[0].Key)
+}
+
 func TestValidatePlaygroundParameterValues(t *testing.T) {
 	minDuration := float64(1)
 	maxDuration := float64(15)
