@@ -81,7 +81,15 @@ type TokenCountMeta struct {
 	estimatePromptTokens int
 }
 
+type CompositeAttempt struct { RouteOrder int `json:"route_order"`; ChannelID int `json:"channel_id"`; Error string `json:"error,omitempty"` }
 type RelayInfo struct {
+	TokenDailyQuotaNextResetTime int64
+	TokenDailyQuotaEnabled bool
+	CompositeGroupName string
+	CompositePhysicalGroup string
+	CompositeRouteOrder int
+	CompositeOperation string
+	CompositeAttempts []CompositeAttempt
 	TokenId           int
 	TokenKey          string
 	TokenGroup        string
@@ -203,6 +211,7 @@ type RelayInfo struct {
 	*ChannelMeta
 	*TaskRelayInfo
 }
+func (info *RelayInfo) EffectiveBillingModelName() string { if info != nil && info.BillingModelName != "" { return info.BillingModelName }; if info == nil { return "" }; return info.OriginModelName }
 
 func (info *RelayInfo) InitChannelMeta(c *gin.Context) {
 	info.FinalRequestRelayFormat = ""

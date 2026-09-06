@@ -21,6 +21,8 @@ func LogAssetConsumption(c *gin.Context, info *relaycommon.RelayInfo, action str
 		other["user_group_ratio"] = info.PriceData.GroupRatioInfo.GroupSpecialRatio
 	}
 	attachQuotaSaturation(c, info, other)
+	logOther := model.NewLogOther()
+	logOther.MergePublic(other)
 	model.RecordConsumeLog(c, info.UserId, model.RecordConsumeLogParams{
 		ModelName: info.OriginModelName,
 		TokenName: c.GetString("token_name"),
@@ -28,7 +30,7 @@ func LogAssetConsumption(c *gin.Context, info *relaycommon.RelayInfo, action str
 		Content:   fmt.Sprintf("素材库操作 %s，按次计费", action),
 		TokenId:   info.TokenId,
 		Group:     info.UsingGroup,
-		Other:     other,
+		Other:     logOther,
 	})
 	model.UpdateUserUsedQuotaAndRequestCount(info.UserId, info.PriceData.Quota)
 }
