@@ -453,7 +453,7 @@ type RecordTaskBillingLogParams struct {
 	Quota     int
 	TokenId   int
 	Group     string
-	Other     *LogOther
+	Other     any
 	NodeName  string // 任务发起节点；为空时回退当前节点
 }
 
@@ -481,7 +481,20 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 		ChannelId: params.ChannelId,
 		TokenId:   params.TokenId,
 		Group:     params.Group,
-		Other:     params.Other.JSONString(),
+		Other: func() string {
+			switch other := params.Other.(type) {
+			case *LogOther:
+				return other.JSONString()
+			case map[string]interface{}:
+				converted := NewLogOther()
+				converted.MergePublic(other)
+				return converted.JSONString()
+			case nil:
+				return "{}"
+			default:
+				return common.GetJsonString(other)
+			}
+		}(),
 	}
 	err := createLog(log)
 	if err != nil {

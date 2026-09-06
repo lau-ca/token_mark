@@ -10,6 +10,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
@@ -186,7 +187,8 @@ func ValidateCompositeGroup(group model.CompositeGroup, routes []model.Composite
 		if route.Operation == model.CompositeOperationEdit {
 			requestPath = "/v1/images/edits"
 		}
-		channel, err := model.GetRandomSatisfiedChannel(route.PhysicalGroup, route.InternalModel, 0, requestPath)
+		filters := []dto.ChannelFilter{{Kind: dto.FilterRequestPath, RequestPath: requestPath}}
+		channel, err := model.GetRandomSatisfiedChannel(route.PhysicalGroup, route.InternalModel, 0, filters)
 		if err != nil {
 			return fmt.Errorf("validate route %s/%s: %w", route.PhysicalGroup, route.InternalModel, err)
 		}
