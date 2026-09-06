@@ -12,7 +12,6 @@ import (
 
 type ChannelSettings struct {
 	TaskPluginKey              string                            `json:"task_plugin_key,omitempty"`
-	RetryTimes                 int                               `json:"retry_times,omitempty"`
 	ForceFormat                bool                              `json:"force_format,omitempty"`
 	ThinkingToContent          bool                              `json:"thinking_to_content,omitempty"`
 	Proxy                      string                            `json:"proxy"`
@@ -179,9 +178,6 @@ const (
 
 type ChannelOtherSettings struct {
 	ToolLossPolicy                        string                `json:"tool_loss_policy,omitempty"`
-	ForceImageB64JSONNoURL                bool                  `json:"force_image_b64_json_no_url,omitempty"`
-	ImageResponseURLPrefix                string                `json:"image_response_url_prefix,omitempty"`
-	NormalizeOpenAIImageResponse          bool                  `json:"normalize_openai_image_response,omitempty"`
 	AzureResponsesVersion                 string                `json:"azure_responses_version,omitempty"`
 	VertexKeyType                         VertexKeyType         `json:"vertex_key_type,omitempty"` // "json" or "api_key"
 	OpenRouterEnterprise                  *bool                 `json:"openrouter_enterprise,omitempty"`
