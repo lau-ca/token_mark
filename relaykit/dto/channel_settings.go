@@ -203,6 +203,8 @@ type ChannelOtherSettings struct {
 	AdvancedCustom                        *AdvancedCustomConfig `json:"advanced_custom,omitempty"`
 }
 
+func (s *ChannelOtherSettings) ValidateToolLossPolicy() error { return nil }
+
 func (s *ChannelOtherSettings) IsOpenRouterEnterprise() bool {
 	if s == nil || s.OpenRouterEnterprise == nil {
 		return false
