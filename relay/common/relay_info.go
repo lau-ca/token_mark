@@ -82,9 +82,14 @@ type TokenCountMeta struct {
 }
 
 type CompositeAttempt struct {
-	RouteOrder int    `json:"route_order"`
-	ChannelID  int    `json:"channel_id"`
-	Error      string `json:"error,omitempty"`
+	PhysicalGroup string `json:"physical_group,omitempty"`
+	BillingModel  string `json:"billing_model,omitempty"`
+	ChannelId     int    `json:"channel_id,omitempty"`
+	StatusCode    int    `json:"status_code,omitempty"`
+	ErrorCode     string `json:"error_code,omitempty"`
+	RouteOrder    int    `json:"route_order"`
+	ChannelID     int    `json:"channel_id"`
+	Error         string `json:"error,omitempty"`
 }
 type RelayInfo struct {
 	TokenDailyQuotaNextResetTime int64

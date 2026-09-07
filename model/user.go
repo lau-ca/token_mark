@@ -80,6 +80,7 @@ func resolveUserSortOptions(sortOptions []UserSortOptions) UserSortOptions {
 // User if you add sensitive fields, don't forget to clean them in setupLogin function.
 // Otherwise, the sensitive information will be saved on local storage in plain text!
 type User struct {
+	HasPassword          bool                       `gorm:"-" json:"has_password,omitempty"`
 	Id                   int                        `json:"id"`
 	Username             string                     `json:"username" gorm:"unique;index" validate:"max=20"`
 	Password             string                     `json:"password" gorm:"not null;" validate:"min=8,max=20"`
@@ -494,6 +495,17 @@ func GetUserById(id int, selectAll bool) (*User, error) {
 		err = DB.Omit("password", "access_token").First(&user, "id = ?", id).Error
 	}
 	return &user, err
+}
+func UpdateUserAccessToken(id int, token string) error {
+	return DB.Model(&User{}).Where("id = ?", id).Updates(map[string]interface{}{"access_token": token, "access_token_created_at": common.GetTimestamp()}).Error
+}
+func RevokeUserAccessToken(id int) (string, error) {
+	var u User
+	if err := DB.Select("access_token").First(&u, id).Error; err != nil {
+		return "", err
+	}
+	ref := AccessTokenFingerprint(u.GetAccessToken())
+	return ref, DB.Model(&User{}).Where("id = ?", id).Updates(map[string]interface{}{"access_token": nil, "access_token_created_at": nil}).Error
 }
 
 func GetSelfUserById(id int) (*User, error) { return GetUserById(id, false) }

@@ -715,7 +715,7 @@ func buildTaskBillingContext(info *relaycommon.RelayInfo, request relaycommon.Ta
 		QuotaClamp:            quotaClampCopy,
 		Resolution:            request.Resolution,
 		Duration:              request.Duration,
-		HasReferenceVideo:     request.HasReferenceVideo(),
+		HasReferenceVideo:     request.HasReferenceVideo,
 	}
 }
 

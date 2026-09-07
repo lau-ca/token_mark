@@ -93,6 +93,9 @@ type TaskSubmitResponse struct {
 type OpenAIVideoConverter interface {
 	ConvertToOpenAIVideo(originTask *model.Task) ([]byte, error)
 }
+type NativeVideoConverter interface {
+	ConvertToNativeVideo(originTask *model.Task) ([]byte, error)
+}
 
 type TaskArtifact = hosttypes.TaskArtifact
 

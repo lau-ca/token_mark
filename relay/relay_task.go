@@ -26,12 +26,14 @@ import (
 )
 
 type TaskSubmitResult struct {
-	UpstreamTaskID string
-	TaskData       []byte
-	ClientResponse any
-	Platform       constant.TaskPlatform
-	Quota          int
-	Immediate      *relaycommon.TaskInfo
+	InitialStatus   model.TaskStatus
+	InitialProgress string
+	UpstreamTaskID  string
+	TaskData        []byte
+	ClientResponse  any
+	Platform        constant.TaskPlatform
+	Quota           int
+	Immediate       *relaycommon.TaskInfo
 	//PerCallPrice   types.PriceData
 }
 

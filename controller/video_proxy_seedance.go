@@ -76,10 +76,7 @@ func resolveSeedanceVideoURL(task *model.Task, channel *model.Channel, forceRefr
 		return "", fmt.Errorf("Seedance API key is empty")
 	}
 
-	resp, err := adaptor.FetchTask(baseURL, key, map[string]any{
-		"task_id": task.GetUpstreamTaskID(),
-		"action":  task.Action,
-	}, channel.GetSetting().Proxy)
+	resp, err := adaptor.FetchTask(baseURL, key, task, channel.GetSetting().Proxy)
 	if err != nil {
 		return "", fmt.Errorf("fetch Seedance task failed: %w", err)
 	}
@@ -91,7 +88,7 @@ func resolveSeedanceVideoURL(task *model.Task, channel *model.Channel, forceRefr
 	if err != nil {
 		return "", fmt.Errorf("read Seedance task response failed: %w", err)
 	}
-	taskInfo, err := adaptor.ParseTaskResult(body)
+	taskInfo, err := adaptor.ParseTaskResult(task, resp, body)
 	if err != nil {
 		return "", fmt.Errorf("parse Seedance task response failed: %w", err)
 	}

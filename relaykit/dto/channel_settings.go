@@ -27,6 +27,9 @@ type ChannelSettings struct {
 	// (1-8). Zero/unset means 1. Ignored when HTTPProtocol is "http1".
 	HTTP2ConnectionShards int `json:"http2_connection_shards,omitempty"`
 }
+
+const MaxChannelRetryTimes = 3
+
 type ImagePromptParameterAppendConfig struct {
 	Enabled  bool     `json:"enabled,omitempty"`
 	Models   []string `json:"models,omitempty"`

@@ -421,6 +421,10 @@ func GetByTaskId(userId int, taskId string) (*Task, bool, error) {
 	}
 	return task, exist, err
 }
+func (t *Task) UpdateResultURL(url string) error {
+	t.PrivateData.ResultURL = url
+	return DB.Model(t).Update("private_data", t.PrivateData).Error
+}
 
 func GetByTaskIdsForPlatforms(userID int, platforms []constant.TaskPlatform, taskIDs []string) ([]*Task, error) {
 	if len(platforms) == 0 || len(taskIDs) == 0 {
@@ -434,6 +438,11 @@ func GetByTaskIdsForPlatforms(userID int, platforms []constant.TaskPlatform, tas
 		return nil, err
 	}
 	return tasks, nil
+}
+func GetUserTasksByPlatform(userID int, platform constant.TaskPlatform) ([]*Task, error) {
+	var tasks []*Task
+	err := DB.Where("user_id = ? AND platform = ?", userID, platform).Find(&tasks).Error
+	return tasks, err
 }
 
 // GetTaskForProtocolObservation reloads one public task through the ownership
