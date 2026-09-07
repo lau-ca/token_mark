@@ -159,7 +159,7 @@ func SeedanceTaskDelete(c *gin.Context) {
 		return
 	}
 
-	taskResult, err := adaptor.ParseTaskResult(task, response, responseBody)
+	taskResult, err := adaptor.ParseTaskResult(responseBody)
 	if err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": gin.H{"message": "invalid upstream task response", "type": "server_error"}})
 		return

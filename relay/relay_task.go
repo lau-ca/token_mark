@@ -26,11 +26,11 @@ import (
 )
 
 type TaskSubmitResult struct {
-	InitialStatus   model.TaskStatus
-	InitialProgress string
 	UpstreamTaskID  string
 	TaskData        []byte
 	ClientResponse  any
+	InitialStatus   string
+	InitialProgress string
 	Platform        constant.TaskPlatform
 	Quota           int
 	Immediate       *relaycommon.TaskInfo
@@ -492,7 +492,10 @@ func tryRealtimeFetch(task *model.Task, isOpenAIVideoAPI bool) []byte {
 		return nil
 	}
 
-	resp, err := adaptor.FetchTask(baseURL, channelModel.Key, task, proxy)
+	resp, err := adaptor.FetchTask(baseURL, channelModel.Key, map[string]any{
+		"task_id": task.GetUpstreamTaskID(),
+		"action":  constant.NormalizeTaskAction(task.Action),
+	}, proxy)
 	if err != nil || resp == nil {
 		return nil
 	}
@@ -502,7 +505,7 @@ func tryRealtimeFetch(task *model.Task, isOpenAIVideoAPI bool) []byte {
 		return nil
 	}
 
-	ti, err := adaptor.ParseTaskResult(task, resp, body)
+	ti, err := adaptor.ParseTaskResult(body)
 	if err != nil || ti == nil {
 		return nil
 	}

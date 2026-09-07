@@ -16,6 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
+	pluginruntime "github.com/QuantumNous/new-api/pkg/jsplugin"
 	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	"github.com/QuantumNous/new-api/relay"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -675,7 +676,7 @@ func RelayTask(c *gin.Context) {
 		task.Data = result.TaskData
 		task.Action = relayInfo.Action
 		if result.InitialStatus != "" {
-			task.Status = result.InitialStatus
+			task.Status = model.TaskStatus(result.InitialStatus)
 		}
 		if result.InitialProgress != "" {
 			task.Progress = result.InitialProgress
@@ -767,4 +768,28 @@ func shouldRetryTaskRelay(c *gin.Context, channelId int, taskErr *taskdto.TaskEr
 		return false
 	}
 	return true
+}
+
+func RelayTaskPluginEndpoint(c *gin.Context, fallback gin.HandlerFunc) {
+	pinnedValue, exists := c.Get(pluginruntime.ContextKeyPinnedEndpoint)
+	if !exists {
+		fallback(c)
+		return
+	}
+	pinned, ok := pinnedValue.(pluginruntime.PinnedEndpoint)
+	if !ok || pinned.Plugin == nil || pinned.Generation == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": gin.H{
+				"message": "Task protocol request failed",
+				"type":    "new_api_error",
+				"code":    "task_protocol_error",
+			},
+		})
+		return
+	}
+	if pinned.Protocol != "openai_responses" {
+		fallback(c)
+		return
+	}
+	serveTaskPluginProtocol(c, pinned, defaultPluginProtocolBridgeDeps())
 }
