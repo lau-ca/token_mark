@@ -17,7 +17,7 @@ const (
 
 type CompositeGroup struct {
 	Id                int            `json:"id"`
-	Name              string         `json:"name" gorm:"size:64;not null;uniqueIndex:uk_composite_group_name"`
+	Name              string         `json:"name" gorm:"size:64;not null;unique"`
 	PublicModel       string         `json:"public_model" gorm:"size:128;not null"`
 	DisplayName       string         `json:"display_name" gorm:"size:128"`
 	Description       string         `json:"description" gorm:"type:text"`
