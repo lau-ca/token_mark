@@ -42,7 +42,6 @@ type TraceResult struct {
 // auto-group retry and settlement. It is fully serializable and contains no
 // compiled program pointers.
 type BillingSnapshot struct {
-	UsageFacts                map[string]any `json:"usage_facts,omitempty"`
 	BillingMode               string         `json:"billing_mode"`
 	ModelName                 string         `json:"model_name"`
 	ExprString                string         `json:"expr_string"`
@@ -56,6 +55,8 @@ type BillingSnapshot struct {
 	QuotaPerUnit              float64        `json:"quota_per_unit"`
 	ExprVersion               int            `json:"expr_version"`
 	TaskTokenBilling          bool           `json:"task_token_billing,omitempty"`
+	TaskUsageBilling          bool           `json:"task_usage_billing,omitempty"`
+	UsageFacts                map[string]any `json:"usage_facts,omitempty"`
 }
 
 // TieredResult holds everything needed after running tiered settlement.

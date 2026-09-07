@@ -1,5 +1,9 @@
 package constant
 
+func SupportsVideoURLProxyReplacement(channelType int) bool {
+	return channelType == ChannelTypeSeedance || channelType == ChannelTypeDoubaoVideo
+}
+
 const (
 	ChannelTypeUnknown        = 0
 	ChannelTypeOpenAI         = 1
