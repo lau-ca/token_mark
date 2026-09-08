@@ -32,9 +32,16 @@ type TokenParams struct {
 // TraceResult holds side-channel info captured by the tier() function
 // during Expr execution. This replaces the old Breakdown mechanism —
 // the Expr itself is the single source of truth for billing logic.
+type RequestRuleTrace struct {
+	Cond       string  `json:"cond"`
+	Multiplier float64 `json:"multiplier"`
+	Matched    bool    `json:"matched"`
+}
+
 type TraceResult struct {
-	MatchedTier string  `json:"matched_tier"`
-	Cost        float64 `json:"cost"`
+	MatchedTier  string             `json:"matched_tier"`
+	RequestRules []RequestRuleTrace `json:"request_rules,omitempty"`
+	Cost         float64            `json:"cost"`
 }
 
 // BillingSnapshot captures billing state at pre-consume time. Expression and

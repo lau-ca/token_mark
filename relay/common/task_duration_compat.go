@@ -1,8 +1,4 @@
 package common
 
-func ResolveTaskDuration(req TaskSubmitReq) (int, error) {
-	if req.Duration > 0 {
-		return req.Duration, nil
-	}
-	return 0, nil
-}
+// Task duration compatibility is implemented in relay_utils.go so request
+// parsing and Seedance validation share the same normalization rules.

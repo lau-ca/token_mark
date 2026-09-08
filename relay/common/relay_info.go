@@ -965,18 +965,62 @@ type TaskRelayInfo struct {
 }
 
 type TaskSubmitReq struct {
-	Prompt            string                 `json:"prompt"`
-	Model             string                 `json:"model,omitempty"`
-	Mode              string                 `json:"mode,omitempty"`
-	Image             string                 `json:"image,omitempty"`
-	Images            []string               `json:"images,omitempty"`
-	Size              string                 `json:"size,omitempty"`
-	Duration          int                    `json:"duration,omitempty"`
-	Seconds           string                 `json:"seconds,omitempty"`
-	InputReference    string                 `json:"input_reference,omitempty"`
-	Metadata          map[string]interface{} `json:"metadata,omitempty"`
-	Resolution        string                 `json:"resolution,omitempty"`
-	HasReferenceVideo bool                   `json:"has_reference_video,omitempty"`
+	Prompt                string                 `json:"prompt"`
+	Model                 string                 `json:"model,omitempty"`
+	Content               []TaskContentItem      `json:"content,omitempty"`
+	CallbackURL           string                 `json:"callback_url,omitempty"`
+	ReturnLastFrame       *bool                  `json:"return_last_frame,omitempty"`
+	ServiceTier           string                 `json:"service_tier,omitempty"`
+	ExecutionExpiresAfter *int                   `json:"execution_expires_after,omitempty"`
+	GenerateAudio         *bool                  `json:"generate_audio,omitempty"`
+	Draft                 *bool                  `json:"draft,omitempty"`
+	Tools                 []TaskTool             `json:"tools,omitempty"`
+	SafetyIdentifier      string                 `json:"safety_identifier,omitempty"`
+	Priority              *int                   `json:"priority,omitempty"`
+	Mode                  string                 `json:"mode,omitempty"`
+	Image                 string                 `json:"image,omitempty"`
+	Images                []string               `json:"images,omitempty"`
+	Size                  string                 `json:"size,omitempty"`
+	Duration              int                    `json:"duration,omitempty"`
+	Seconds               string                 `json:"seconds,omitempty"`
+	AspectRatio           string                 `json:"aspect_ratio,omitempty"`
+	Ratio                 string                 `json:"ratio,omitempty"`
+	Resolution            string                 `json:"resolution,omitempty"`
+	Frames                *int                   `json:"frames,omitempty"`
+	Seed                  *int                   `json:"seed,omitempty"`
+	CameraFixed           *bool                  `json:"camera_fixed,omitempty"`
+	Watermark             *bool                  `json:"watermark,omitempty"`
+	ReferenceImages       []string               `json:"referenceImages,omitempty"`
+	ReferenceVideos       []string               `json:"referenceVideos,omitempty"`
+	ReferenceAudios       []string               `json:"referenceAudios,omitempty"`
+	InputReference        string                 `json:"input_reference,omitempty"`
+	Metadata              map[string]interface{} `json:"metadata,omitempty"`
+	HasReferenceVideoFlag bool                   `json:"has_reference_video,omitempty"`
+
+	durationProvided bool
+	durationParseErr error
+}
+
+type TaskContentItem struct {
+	Type      string         `json:"type,omitempty"`
+	Text      string         `json:"text,omitempty"`
+	ImageURL  *TaskMediaURL  `json:"image_url,omitempty"`
+	VideoURL  *TaskMediaURL  `json:"video_url,omitempty"`
+	AudioURL  *TaskMediaURL  `json:"audio_url,omitempty"`
+	DraftTask *TaskDraftTask `json:"draft_task,omitempty"`
+	Role      string         `json:"role,omitempty"`
+}
+
+type TaskMediaURL struct {
+	URL string `json:"url,omitempty"`
+}
+
+type TaskDraftTask struct {
+	ID string `json:"id,omitempty"`
+}
+
+type TaskTool struct {
+	Type string `json:"type,omitempty"`
 }
 
 func (t *TaskSubmitReq) GetPrompt() string {
@@ -987,11 +1031,45 @@ func (t *TaskSubmitReq) HasImage() bool {
 	return len(t.Images) > 0
 }
 
+func (t *TaskSubmitReq) HasReferenceVideo() bool {
+	if t == nil {
+		return false
+	}
+	for _, videoURL := range t.ReferenceVideos {
+		if strings.TrimSpace(videoURL) != "" {
+			return true
+		}
+	}
+	for _, item := range t.Content {
+		if item.Type == "video_url" && item.VideoURL != nil && strings.TrimSpace(item.VideoURL.URL) != "" {
+			return true
+		}
+	}
+	content, ok := t.Metadata["content"].([]interface{})
+	if !ok {
+		return false
+	}
+	for _, item := range content {
+		entry, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if entry["type"] == "video_url" {
+			return true
+		}
+		if _, ok := entry["video_url"]; ok {
+			return true
+		}
+	}
+	return false
+}
+
 func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 	type Alias TaskSubmitReq
 	aux := &struct {
 		Metadata json.RawMessage `json:"metadata,omitempty"`
 		Duration json.RawMessage `json:"duration,omitempty"`
+		Seconds  json.RawMessage `json:"seconds,omitempty"`
 		*Alias
 	}{
 		Alias: (*Alias)(t),
@@ -1001,16 +1079,38 @@ func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
+	t.durationProvided = len(aux.Duration) > 0
+	t.durationParseErr = nil
 	if len(aux.Duration) > 0 {
+		t.Duration = 0
 		var durationInt int
-		if err := common.Unmarshal(aux.Duration, &durationInt); err == nil {
+		if strings.TrimSpace(string(aux.Duration)) == "null" {
+			t.durationParseErr = fmt.Errorf("duration must be an integer")
+		} else if err := common.Unmarshal(aux.Duration, &durationInt); err == nil {
 			t.Duration = durationInt
 		} else {
 			var durationStr string
-			if err := common.Unmarshal(aux.Duration, &durationStr); err == nil && durationStr != "" {
-				if v, err := strconv.Atoi(durationStr); err == nil {
-					t.Duration = v
+			if err := common.Unmarshal(aux.Duration, &durationStr); err != nil || durationStr == "" {
+				t.durationParseErr = fmt.Errorf("duration must be an integer")
+			} else if duration, err := strconv.Atoi(durationStr); err != nil {
+				t.durationParseErr = fmt.Errorf("duration must be an integer")
+			} else {
+				t.Duration = duration
+			}
+		}
+	}
+	if len(aux.Seconds) > 0 {
+		t.Seconds = ""
+		if strings.TrimSpace(string(aux.Seconds)) != "null" {
+			var secondsInt int
+			if err := common.Unmarshal(aux.Seconds, &secondsInt); err == nil {
+				t.Seconds = strconv.Itoa(secondsInt)
+			} else {
+				var secondsStr string
+				if err := common.Unmarshal(aux.Seconds, &secondsStr); err != nil {
+					return fmt.Errorf("seconds must be an integer or string")
 				}
+				t.Seconds = secondsStr
 			}
 		}
 	}
@@ -1058,6 +1158,7 @@ type TaskInfo struct {
 	Progress         string          `json:"progress,omitempty"`
 	CompletionTokens int             `json:"completion_tokens,omitempty"` // 用于按倍率计费
 	TotalTokens      int             `json:"total_tokens,omitempty"`      // 用于按倍率计费
+	FinalPrice       float64         `json:"final_price,omitempty"`       // 上游返回的最终按次费用
 	UsageFacts       map[string]any  `json:"usage_facts,omitempty"`
 	PluginState      json.RawMessage `json:"plugin_state,omitempty"`
 }
